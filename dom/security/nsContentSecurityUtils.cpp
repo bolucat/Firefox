@@ -1356,6 +1356,7 @@ static nsLiteralCString sImgSrcDataBlobAllowList[] = {
     "chrome://devtools/content/responsive/toolbar.xhtml"_ns,
     "chrome://devtools/content/shared/sourceeditor/codemirror/cmiframe.html"_ns,
     "chrome://devtools/content/webconsole/index.html"_ns,
+    "chrome://global/content/alerts/alert.xhtml"_ns,
     "chrome://global/content/print.html"_ns,
 };
 // img-src https:
@@ -1382,6 +1383,7 @@ static nsLiteralCString sImgSrcHttpAllowList[] = {
     "chrome://devtools/content/framework/browser-toolbox/window.html"_ns,
     "chrome://devtools/content/framework/toolbox-window.xhtml"_ns,
     "chrome://browser/content/preferences/dialogs/applicationManager.xhtml"_ns,
+    "chrome://global/content/alerts/alert.xhtml"_ns,
     "chrome://mozapps/content/handling/appChooser.xhtml"_ns,
     // STOP! Do not add anything to this list.
 };
@@ -1402,8 +1404,6 @@ static nsLiteralCString sImgSrcWildcardAllowList[] = {
 //  Any https host source.
 static nsLiteralCString sImgSrcHttpsHostAllowList[] = {
     "about:logins"_ns,
-    "about:pocket-home"_ns,
-    "about:pocket-saved"_ns,
     "chrome://browser/content/aboutlogins/aboutLogins.html"_ns,
     "chrome://browser/content/spotlight.html"_ns,
 };
@@ -2208,6 +2208,13 @@ long nsContentSecurityUtils::ClassifyDownload(nsIChannel* aChannel) {
   MOZ_ASSERT(aChannel, "IsDownloadAllowed without channel?");
 
   nsCOMPtr<nsILoadInfo> loadInfo = aChannel->LoadInfo();
+  if ((loadInfo->GetTriggeringSandboxFlags() & SANDBOXED_DOWNLOADS) ||
+      (loadInfo->GetSandboxFlags() & SANDBOXED_DOWNLOADS)) {
+    if (nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(aChannel)) {
+      LogMessageToConsole(httpChannel, "IframeSandboxBlockedDownload");
+    }
+    return nsITransfer::DOWNLOAD_FORBIDDEN;
+  }
 
   nsCOMPtr<nsIURI> contentLocation;
   aChannel->GetURI(getter_AddRefs(contentLocation));
@@ -2240,27 +2247,11 @@ long nsContentSecurityUtils::ClassifyDownload(nsIChannel* aChannel) {
 
   if (StaticPrefs::dom_block_download_insecure() &&
       decission != nsIContentPolicy::ACCEPT) {
-    nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(aChannel);
-    if (httpChannel) {
+    if (nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(aChannel)) {
       LogMessageToConsole(httpChannel, "MixedContentBlockedDownload");
     }
     return nsITransfer::DOWNLOAD_POTENTIALLY_UNSAFE;
   }
 
-  if (loadInfo->TriggeringPrincipal()->IsSystemPrincipal()) {
-    return nsITransfer::DOWNLOAD_ACCEPTABLE;
-  }
-
-  uint32_t triggeringFlags = loadInfo->GetTriggeringSandboxFlags();
-  uint32_t currentflags = loadInfo->GetSandboxFlags();
-
-  if ((triggeringFlags & SANDBOXED_ALLOW_DOWNLOADS) ||
-      (currentflags & SANDBOXED_ALLOW_DOWNLOADS)) {
-    nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(aChannel);
-    if (httpChannel) {
-      LogMessageToConsole(httpChannel, "IframeSandboxBlockedDownload");
-    }
-    return nsITransfer::DOWNLOAD_FORBIDDEN;
-  }
   return nsITransfer::DOWNLOAD_ACCEPTABLE;
 }

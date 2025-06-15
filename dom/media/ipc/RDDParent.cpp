@@ -17,12 +17,12 @@
 #  include <unistd.h>
 #endif
 
-#include "PDMFactory.h"
 #include "gfxConfig.h"
+#include "MediaCodecsSupport.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/FOGIPC.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/RemoteDecoderManagerParent.h"
+#include "mozilla/RemoteMediaManagerParent.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/dom/MemoryReportRequest.h"
 #include "mozilla/gfx/gfxVars.h"
@@ -144,7 +144,7 @@ mozilla::ipc::IPCResult RDDParent::RecvInit(
     gfxVars::ApplyUpdate(var);
   }
 
-  auto supported = PDMFactory::Supported();
+  auto supported = media::MCSInfo::GetSupportFromFactory();
   Unused << SendUpdateMediaCodecsSupported(supported);
 
 #if defined(MOZ_SANDBOX)
@@ -184,11 +184,11 @@ mozilla::ipc::IPCResult RDDParent::RecvInitProfiler(
   return IPC_OK();
 }
 
-mozilla::ipc::IPCResult RDDParent::RecvNewContentRemoteDecoderManager(
-    Endpoint<PRemoteDecoderManagerParent>&& aEndpoint,
+mozilla::ipc::IPCResult RDDParent::RecvNewContentRemoteMediaManager(
+    Endpoint<PRemoteMediaManagerParent>&& aEndpoint,
     const ContentParentId& aParentId) {
-  if (!RemoteDecoderManagerParent::CreateForContent(std::move(aEndpoint),
-                                                    aParentId)) {
+  if (!RemoteMediaManagerParent::CreateForContent(std::move(aEndpoint),
+                                                  aParentId)) {
     return IPC_FAIL_NO_REASON(this);
   }
   return IPC_OK();
@@ -197,7 +197,7 @@ mozilla::ipc::IPCResult RDDParent::RecvNewContentRemoteDecoderManager(
 mozilla::ipc::IPCResult RDDParent::RecvInitVideoBridge(
     Endpoint<PVideoBridgeChild>&& aEndpoint, const bool& aCreateHardwareDevice,
     const ContentDeviceData& aContentDeviceData) {
-  if (!RemoteDecoderManagerParent::CreateVideoBridgeToOtherProcess(
+  if (!RemoteMediaManagerParent::CreateVideoBridgeToOtherProcess(
           std::move(aEndpoint))) {
     return IPC_FAIL_NO_REASON(this);
   }
@@ -319,7 +319,7 @@ void RDDParent::ActorDestroy(ActorDestroyReason aWhy) {
   ProcessChild::QuickExit();
 #endif
 
-  // Wait until all RemoteDecoderManagerParent have closed.
+  // Wait until all RemoteMediaManagerParent have closed.
   mShutdownBlockers.WaitUntilClear(10 * 1000 /* 10s timeout*/)
       ->Then(GetCurrentSerialEventTarget(), __func__, [&]() {
 
@@ -333,7 +333,7 @@ void RDDParent::ActorDestroy(ActorDestroyReason aWhy) {
           mProfilerController = nullptr;
         }
 
-        RemoteDecoderManagerParent::ShutdownVideoBridge();
+        RemoteMediaManagerParent::ShutdownVideoBridge();
 
 #if defined(MOZ_WIDGET_GTK)
         // Linux runs VA-API decode on RDD process so we need to

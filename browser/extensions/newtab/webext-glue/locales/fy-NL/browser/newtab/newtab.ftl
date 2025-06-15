@@ -117,6 +117,8 @@ newtab-menu-delete-pocket = Fuortsmite út { -pocket-brand-name }
 newtab-menu-archive-pocket = Argivearje yn { -pocket-brand-name }
 newtab-menu-show-privacy-info = Us sponsors en jo privacy
 newtab-menu-about-fakespot = Oer { -fakespot-brand-name }
+# Report is a verb (i.e. report issue with the content).
+newtab-menu-report = Rapportearje
 newtab-menu-report-content = Dizze ynhâld rapportearje
 # Context menu option to personalize New Tab recommended stories by blocking a section of stories,
 # e.g. "Sports". "Block" is a verb here.
@@ -191,6 +193,8 @@ newtab-label-sponsored-by = Sponsore troch { $sponsor }
 #   $source (string) - The name of a company or their domain
 #   $timeToRead (number) - The estimated number of minutes to read this story
 newtab-label-source-read-time = { $source } · { $timeToRead } min.
+# This string is used under fixed size ads to indicate sponsored content
+newtab-label-sponsored-fixed = Sponsore
 
 ## Section Menu: These strings are displayed in the section context menu and are
 ## meant as a call to action for the given section.
@@ -312,6 +316,9 @@ newtab-custom-recent-toggle =
 newtab-custom-weather-toggle =
     .label = It waar
     .description = De waarsferwachting fan hjoed yn ien eachopslach
+newtab-custom-trending-search-toggle =
+    .label = Trending sykopdrachten
+    .description = Populêre en faak sochte ûnderwerpen
 newtab-custom-close-button = Slute
 newtab-custom-settings = Mear ynstellingen beheare
 
@@ -559,3 +566,14 @@ newtab-report-cancel = Annulearje
 newtab-report-submit = Yntsjinje
 newtab-toast-thanks-for-reporting =
     .message = Tank foar it melden.
+
+## Strings for trending searches
+
+# "Trending on Google" refers to the trending topics coming from Google Search, usually seen when a user is focused on the search bar
+newtab-trending-searches-trending-on-google = Trending op Google
+newtab-trending-searches-show-trending =
+    .title = Trending sykopdrachten toane
+newtab-trending-searches-hide-trending =
+    .title = Trending sykopdrachten ferstopje
+newtab-trending-searches-learn-more = Mear ynfo
+newtab-trending-searches-dismiss = Trending sykopdrachten ferstopje

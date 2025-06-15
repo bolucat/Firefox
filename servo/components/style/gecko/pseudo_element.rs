@@ -51,24 +51,29 @@ pub enum Target {
 ///
 /// https://drafts.csswg.org/css-view-transitions-2/#typedef-pt-name-and-class-selector
 #[derive(Clone, Debug, Eq, Hash, MallocSizeOf, PartialEq, ToShmem)]
-pub struct PtNameAndClassSelector(thin_vec::ThinVec<AtomIdent>);
+pub struct PtNameAndClassSelector(thin_vec::ThinVec<Atom>);
 
 impl PtNameAndClassSelector {
     /// Constructs a new one from a name.
-    pub fn from_name(name: AtomIdent) -> Self {
+    pub fn from_name(name: Atom) -> Self {
         Self(thin_vec![name])
     }
 
     /// Returns the name component.
-    pub fn name(&self) -> &AtomIdent {
+    pub fn name(&self) -> &Atom {
         debug_assert!(!self.0.is_empty());
         self.0.first().expect("Shouldn't be empty")
     }
 
     /// Returns the classes component.
-    pub fn classes(&self) -> &[AtomIdent] {
+    pub fn classes(&self) -> &[Atom] {
         debug_assert!(!self.0.is_empty());
         &self.0[1..]
+    }
+
+    /// Returns the vector we store.
+    pub fn name_and_classes(&self) -> &thin_vec::ThinVec<Atom> {
+        &self.0
     }
 
     /// Parse the pseudo-element tree name and/or class.
@@ -88,12 +93,12 @@ impl PtNameAndClassSelector {
         // <pt-name-selector> = '*' | <custom-ident>
         let parse_pt_name = |input: &mut Parser<'i, '_>| {
             // For pseudo-element string, we don't accept '*'.
-            if matches!(target, Target::Selector)
-                && input.try_parse(|i| i.expect_delim('*')).is_ok()
+            if matches!(target, Target::Selector) &&
+                input.try_parse(|i| i.expect_delim('*')).is_ok()
             {
-                Ok(AtomIdent::new(atom!("*")))
+                Ok(atom!("*"))
             } else {
-                CustomIdent::parse(input, &[]).map(|c| AtomIdent::new(c.0))
+                CustomIdent::parse(input, &[]).map(|c| c.0)
             }
         };
         let name = input.try_parse(parse_pt_name);
@@ -117,7 +122,7 @@ impl PtNameAndClassSelector {
             if let Ok(token) = input.try_parse(|i| i.expect_whitespace()) {
                 return Err(input.new_unexpected_token_error(Token::WhiteSpace(token)));
             }
-            CustomIdent::parse(input, &[]).map(|c| AtomIdent::new(c.0))
+            CustomIdent::parse(input, &[]).map(|c| c.0)
         };
         // If there is no `<pt-name-selector>`, it's fine to have whitespaces before the first '.'.
         if name.is_err() {
@@ -136,7 +141,7 @@ impl PtNameAndClassSelector {
 
         // Use the universal symbol as the first element to present the part of
         // `<pt-name-selector>` because they are equivalent (and the serialization is the same).
-        let mut result = thin_vec![name.unwrap_or(AtomIdent::new(atom!("*")))];
+        let mut result = thin_vec![name.unwrap_or(atom!("*"))];
         result.append(&mut classes);
 
         Ok(Self(result))
@@ -149,16 +154,16 @@ impl ToCss for PtNameAndClassSelector {
         W: fmt::Write,
     {
         let name = self.name();
-        if name.0 == atom!("*") {
+        if name == &atom!("*") {
             // serialize_atom_identifier() may serialize "*" as "\*", so we handle it separately.
             dest.write_char('*')?;
         } else {
-            serialize_atom_identifier(&name.0, dest)?;
+            serialize_atom_identifier(name, dest)?;
         }
 
         for class in self.classes() {
             dest.write_char('.')?;
-            serialize_atom_identifier(&class.0, dest)?;
+            serialize_atom_identifier(class, dest)?;
         }
 
         Ok(())
@@ -343,16 +348,20 @@ impl PseudoElement {
     /// The count we contribute to the specificity from this pseudo-element.
     pub fn specificity_count(&self) -> u32 {
         match *self {
-            Self::ViewTransitionGroup(ref name) |
-            Self::ViewTransitionImagePair(ref name) |
-            Self::ViewTransitionOld(ref name) |
-            Self::ViewTransitionNew(ref name) => {
-                // The specificity of a named view transition pseudo-element selector with a
-                // `<custom-ident>` argument is equivalent to a type selector.
+            Self::ViewTransitionGroup(ref name_and_class) |
+            Self::ViewTransitionImagePair(ref name_and_class) |
+            Self::ViewTransitionOld(ref name_and_class) |
+            Self::ViewTransitionNew(ref name_and_class) => {
+                // The specificity of a named view transition pseudo-element selector with either:
+                // 1. a <pt-name-selector> with a <custom-ident>; or
+                // 2. a <pt-class-selector> with at least one <custom-ident>,
+                // is equivalent to a type selector.
+                //
                 // The specificity of a named view transition pseudo-element selector with a `*`
-                // argument is zero.
-                // TODO: Bug 1964949. Implement matching for view-transition-class.
-                (name.name().0 != atom!("*")) as u32
+                // argument and with an empty <pt-class-selector> is zero.
+                // https://drafts.csswg.org/css-view-transitions-2/#pseudo-element-class-additions
+                (name_and_class.name() != &atom!("*") || !name_and_class.classes().is_empty())
+                    as u32
             },
             _ => 1,
         }
@@ -486,6 +495,47 @@ impl PseudoElement {
                 })
             },
             t => return Err(input.new_unexpected_token_error(t)),
+        }
+    }
+
+    /// Returns true if this pseudo-element matches its selector.
+    pub fn matches_named_view_transition_pseudo_element(
+        &self,
+        selector: &Self,
+        element: &super::wrapper::GeckoElement,
+    ) -> bool {
+        use crate::gecko_bindings::bindings;
+
+        match (self, selector) {
+            (
+                &Self::ViewTransitionGroup(ref name),
+                &Self::ViewTransitionGroup(ref s_name_class),
+            ) |
+            (
+                &Self::ViewTransitionImagePair(ref name),
+                &Self::ViewTransitionImagePair(ref s_name_class),
+            ) |
+            (&Self::ViewTransitionOld(ref name), &Self::ViewTransitionOld(ref s_name_class)) |
+            (&Self::ViewTransitionNew(ref name), &Self::ViewTransitionNew(ref s_name_class)) => {
+                // Named view transition pseudos accept the universal selector as the name, so we
+                // check it first.
+                // https://drafts.csswg.org/css-view-transitions-1/#named-view-transition-pseudo
+                let s_name = s_name_class.name();
+                if s_name != name.name() && s_name != &atom!("*") {
+                    return false;
+                }
+
+                // We have to check class list only when the name is matched and there are one or
+                // more <pt-class-selector>s.
+                s_name_class.classes().is_empty() ||
+                    unsafe {
+                        bindings::Gecko_MatchViewTransitionClass(
+                            element.0,
+                            s_name_class.name_and_classes(),
+                        )
+                    }
+            },
+            _ => false,
         }
     }
 }

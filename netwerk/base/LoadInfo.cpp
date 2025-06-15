@@ -29,6 +29,7 @@
 #include "mozilla/StaticPrefs_security.h"
 #include "mozIThirdPartyUtil.h"
 #include "ThirdPartyUtil.h"
+#include "nsContentSecurityManager.h"
 #include "nsFrameLoader.h"
 #include "nsFrameLoaderOwner.h"
 #include "nsIContentPolicy.h"
@@ -770,6 +771,7 @@ LoadInfo::LoadInfo(const LoadInfo& rhs)
       mAllowDeprecatedSystemRequests(rhs.mAllowDeprecatedSystemRequests),
       mIsInDevToolsContext(rhs.mIsInDevToolsContext),
       mParserCreatedScript(rhs.mParserCreatedScript),
+      mRequestMode(rhs.mRequestMode),
       mStoragePermission(rhs.mStoragePermission),
       mParentIPAddressSpace(rhs.mParentIPAddressSpace),
       mIPAddressSpace(rhs.mIPAddressSpace),
@@ -834,6 +836,7 @@ LoadInfo::LoadInfo(
     bool aHasValidUserGestureActivation, bool aTextDirectiveUserActivation,
     bool aIsSameDocumentNavigation, bool aAllowDeprecatedSystemRequests,
     bool aIsInDevToolsContext, bool aParserCreatedScript,
+    Maybe<RequestMode> aRequestMode,
     nsILoadInfo::StoragePermissionState aStoragePermission,
     nsILoadInfo::IPAddressSpace aParentIPAddressSpace,
     nsILoadInfo::IPAddressSpace aIPAddressSpace,
@@ -919,6 +922,7 @@ LoadInfo::LoadInfo(
       mAllowDeprecatedSystemRequests(aAllowDeprecatedSystemRequests),
       mIsInDevToolsContext(aIsInDevToolsContext),
       mParserCreatedScript(aParserCreatedScript),
+      mRequestMode(aRequestMode),
       mStoragePermission(aStoragePermission),
       mParentIPAddressSpace(aParentIPAddressSpace),
       mIPAddressSpace(aIPAddressSpace),
@@ -1199,12 +1203,8 @@ LoadInfo::SetTriggeringStorageAccess(bool aFlags) {
 
 NS_IMETHODIMP
 LoadInfo::GetSecurityMode(uint32_t* aFlags) {
-  *aFlags = (mSecurityFlags &
-             (nsILoadInfo::SEC_REQUIRE_SAME_ORIGIN_INHERITS_SEC_CONTEXT |
-              nsILoadInfo::SEC_REQUIRE_SAME_ORIGIN_DATA_IS_BLOCKED |
-              nsILoadInfo::SEC_ALLOW_CROSS_ORIGIN_INHERITS_SEC_CONTEXT |
-              nsILoadInfo::SEC_ALLOW_CROSS_ORIGIN_SEC_CONTEXT_IS_NULL |
-              nsILoadInfo::SEC_REQUIRE_CORS_INHERITS_SEC_CONTEXT));
+  *aFlags = nsContentSecurityManager::ComputeSecurityMode(mSecurityFlags);
+
   return NS_OK;
 }
 
@@ -2254,6 +2254,18 @@ LoadInfo::GetParserCreatedScript(bool* aParserCreatedScript) {
 NS_IMETHODIMP
 LoadInfo::SetParserCreatedScript(bool aParserCreatedScript) {
   mParserCreatedScript = aParserCreatedScript;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+LoadInfo::GetRequestMode(Maybe<RequestMode>* aRequestMode) {
+  *aRequestMode = mRequestMode;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+LoadInfo::SetRequestMode(Maybe<RequestMode> aRequestMode) {
+  mRequestMode = aRequestMode;
   return NS_OK;
 }
 

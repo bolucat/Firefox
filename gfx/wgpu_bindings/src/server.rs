@@ -292,12 +292,24 @@ fn support_use_external_texture_in_swap_chain(
 ) -> bool {
     #[cfg(target_os = "windows")]
     {
-        return backend == wgt::Backend::Dx12 && is_hardware;
+        if backend != wgt::Backend::Dx12 {
+            log::info!("WebGPU: disabling ExternalTexture swapchain: \n\
+                        wgpu backend is not Dx12");
+            return false;
+        }
+        if !is_hardware {
+            log::info!("WebGPU: disabling ExternalTexture swapchain: \n\
+                        Dx12 backend is not hardware");
+            return false;
+        }
+        return true;
     }
 
     #[cfg(target_os = "linux")]
     {
         let support = if backend != wgt::Backend::Vulkan {
+            log::info!("WebGPU: disabling ExternalTexture swapchain: \n\
+                        wgpu backend is not Vulkan");
             false
         } else {
             unsafe {
@@ -312,12 +324,20 @@ fn support_use_external_texture_in_swap_chain(
                     };
 
                     let capabilities = hal_adapter.physical_device_capabilities();
-
-                    capabilities.supports_extension(khr::external_memory_fd::NAME)
-                        && capabilities.supports_extension(ash::ext::external_memory_dma_buf::NAME)
-                        && capabilities
-                            .supports_extension(ash::ext::image_drm_format_modifier::NAME)
-                        && capabilities.supports_extension(khr::external_semaphore_fd::NAME)
+                    static REQUIRED: &[&'static std::ffi::CStr] = &[
+                        khr::external_memory_fd::NAME,
+                        ash::ext::external_memory_dma_buf::NAME,
+                        ash::ext::image_drm_format_modifier::NAME,
+                        khr::external_semaphore_fd::NAME,
+                    ];
+                    REQUIRED.iter().all(|extension| {
+                        let supported = capabilities.supports_extension(extension);
+                        if !supported {
+                            log::info!("WebGPU: disabling ExternalTexture swapchain: \n\
+                                        Vulkan extension not supported: {:?}", extension.to_string_lossy());
+                        }
+                        supported
+                    })
                 })
             }
         };
@@ -326,7 +346,14 @@ fn support_use_external_texture_in_swap_chain(
 
     #[cfg(target_os = "macos")]
     {
-        if backend != wgt::Backend::Metal || !is_hardware {
+        if backend != wgt::Backend::Metal {
+            log::info!("WebGPU: disabling ExternalTexture swapchain: \n\
+                        wgpu backend is not Metal");
+            return false;
+        }
+        if !is_hardware {
+            log::info!("WebGPU: disabling ExternalTexture swapchain: \n\
+                        Metal backend is not hardware");
             return false;
         }
 
@@ -336,9 +363,14 @@ fn support_use_external_texture_in_swap_chain(
             msg_send![process_info, operatingSystemVersion]
         };
 
-        let supports_shared_event = version.at_least((10, 14), (12, 0), /* os_is_mac */ true);
+        if !version.at_least((10, 14), (12, 0), /* os_is_mac */ true) {
+            log::info!("WebGPU: disabling ExternalTexture swapchain:\n\
+                        operating system version is not at least 10.14 (macOS) or 12.0 (iOS)\n\
+                        shared event not supported");
+            return false;
+        }
 
-        return supports_shared_event;
+        return true;
     }
 
     false
@@ -415,19 +447,22 @@ pub unsafe extern "C" fn wgpu_server_adapter_request_device(
     let mut desc: wgc::device::DeviceDescriptor =
         bincode::deserialize(byte_buf.as_slice()).unwrap();
 
-    desc.trace = match desc.trace {
-        wgt::Trace::Directory(s) => {
-            let idx = TRACE_IDX.fetch_add(1, Ordering::Relaxed);
-            let path = s.join(idx.to_string());
+    if let wgt::Trace::Directory(ref path) = desc.trace {
+        log::warn!("DeviceDescriptor from child process should not request wgpu trace path, but it did request `{}`",
+                   path.display());
+    }
+    desc.trace = wgt::Trace::Off;
+    if let Some(env_dir) = std::env::var_os("WGPU_TRACE") {
+        let mut path = std::path::PathBuf::from(env_dir);
+        let idx = TRACE_IDX.fetch_add(1, Ordering::Relaxed);
+        path.push(idx.to_string());
 
-            if std::fs::create_dir_all(&path).is_err() {
-                log::warn!("Failed to create directory {:?} for wgpu recording.", path);
-            }
-
-            wgt::Trace::Directory(path)
+        if std::fs::create_dir_all(&path).is_err() {
+            log::warn!("Failed to create directory {:?} for wgpu recording.", path);
+        } else {
+            desc.trace = wgt::Trace::Directory(path);
         }
-        other => other,
-    };
+    }
 
     // TODO: in https://github.com/gfx-rs/wgpu/pull/3626/files#diff-033343814319f5a6bd781494692ea626f06f6c3acc0753a12c867b53a646c34eR97
     // which introduced the queue id parameter, the queue id is also the device id. I don't know how applicable this is to

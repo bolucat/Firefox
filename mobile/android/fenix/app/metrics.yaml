@@ -164,11 +164,11 @@ events:
           add_bookmark, add_to_homescreen, add_to_top_sites, addon_details, addons_manager,
           back, back_long_press, bookmark, bookmarks, desktop_view_off, desktop_view_on,
           discover_more_extensions, web_extension_browser_action_clicked,
-          downloads, edit_bookmark, extensions_learn_more, extensions_submenu,
+          downloads, edit_bookmark, extensions_learn_more,
           find_in_page, forward, forward_long_press, history, install_addon, new_tab,
           new_private_tab, open_in_app, open_in_fenix, quit, reader_mode_appearance, reload,
-          remove_from_top_sites, save_submenu, save_to_collection, set_default_browser,
-          settings, share, stop, sync_account, tools_submenu, translate and print_content.
+          remove_from_top_sites, save_to_collection, set_default_browser,
+          settings, share, stop, sync_account, translate and print_content.
         type: string
     bugs:
       - https://github.com/mozilla-mobile/fenix/issues/1024
@@ -12693,6 +12693,84 @@ partnerships:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1912325
     data_reviews:
       - https://phabricator.services.mozilla.com/D218866
+    notification_emails:
+      - android-probes@mozilla.com
+    expires: never
+  dt_001_detected:
+    type: event
+    description: |
+      When a dt-001 preinstall is detected using the DefaultDistributionProviderChecker
+    data_sensitivity:
+      - technical
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1968291
+    data_reviews:
+      - https://phabricator.services.mozilla.com/D252908
+    notification_emails:
+      - android-probes@mozilla.com
+    expires: never
+  dt_002_detected:
+    type: event
+    description: |
+      When a dt-002 preinstall is detected using the DefaultDistributionProviderChecker
+    data_sensitivity:
+      - technical
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1968291
+    data_reviews:
+      - https://phabricator.services.mozilla.com/D252908
+    notification_emails:
+      - android-probes@mozilla.com
+    expires: never
+  dt_003_detected:
+    type: event
+    description: |
+      When a dt-003 preinstall is detected using the DefaultDistributionProviderChecker
+    data_sensitivity:
+      - technical
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1968291
+    data_reviews:
+      - https://phabricator.services.mozilla.com/D252908
+    notification_emails:
+      - android-probes@mozilla.com
+    expires: never
+  dt_001_legacy_detected:
+    type: event
+    description: |
+      When a dt-001 preinstall is detected using the LegacyDistributionProviderChecker
+    data_sensitivity:
+      - technical
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1968291
+    data_reviews:
+      - https://phabricator.services.mozilla.com/D252908
+    notification_emails:
+      - android-probes@mozilla.com
+    expires: never
+  dt_002_legacy_detected:
+    type: event
+    description: |
+      When a dt-002 preinstall is detected using the LegacyDistributionProviderChecker
+    data_sensitivity:
+      - technical
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1968291
+    data_reviews:
+      - https://phabricator.services.mozilla.com/D252908
+    notification_emails:
+      - android-probes@mozilla.com
+    expires: never
+  dt_003_legacy_detected:
+    type: event
+    description: |
+      When a dt-003 preinstall is detected using the LegacyDistributionProviderChecker
+    data_sensitivity:
+      - technical
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1968291
+    data_reviews:
+      - https://phabricator.services.mozilla.com/D252908
     notification_emails:
       - android-probes@mozilla.com
     expires: never

@@ -5106,7 +5106,7 @@ static bool Promise_static_try(JSContext* cx, unsigned argc, Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
 
   // 1. Let C be the this value.
-  RootedValue cVal(cx, args.thisv());
+  HandleValue cVal = args.thisv();
 
   // 2. If C is not an Object, throw a TypeError exception.
   if (!cVal.isObject()) {
@@ -5184,7 +5184,7 @@ static bool Promise_static_withResolvers(JSContext* cx, unsigned argc,
   CallArgs args = CallArgsFromVp(argc, vp);
 
   // Step 1. Let C be the this value.
-  RootedValue cVal(cx, args.thisv());
+  HandleValue cVal = args.thisv();
 
   // Step 2. Let promiseCapability be ? NewPromiseCapability(C).
   if (!cVal.isObject()) {
@@ -5415,18 +5415,18 @@ static bool PromiseThenNewPromiseCapability(
     return false;
   }
 
-  RootedObject unwrappedPromise(cx, promiseObj);
+  JSObject* unwrappedPromise = promiseObj;
   if (IsWrapper(promiseObj)) {
     unwrappedPromise = UncheckedUnwrap(promiseObj);
   }
-  RootedObject unwrappedNewPromise(cx, resultCapability.promise());
+  JSObject* unwrappedNewPromise = resultCapability.promise();
   if (IsWrapper(resultCapability.promise())) {
     unwrappedNewPromise = UncheckedUnwrap(resultCapability.promise());
   }
   if (unwrappedPromise->is<PromiseObject>() &&
       unwrappedNewPromise->is<PromiseObject>()) {
     unwrappedNewPromise->as<PromiseObject>().copyUserInteractionFlagsFrom(
-        *unwrappedPromise.as<PromiseObject>());
+        unwrappedPromise->as<PromiseObject>());
   }
 
   return true;
@@ -6646,11 +6646,10 @@ bool PromiseObject::dependentPromises(JSContext* cx,
     }
 
     MOZ_RELEASE_ASSERT(obj->is<PromiseReactionRecord>());
-    Rooted<PromiseReactionRecord*> reaction(cx,
-                                            &obj->as<PromiseReactionRecord>());
+    auto* reaction = &obj->as<PromiseReactionRecord>();
 
     // Not all reactions have a Promise on them.
-    RootedObject promiseObj(cx, reaction->promise());
+    JSObject* promiseObj = reaction->promise();
     if (promiseObj) {
       if (!values.growBy(1)) {
         return false;

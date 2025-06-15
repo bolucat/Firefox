@@ -39,6 +39,29 @@ const PREFS_FOR_SETTINGS = () => [
     ),
   },
   {
+    id: "trending-searches",
+    pref: {
+      feed: "trendingSearch.enabled",
+      titleString: "home-prefs-trending-search-header",
+      descString: "home-prefs-trending-search-description",
+    },
+    eventSource: "TRENDING_SEARCH",
+    shouldHidePref:
+      // Hide if Trending Search experiment is not enabled for this user
+      !Services.prefs.getBoolPref(
+        "browser.newtabpage.activity-stream.system.trendingSearch.enabled",
+        false
+      ) ||
+      // Also hide if it's enabled but the user doesn't have Google as their default search engine
+      (Services.prefs.getBoolPref(
+        "browser.newtabpage.activity-stream.system.trendingSearch.enabled",
+        false
+      ) &&
+        Services.prefs.getStringPref(
+          "browser.newtabpage.activity-stream.system.trendingSearch.defaultSearchEngine"
+        ) !== "Google"),
+  },
+  {
     id: "topsites",
     pref: {
       feed: "feeds.topsites",
@@ -93,7 +116,7 @@ const PREFS_FOR_SETTINGS = () => [
       ],
     },
     shouldHidePref: !Services.prefs.getBoolPref(
-      "browser.newtabpage.activity-stream.feeds.section.topstories",
+      "browser.newtabpage.activity-stream.feeds.system.topstories",
       true
     ),
     eventSource: "TOP_STORIES",
@@ -113,6 +136,14 @@ const PREFS_FOR_SETTINGS = () => [
           name: "showSponsored",
           titleString: "home-prefs-recommended-by-option-sponsored-stories",
           eventSource: "POCKET_SPOCS",
+          shouldHidePref: !Services.prefs.getBoolPref(
+            "browser.newtabpage.activity-stream.feeds.system.topstories",
+            true
+          ),
+          shouldDisablePref: !Services.prefs.getBoolPref(
+            "browser.newtabpage.activity-stream.feeds.section.topstories",
+            true
+          ),
         },
       ],
     },
@@ -314,9 +345,38 @@ export class AboutPreferences {
 
         subChecks.push(subcheck);
         subcheck.disabled = !pref._value;
+        if (nested.shouldDisablePref) {
+          subcheck.disabled = nested.shouldDisablePref;
+        }
         subcheck.hidden = nested.hidden;
       }
     });
+
+    // Special cases to like the nested prefs with another pref,
+    // so we can disable it real time.
+    if (id === "support-firefox") {
+      function setupSupportFirefoxSubCheck(triggerPref, subPref) {
+        const subCheckFullName = `browser.newtabpage.activity-stream.${triggerPref}`;
+        const subCheckPref = Preferences.get(subCheckFullName);
+
+        subCheckPref?.on("change", () => {
+          const showSponsoredFullName = `browser.newtabpage.activity-stream.${subPref}`;
+          const showSponsoredSubcheck = subChecks.find(
+            subcheck =>
+              subcheck.getAttribute("preference") === showSponsoredFullName
+          );
+          if (showSponsoredSubcheck) {
+            showSponsoredSubcheck.disabled = !Services.prefs.getBoolPref(
+              subCheckFullName,
+              true
+            );
+          }
+        });
+      }
+
+      setupSupportFirefoxSubCheck("feeds.section.topstories", "showSponsored");
+      setupSupportFirefoxSubCheck("feeds.topsites", "showSponsoredTopSites");
+    }
 
     pref.on("change", () => {
       subChecks.forEach(subcheck => {

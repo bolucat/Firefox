@@ -10934,13 +10934,9 @@ void CodeGenerator::visitWasmStoreElementI64(LWasmStoreElementI64* ins) {
 
 void CodeGenerator::visitWasmClampTable64Address(
     LWasmClampTable64Address* lir) {
-#ifdef ENABLE_WASM_MEMORY64
   Register64 address = ToRegister64(lir->address());
   Register out = ToRegister(lir->output());
   masm.wasmClampTable64Address(address, out);
-#else
-  MOZ_CRASH("table64 addresses should not be valid without memory64");
-#endif
 }
 
 void CodeGenerator::visitArrayBufferByteLength(LArrayBufferByteLength* lir) {
@@ -12967,7 +12963,7 @@ void CodeGenerator::visitSameValue(LSameValue* lir) {
   ValueOperand rhs = ToValue(lir->right());
   Register output = ToRegister(lir->output());
 
-  using Fn = bool (*)(JSContext*, HandleValue, HandleValue, bool*);
+  using Fn = bool (*)(JSContext*, const Value&, const Value&, bool*);
   OutOfLineCode* ool =
       oolCallVM<Fn, SameValue>(lir, ArgList(lhs, rhs), StoreRegisterTo(output));
 
@@ -21055,6 +21051,28 @@ void CodeGenerator::visitLoadWrapperTarget(LLoadWrapperTarget* lir) {
   } else {
     masm.unboxObject(targetAddr, output);
   }
+}
+
+void CodeGenerator::visitLoadGetterSetterFunction(
+    LLoadGetterSetterFunction* lir) {
+  ValueOperand getterSetter = ToValue(lir->getterSetter());
+  Register output = ToRegister(lir->output());
+
+  masm.unboxNonDouble(getterSetter, output, JSVAL_TYPE_PRIVATE_GCTHING);
+
+  size_t offset = lir->mir()->isGetter() ? GetterSetter::offsetOfGetter()
+                                         : GetterSetter::offsetOfSetter();
+  masm.loadPtr(Address(output, offset), output);
+
+  Label bail;
+  masm.branchTestPtr(Assembler::Zero, output, output, &bail);
+  if (lir->mir()->needsClassGuard()) {
+    Register temp = ToRegister(lir->temp0());
+    masm.branchTestObjIsFunction(Assembler::NotEqual, output, temp, output,
+                                 &bail);
+  }
+
+  bailoutFrom(&bail, lir->snapshot());
 }
 
 void CodeGenerator::visitGuardHasGetterSetter(LGuardHasGetterSetter* lir) {

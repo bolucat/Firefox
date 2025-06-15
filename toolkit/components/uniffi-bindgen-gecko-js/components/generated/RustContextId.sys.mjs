@@ -804,11 +804,11 @@ export class FfiConverterInt64 extends FfiConverter {
 // Export the FFIConverter object to make external types work.
 export class FfiConverterTypeContextIdCallback extends FfiConverter {
     static lower(callbackObj) {
-        return uniffiCallbackHandlerContextIdCallback.storeCallbackObj(callbackObj)
+        return uniffiCallbackHandlerContextIdContextIdCallback.storeCallbackObj(callbackObj)
     }
 
     static lift(handleId) {
-        return uniffiCallbackHandlerContextIdCallback.getCallbackObj(handleId)
+        return uniffiCallbackHandlerContextIdContextIdCallback.getCallbackObj(handleId)
     }
 
     static read(dataStream) {
@@ -822,7 +822,7 @@ export class FfiConverterTypeContextIdCallback extends FfiConverter {
     static computeSize(callbackObj) {
         return 8;
     }
-}const uniffiCallbackHandlerContextIdCallback = new UniFFICallbackHandler(
+}const uniffiCallbackHandlerContextIdContextIdCallback = new UniFFICallbackHandler(
     "ContextIdCallback",
     1,
     [
@@ -851,7 +851,7 @@ export class FfiConverterTypeContextIdCallback extends FfiConverter {
 );
 
 // Allow the shutdown-related functionality to be tested in the unit tests
-UnitTestObjs.uniffiCallbackHandlerContextIdCallback = uniffiCallbackHandlerContextIdCallback;
+UnitTestObjs.uniffiCallbackHandlerContextIdContextIdCallback = uniffiCallbackHandlerContextIdContextIdCallback;
 // Export the FFIConverter object to make external types work.
 export class FfiConverterBoolean extends FfiConverter {
     static computeSize(_value) {

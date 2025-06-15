@@ -59,21 +59,24 @@ static CSSToCSSMatrix4x4Flagged EffectiveTransform(nsIFrame* aFrame) {
     return matrix;
   }
 
-  CSSSize untransformedSize = CSSSize::FromAppUnits(aFrame->GetSize());
-  CSSRect boundingRect = CSSRect::FromAppUnits(aFrame->GetBoundingClientRect());
+  auto untransformedSize = CSSSize::FromAppUnits(aFrame->GetSize());
+  auto boundingRect = CSSRect::FromAppUnits(aFrame->GetBoundingClientRect());
+  auto inkOverflowRect =
+      CSSRect::FromAppUnits(aFrame->InkOverflowRectRelativeToSelf());
   if (boundingRect.Size() != untransformedSize) {
     float sx = boundingRect.width / untransformedSize.width;
     float sy = boundingRect.height / untransformedSize.height;
-    matrix = CSSToCSSMatrix4x4Flagged::Scaling(sx, sy, 0.0f);
+    matrix = CSSToCSSMatrix4x4Flagged::Scaling(sx, sy, 1.0f);
   }
-  auto inkOverflowOffset = aFrame->InkOverflowRectRelativeToSelf().TopLeft();
-  if (inkOverflowOffset != nsPoint()) {
-    auto cssOffset = CSSPoint::FromAppUnits(inkOverflowOffset);
-    matrix.PostTranslate(cssOffset.x, cssOffset.y, 0.0f);
+  if (inkOverflowRect.TopLeft() != CSSPoint()) {
+    matrix.PostTranslate(inkOverflowRect.x, inkOverflowRect.y, 0.0f);
   }
   if (boundingRect.TopLeft() != CSSPoint()) {
     matrix.PostTranslate(boundingRect.x, boundingRect.y, 0.0f);
   }
+  // Compensate for the default transform-origin of 50% 50%.
+  matrix.ChangeBasis(-inkOverflowRect.Width() / 2,
+                     -inkOverflowRect.Height() / 2, 0.0f);
   return matrix;
 }
 
@@ -232,8 +235,10 @@ struct ViewTransition::CapturedElement {
 
   CapturedElement() = default;
 
-  CapturedElement(nsIFrame* aFrame, const nsSize& aSnapshotContainingBlockSize)
-      : mOldState(aFrame, aSnapshotContainingBlockSize) {}
+  CapturedElement(nsIFrame* aFrame, const nsSize& aSnapshotContainingBlockSize,
+                  StyleViewTransitionClass&& aClassList)
+      : mOldState(aFrame, aSnapshotContainingBlockSize),
+        mClassList(std::move(aClassList)) {}
 
   // https://drafts.csswg.org/css-view-transitions-1/#captured-element-style-definitions
   nsTArray<Keyframe> mGroupKeyframes;
@@ -245,6 +250,14 @@ struct ViewTransition::CapturedElement {
   RefPtr<StyleLockedDeclarationBlock> mOldRule;
   // The rules for ::view-transition-new(<name>).
   RefPtr<StyleLockedDeclarationBlock> mNewRule;
+
+  // The view-transition-class associated with this captured element.
+  // https://drafts.csswg.org/css-view-transitions-2/#captured-element-class-list
+  StyleViewTransitionClass mClassList;
+
+  void CaptureClassList(StyleViewTransitionClass&& aClassList) {
+    mClassList = std::move(aClassList);
+  }
 
   ~CapturedElement() {
     if (wr::AsImageKey(mNewSnapshotKey) != kNoKey) {
@@ -686,6 +699,39 @@ bool ViewTransition::GetGroupKeyframes(
   MOZ_ASSERT(aResult.Length() == 2);
   aResult[0].mTimingFunction = Some(aTimingFunction);
   aResult[1].mTimingFunction = Some(aTimingFunction);
+  return true;
+}
+
+// Matches the class list in the captured element.
+// https://drafts.csswg.org/css-view-transitions-2/#pseudo-element-class-additions
+bool ViewTransition::MatchClassList(
+    nsAtom* aTransitionName,
+    const nsTArray<StyleAtom>& aPtNameAndClassSelector) const {
+  MOZ_ASSERT(aPtNameAndClassSelector.Length() > 1);
+
+  const auto* el = mNamedElements.Get(aTransitionName);
+  MOZ_ASSERT(el);
+  const auto& classList = el->mClassList._0.AsSpan();
+  auto hasClass = [&classList](nsAtom* aClass) {
+    // LInear search. The css class list shouldn't be very large in most cases.
+    for (const auto& ident : classList) {
+      if (ident.AsAtom() == aClass) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // A named view transition pseudo-element selector which has one or more
+  // <custom-ident> values in its <pt-class-selector> would only match an
+  // element if the class list value in named elements for the pseudo-element’s
+  // view-transition-name contains all of those values.
+  // i.e. |aPtNameAndClassSelector| should be a subset of |mClassList|.
+  for (const auto& atom : Span(aPtNameAndClassSelector).From(1)) {
+    if (!hasClass(atom.AsAtom())) {
+      return false;
+    }
+  }
   return true;
 }
 
@@ -1133,17 +1179,21 @@ static void ForEachFrame(Document* aDoc, const Callback& aCb) {
   ForEachChildFrame(root, aCb);
 }
 
+// TODO(emilio): Bug 1970954. These aren't quite correct, per spec we're
+// supposed to only honor names and classes coming from the document, but that's
+// quite some magic, and it's getting actively discussed, see:
+// https://github.com/w3c/csswg-drafts/issues/10808 and related
 // https://drafts.csswg.org/css-view-transitions-1/#document-scoped-view-transition-name
 static nsAtom* DocumentScopedTransitionNameFor(nsIFrame* aFrame) {
   auto* name = aFrame->StyleUIReset()->mViewTransitionName._0.AsAtom();
   if (name->IsEmpty()) {
     return nullptr;
   }
-  // TODO(emilio): This isn't quite correct, per spec we're supposed to only
-  // honor names coming from the document, but that's quite some magic,
-  // and it's getting actively discussed, see:
-  // https://github.com/w3c/csswg-drafts/issues/10808 and related
   return name;
+}
+static StyleViewTransitionClass DocumentScopedClassListFor(
+    const nsIFrame* aFrame) {
+  return aFrame->StyleUIReset()->mViewTransitionClass;
 }
 
 // https://drafts.csswg.org/css-view-transitions/#capture-the-old-state
@@ -1207,8 +1257,11 @@ Maybe<SkipTransitionReason> ViewTransition::CaptureOldState() {
   for (auto& [f, name] : captureElements) {
     MOZ_ASSERT(f);
     MOZ_ASSERT(f->GetContent()->IsElement());
+    // Capture the view-transition-class.
+    // https://drafts.csswg.org/css-view-transitions-2/#vt-class-algorithms
     auto capture =
-        MakeUnique<CapturedElement>(f, mInitialSnapshotContainingBlockSize);
+        MakeUnique<CapturedElement>(f, mInitialSnapshotContainingBlockSize,
+                                    DocumentScopedClassListFor(f));
     mNamedElements.InsertOrUpdate(name, std::move(capture));
     mNames.AppendElement(name);
   }
@@ -1272,6 +1325,11 @@ Maybe<SkipTransitionReason> ViewTransition::CaptureNewState() {
     // checks it before calling us.
     capturedElement->mNewSnapshotSize =
         CapturedSize(aFrame, mInitialSnapshotContainingBlockSize);
+    // Update its class list. This may override the existing class list because
+    // the users may change view-transition-class in the callback function. We
+    // have to use the latest one.
+    // https://drafts.csswg.org/css-view-transitions-2/#vt-class-algorithms
+    capturedElement->CaptureClassList(DocumentScopedClassListFor(aFrame));
     SetCaptured(aFrame, true);
     return true;
   });
@@ -1470,6 +1528,12 @@ void ViewTransition::ClearActiveTransition(bool aIsDocumentHidden) {
   // Steps 1-2
   MOZ_ASSERT(mDocument);
   MOZ_ASSERT(mDocument->GetActiveViewTransition() == this);
+
+  // Ensure that any styles associated with :active-view-transition no longer
+  // apply.
+  if (auto* root = mDocument->GetRootElement()) {
+    root->RemoveStates(ElementState::ACTIVE_VIEW_TRANSITION);
+  }
 
   // Step 3
   ClearNamedElements();

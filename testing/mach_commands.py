@@ -7,7 +7,7 @@ import logging
 import os
 import sys
 from datetime import date, timedelta
-from typing import List, Optional
+from typing import Optional
 
 import requests
 from mach.decorators import Command, CommandArgument, SubCommand
@@ -502,7 +502,9 @@ def run_cppunit_test(command_context, **params):
         )
 
         verify_android_device(command_context, install=InstallIntent.NO)
-        return run_android_test(tests, symbols_path, manifest_path, log)
+        return run_android_test(
+            command_context, tests, symbols_path, manifest_path, log
+        )
 
     return run_desktop_test(
         command_context, tests, symbols_path, manifest_path, utility_path, log
@@ -549,9 +551,9 @@ def run_android_test(command_context, tests, symbols_path, manifest_path, log):
     options.symbols_path = symbols_path
     options.manifest_path = manifest_path
     options.xre_path = command_context.bindir
-    options.local_lib = command_context.bindir.replace("bin", "fennec")
+    options.local_lib = command_context.bindir.replace("bin", "geckoview")
     for file in os.listdir(os.path.join(command_context.topobjdir, "dist")):
-        if file.endswith(".apk") and file.startswith("fennec"):
+        if file.endswith(".apk") and file.startswith("geckoview"):
             options.local_apk = os.path.join(command_context.topobjdir, "dist", file)
             log.info("using APK: " + options.local_apk)
             break
@@ -1178,6 +1180,29 @@ def run_migration_tests(command_context, test_paths=None, **kwargs):
 
 
 @Command(
+    "platform-diff",
+    category="testing",
+    description="Displays the difference in platforms used for the given task by using the output of the tgdiff artifact",
+)
+@CommandArgument("task_id", help="task_id to fetch the tgdiff from.")
+@CommandArgument(
+    "-r",
+    "--replace",
+    default=None,
+    dest="replace",
+    help='Array of strings to replace from the old platforms to find matches in new platforms. Eg: ["1804=2404", "-qr"] will replace "1804" by "2404" and remove "-qr" before looking at new platforms.',
+)
+def platform_diff(
+    command_context,
+    task_id,
+    replace,
+):
+    from platform_diff import PlatformDiff
+
+    PlatformDiff(command_context, task_id, replace).run()
+
+
+@Command(
     "manifest",
     category="testing",
     description="Manifest operations",
@@ -1375,7 +1400,7 @@ def high_freq_skipfails(command_context, failures: str, days: str):
 )
 def clean_skipfails(
     command_context,
-    manifest_search_path: List[str],
+    manifest_search_path: list[str],
     os_name: Optional[str] = None,
     os_version: Optional[str] = None,
     processor: Optional[str] = None,

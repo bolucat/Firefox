@@ -547,13 +547,8 @@ bool DCLayerTree::UseNativeCompositor() const {
 }
 
 bool DCLayerTree::UseLayerCompositor() const {
-// Only allow the layer compositor in nightly builds, for now.
-#ifdef NIGHTLY_BUILD
   return UseNativeCompositor() &&
          StaticPrefs::gfx_webrender_layer_compositor_AtStartup();
-#else
-  return false;
-#endif
 }
 
 void DCLayerTree::DisableNativeCompositor() {
@@ -649,7 +644,13 @@ void DCLayerTree::CompositorEndFrame() {
     if (!same) {
       // Add surfaces in z-order they were added to the scene.
       const auto visual = surface->GetRootVisual();
-      mRootVisual->AddVisual(visual, false, nullptr);
+      if (UseLayerCompositor()) {
+        // Layer compositor expects front to back.
+        mRootVisual->AddVisual(visual, true, nullptr);
+      } else {
+        // Native compositor expects back to front.
+        mRootVisual->AddVisual(visual, false, nullptr);
+      }
     }
   }
 

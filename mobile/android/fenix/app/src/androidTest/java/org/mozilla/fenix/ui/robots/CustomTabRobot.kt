@@ -21,6 +21,7 @@ import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiSelector
 import org.mozilla.fenix.R
+import org.mozilla.fenix.components.menu.MenuDialogTestTag.SHARE
 import org.mozilla.fenix.helpers.Constants.LONG_CLICK_DURATION
 import org.mozilla.fenix.helpers.Constants.TAG
 import org.mozilla.fenix.helpers.DataGenerationHelper.getStringResource
@@ -87,9 +88,9 @@ class CustomTabRobot {
         Log.i(TAG, "verifyOpenInBrowserButtonExists: Verified that the \"Open in Firefox\" button is displayed")
     }
 
-    fun verifyOpenInBrowserComposeButtonExists() {
+    fun verifyOpenInBrowserComposeButtonExists(composeTestRule: ComposeTestRule) {
         Log.i(TAG, "verifyOpenInBrowserComposeButtonExists: Trying to verify that the \"Open in Firefox\" button is displayed")
-        assertUIObjectExists(openInBrowserButtonFromRedesignedToolbar())
+        composeTestRule.openInBrowserButtonFromRedesignedToolbar().assertIsDisplayed()
         Log.i(TAG, "verifyOpenInBrowserComposeButtonExists: Verified that the \"Open in Firefox\" button is displayed")
     }
 
@@ -185,9 +186,9 @@ class CustomTabRobot {
     fun verifyRedesignedCustomTabsMainMenuItemsExist(customMenuItem: String, exist: Boolean, waitingTime: Long = TestAssetHelper.waitingTime) =
         assertUIObjectExists(
             itemWithDescription(getStringResource(R.string.browser_menu_switch_to_desktop_site)),
-            itemWithDescription(getStringResource(R.string.browser_menu_find_in_page_2)),
+            itemWithDescription(getStringResource(R.string.browser_menu_find_in_page)),
             itemWithDescriptionAndIndex("Open in $appName", 2),
-            itemWithDescription(getStringResource(R.string.browser_menu_share_2)),
+            itemWithResId(SHARE),
             itemContainingText(customMenuItem),
             exists = exist,
             waitingTime = waitingTime,
@@ -270,10 +271,13 @@ class CustomTabRobot {
             return BrowserRobot.Transition()
         }
 
-        fun clickOpenInBrowserButtonFromRedesignedToolbar(interact: BrowserRobot.() -> Unit): BrowserRobot.Transition {
+        fun clickOpenInBrowserButtonFromRedesignedToolbar(composeTestRule: ComposeTestRule, interact: BrowserRobot.() -> Unit): BrowserRobot.Transition {
             Log.i(TAG, "clickOpenInBrowserButtonFromRedesignedToolbar: Trying to click the \"Open in Firefox\" button")
-            openInBrowserButtonFromRedesignedToolbar().click()
+            composeTestRule.openInBrowserButtonFromRedesignedToolbar().performClick()
             Log.i(TAG, "clickOpenInBrowserButtonFromRedesignedToolbar: Clicked the \"Open in Firefox\" button")
+            Log.i(TAG, "clickOpenInBrowserButtonFromRedesignedToolbar: Waiting for device to be idle to be idle")
+            mDevice.waitForIdle(waitingTime)
+            Log.i(TAG, "clickOpenInBrowserButtonFromRedesignedToolbar: Waited for device to be idle")
 
             BrowserRobot().interact()
             return BrowserRobot.Transition()
@@ -291,7 +295,7 @@ class CustomTabRobot {
 
         fun clickShareButtonFromRedesignedMenu(interact: ShareOverlayRobot.() -> Unit): ShareOverlayRobot.Transition {
             Log.i(TAG, "clickShareButtonFromRedesignedMenu: Trying to click the main menu share button")
-            itemWithDescription(getStringResource(R.string.browser_menu_share_2)).click()
+            itemWithDescription(getStringResource(R.string.browser_menu_share)).click()
             Log.i(TAG, "clickShareButtonFromRedesignedMenu: Clicked the main menu share button")
 
             ShareOverlayRobot().interact()
@@ -334,7 +338,7 @@ private fun findInPageButton() = onView(withText("Find in page"))
 
 private fun openInBrowserButton() = onView(withText("Open in $appName"))
 
-private fun openInBrowserButtonFromRedesignedToolbar() = itemWithDescription("Open in $appName")
+private fun ComposeTestRule.openInBrowserButtonFromRedesignedToolbar() = onNodeWithContentDescription("Open in $appName")
 
 private fun closeButton() = onView(withContentDescription("Return to previous app"))
 
@@ -348,4 +352,4 @@ private fun ComposeTestRule.desktopSiteButton() = onNodeWithContentDescription(g
 
 private fun ComposeTestRule.mobileSiteButton() = onNodeWithContentDescription(getStringResource(R.string.browser_menu_switch_to_mobile_site))
 
-private fun ComposeTestRule.findInPageButton() = onNodeWithContentDescription(getStringResource(R.string.browser_menu_find_in_page_2))
+private fun ComposeTestRule.findInPageButton() = onNodeWithContentDescription(getStringResource(R.string.browser_menu_find_in_page))

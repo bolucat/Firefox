@@ -117,6 +117,8 @@ newtab-menu-delete-pocket = Deler de { -pocket-brand-name }
 newtab-menu-archive-pocket = Archivar in { -pocket-brand-name }
 newtab-menu-show-privacy-info = Nostre sponsores e tu vita private
 newtab-menu-about-fakespot = A proposito de { -fakespot-brand-name }
+# Report is a verb (i.e. report issue with the content).
+newtab-menu-report = Reportar
 newtab-menu-report-content = Reportar iste contento
 # Context menu option to personalize New Tab recommended stories by blocking a section of stories,
 # e.g. "Sports". "Block" is a verb here.
@@ -187,6 +189,8 @@ newtab-label-sponsored-by = Sponsorisate per { $sponsor }
 #   $source (string) - The name of a company or their domain
 #   $timeToRead (number) - The estimated number of minutes to read this story
 newtab-label-source-read-time = { $source } · { $timeToRead } min
+# This string is used under fixed size ads to indicate sponsored content
+newtab-label-sponsored-fixed = Sponsorisate
 
 ## Section Menu: These strings are displayed in the section context menu and are
 ## meant as a call to action for the given section.
@@ -308,6 +312,9 @@ newtab-custom-recent-toggle =
 newtab-custom-weather-toggle =
     .label = Meteo
     .description = Prevision hodierne a un colpo de oculos
+newtab-custom-trending-search-toggle =
+    .label = Recercas popular
+    .description = Themas popular e frequentemente recercate
 newtab-custom-close-button = Clauder
 newtab-custom-settings = Gerer altere parametros
 
@@ -555,3 +562,14 @@ newtab-report-cancel = Cancellar
 newtab-report-submit = Inviar
 newtab-toast-thanks-for-reporting =
     .message = Gratias pro iste reporto.
+
+## Strings for trending searches
+
+# "Trending on Google" refers to the trending topics coming from Google Search, usually seen when a user is focused on the search bar
+newtab-trending-searches-trending-on-google = Popular sur Google
+newtab-trending-searches-show-trending =
+    .title = Monstrar recercas popular
+newtab-trending-searches-hide-trending =
+    .title = Celar recercas popular
+newtab-trending-searches-learn-more = Pro saper plus
+newtab-trending-searches-dismiss = Celar recercas popular

@@ -117,6 +117,8 @@ newtab-menu-delete-pocket = Aus { -pocket-brand-name } löschen
 newtab-menu-archive-pocket = In { -pocket-brand-name } archivieren
 newtab-menu-show-privacy-info = Unsere Sponsoren & Ihre Privatsphäre
 newtab-menu-about-fakespot = Über { -fakespot-brand-name }
+# Report is a verb (i.e. report issue with the content).
+newtab-menu-report = Melden
 newtab-menu-report-content = Diesen Inhalt melden
 # Context menu option to personalize New Tab recommended stories by blocking a section of stories,
 # e.g. "Sports". "Block" is a verb here.
@@ -191,6 +193,8 @@ newtab-label-sponsored-by = Werbung von { $sponsor }
 #   $source (string) - The name of a company or their domain
 #   $timeToRead (number) - The estimated number of minutes to read this story
 newtab-label-source-read-time = { $source } · { $timeToRead } min
+# This string is used under fixed size ads to indicate sponsored content
+newtab-label-sponsored-fixed = Gesponsert
 
 ## Section Menu: These strings are displayed in the section context menu and are
 ## meant as a call to action for the given section.
@@ -312,6 +316,9 @@ newtab-custom-recent-toggle =
 newtab-custom-weather-toggle =
     .label = Wetter
     .description = Heutige Vorhersage auf einen Blick
+newtab-custom-trending-search-toggle =
+    .label = Aktuell beliebte Suchanfragen
+    .description = Beliebte und häufig gesuchte Themen
 newtab-custom-close-button = Schließen
 newtab-custom-settings = Weitere Einstellungen verwalten
 
@@ -559,3 +566,14 @@ newtab-report-cancel = Abbrechen
 newtab-report-submit = Absenden
 newtab-toast-thanks-for-reporting =
     .message = Danke für die Meldung.
+
+## Strings for trending searches
+
+# "Trending on Google" refers to the trending topics coming from Google Search, usually seen when a user is focused on the search bar
+newtab-trending-searches-trending-on-google = Aktuell beliebt auf Google
+newtab-trending-searches-show-trending =
+    .title = Aktuell beliebte Suchanfragen anzeigen
+newtab-trending-searches-hide-trending =
+    .title = Aktuell beliebte Suchanfragen ausblenden
+newtab-trending-searches-learn-more = Weitere Informationen
+newtab-trending-searches-dismiss = Aktuell beliebte Suchanfragen ausblenden

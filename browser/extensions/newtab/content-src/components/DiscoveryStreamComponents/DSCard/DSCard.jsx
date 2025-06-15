@@ -305,16 +305,16 @@ export class _DSCard extends React.PureComponent {
 
     this.sectionsCardImagesSizes = {
       small: {
-        width: 100,
-        height: 120,
+        width: 110,
+        height: 117,
       },
       medium: {
         width: 300,
-        height: refinedCardsLayout ? 172 : 150,
+        height: refinedCardsLayout ? 160 : 150,
       },
       large: {
-        width: 265,
-        height: 265,
+        width: 190,
+        height: 250,
       },
     };
 
@@ -742,7 +742,6 @@ export class _DSCard extends React.PureComponent {
     }
 
     const {
-      pocketButtonEnabled,
       hideDescriptions,
       compactImages,
       imageGradient,
@@ -760,7 +759,12 @@ export class _DSCard extends React.PureComponent {
     const smartCrop = Prefs.values["images.smart"];
     const faviconEnabled =
       Prefs.values["discoverystream.publisherFavicon.enabled"];
-    const excerpt = !hideDescriptions ? this.props.excerpt : "";
+    // Refined cards have their own excerpt hiding logic.
+    // We can ignore hideDescriptions if we are in sections and refined cards.
+    const excerpt =
+      !hideDescriptions || (sectionsEnabled && refinedCardsLayout)
+        ? this.props.excerpt
+        : "";
 
     let timeToRead;
     if (displayReadTime) {
@@ -955,8 +959,6 @@ export class _DSCard extends React.PureComponent {
                 showPrivacyInfo={!!this.props.flightId}
                 onMenuUpdate={this.onMenuUpdate}
                 onMenuShow={this.onMenuShow}
-                saveToPocketCard={saveToPocketCard}
-                pocket_button_enabled={pocketButtonEnabled}
                 isRecentSave={isRecentSave}
                 recommendation_id={this.props.recommendation_id}
                 tile_id={this.props.id}

@@ -2438,8 +2438,20 @@ void nsDisplayList::HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
       continue;
     }
 
+    const bool savedTransformHasBackfaceVisible =
+        aState->mTransformHasBackfaceVisible;
+    if (aState->mTransformHasBackfaceVisible &&
+        !item->Combines3DTransformWithAncestors()) {
+      // exiting a preserve 3d context, the transform is no longer applied to
+      // this item, so reset the tracking var
+      aState->mTransformHasBackfaceVisible = false;
+    }
     AutoTArray<nsIFrame*, 16> outFrames;
     item->HitTest(aBuilder, aRect, aState, &outFrames);
+    MOZ_ASSERT(!aState->mTransformHasBackfaceVisible ||
+               !item->In3DContextAndBackfaceIsHidden() ||
+               !outFrames.Contains(item->Frame()));
+    aState->mTransformHasBackfaceVisible = savedTransformHasBackfaceVisible;
 
     // For 3d transforms with preserve-3d we add hit frames into the temp list
     // so we can sort them later, otherwise we add them directly to the output
@@ -3068,6 +3080,10 @@ static nsDisplayBackgroundColor* CreateBackgroundColor(
 
 static void DealWithWindowsAppearanceHacks(nsIFrame* aFrame,
                                            nsDisplayListBuilder* aBuilder) {
+  if (!XRE_IsParentProcess()) {
+    return;
+  }
+
   const auto& disp = *aFrame->StyleDisplay();
 
   // We use default appearance rather than effective appearance because we want
@@ -3434,6 +3450,10 @@ void nsDisplayBackgroundImage::HitTest(nsDisplayListBuilder* aBuilder,
                                        const nsRect& aRect,
                                        HitTestState* aState,
                                        nsTArray<nsIFrame*>* aOutFrames) {
+  if (ShouldIgnoreForBackfaceHidden(aState)) {
+    return;
+  }
+
   if (RoundedBorderIntersectsRect(mFrame, ToReferenceFrame(), aRect)) {
     aOutFrames->AppendElement(mFrame);
   }
@@ -3685,6 +3705,10 @@ void nsDisplayThemedBackground::HitTest(nsDisplayListBuilder* aBuilder,
                                         const nsRect& aRect,
                                         HitTestState* aState,
                                         nsTArray<nsIFrame*>* aOutFrames) {
+  if (ShouldIgnoreForBackfaceHidden(aState)) {
+    return;
+  }
+
   // Assume that any point in our background rect is a hit.
   if (mBackgroundRect.Intersects(aRect)) {
     aOutFrames->AppendElement(mFrame);
@@ -3985,6 +4009,10 @@ void nsDisplayBackgroundColor::HitTest(nsDisplayListBuilder* aBuilder,
                                        const nsRect& aRect,
                                        HitTestState* aState,
                                        nsTArray<nsIFrame*>* aOutFrames) {
+  if (ShouldIgnoreForBackfaceHidden(aState)) {
+    return;
+  }
+
   if (!RoundedBorderIntersectsRect(mFrame, ToReferenceFrame(), aRect)) {
     // aRect doesn't intersect our border-radius curve.
     return;
@@ -4090,6 +4118,10 @@ bool nsDisplayOutline::IsInvisibleInRect(const nsRect& aRect) const {
 void nsDisplayEventReceiver::HitTest(nsDisplayListBuilder* aBuilder,
                                      const nsRect& aRect, HitTestState* aState,
                                      nsTArray<nsIFrame*>* aOutFrames) {
+  if (ShouldIgnoreForBackfaceHidden(aState)) {
+    return;
+  }
+
   if (!RoundedBorderIntersectsRect(mFrame, ToReferenceFrame(), aRect)) {
     // aRect doesn't intersect our border-radius curve.
     return;
@@ -6999,8 +7031,7 @@ bool nsDisplayTransform::MayBeAnimated(nsDisplayListBuilder* aBuilder) const {
 
 nsRect nsDisplayTransform::TransformUntransformedBounds(
     nsDisplayListBuilder* aBuilder, const Matrix4x4Flagged& aMatrix) const {
-  bool snap;
-  const nsRect untransformedBounds = GetUntransformedBounds(aBuilder, &snap);
+  const nsRect untransformedBounds = GetUntransformedBounds(aBuilder);
   // GetTransform always operates in dev pixels.
   const float factor = mFrame->PresContext()->AppUnitsPerDevPixel();
   return nsLayoutUtils::MatrixTransformRect(untransformedBounds, aMatrix,
@@ -7193,7 +7224,15 @@ void nsDisplayTransform::HitTest(nsDisplayListBuilder* aBuilder,
   uint32_t originalFrameCount = aOutFrames.Length();
 #endif
 
+  const bool savedTransformHasBackfaceVisible =
+      aState->mTransformHasBackfaceVisible;
+  if (IsLeafOf3DContext()) {
+    aState->mTransformHasBackfaceVisible = matrix.IsBackfaceVisible();
+  }
   GetChildren()->HitTest(aBuilder, resultingRect, aState, aOutFrames);
+  if (IsLeafOf3DContext()) {
+    aState->mTransformHasBackfaceVisible = savedTransformHasBackfaceVisible;
+  }
 
   if (aState->mHitOccludingItem && !testingPoint && !mBounds.Contains(aRect)) {
     MOZ_ASSERT(aBuilder->HitTestIsForVisibility());
@@ -7275,12 +7314,12 @@ nsRegion nsDisplayTransform::GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
 
   nsRegion result;
 
-  bool tmpSnap;
-  const nsRect bounds = GetUntransformedBounds(aBuilder, &tmpSnap);
+  const nsRect bounds = GetUntransformedBounds(aBuilder);
   const nsRegion opaque =
       ::mozilla::GetOpaqueRegion(aBuilder, GetChildren(), bounds);
 
   if (opaque.Contains(untransformedVisible)) {
+    bool tmpSnap;
     result = GetBuildingRect().Intersect(GetBounds(aBuilder, &tmpSnap));
   }
   return result;
@@ -7379,8 +7418,7 @@ bool nsDisplayTransform::UntransformRect(nsDisplayListBuilder* aBuilder,
                     NSAppUnitsToFloatPixels(aRect.width, factor),
                     NSAppUnitsToFloatPixels(aRect.height, factor));
 
-  bool snap;
-  nsRect childBounds = GetUntransformedBounds(aBuilder, &snap);
+  nsRect childBounds = GetUntransformedBounds(aBuilder);
   RectDouble childGfxBounds(
       NSAppUnitsToFloatPixels(childBounds.x, factor),
       NSAppUnitsToFloatPixels(childBounds.y, factor),

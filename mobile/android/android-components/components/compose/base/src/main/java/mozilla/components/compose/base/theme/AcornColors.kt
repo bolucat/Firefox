@@ -34,6 +34,7 @@ class AcornColors(
     layerCritical: Color,
     layerInformation: Color,
     layerSearch: Color,
+    layerAutofillText: Color,
     actionPrimary: Color,
     actionPrimaryDisabled: Color,
     actionSecondary: Color,
@@ -43,6 +44,7 @@ class AcornColors(
     actionSuccess: Color,
     actionCritical: Color,
     actionInformation: Color,
+    actionChipSelected: Color,
     formDefault: Color,
     formSelected: Color,
     formSurface: Color,
@@ -169,6 +171,11 @@ class AcornColors(
     var layerSearch by mutableStateOf(layerSearch)
         private set
 
+    // Autofill text background
+    // Use for the background of autofill text in the address bar.
+    var layerAutofillText by mutableStateOf(layerAutofillText)
+        private set
+
     // Actions
 
     // Primary button, Snackbar, Floating action button, Chip selected
@@ -237,6 +244,10 @@ class AcornColors(
 
     // Scroll indicator inactive
     var indicatorInactive by mutableStateOf(indicatorInactive)
+        private set
+
+    // Selected chip
+    var actionChipSelected by mutableStateOf(actionChipSelected)
         private set
 
     // Text
@@ -533,6 +544,7 @@ class AcornColors(
         layerCritical: Color = this.layerCritical,
         layerInformation: Color = this.layerInformation,
         layerSearch: Color = this.layerSearch,
+        layerAutofillText: Color = this.layerAutofillText,
         actionPrimary: Color = this.actionPrimary,
         actionPrimaryDisabled: Color = this.actionPrimaryDisabled,
         actionSecondary: Color = this.actionSecondary,
@@ -584,6 +596,7 @@ class AcornColors(
         iconActionPrimary: Color = this.iconActionPrimary,
         iconActionSecondary: Color = this.iconActionSecondary,
         iconActionTertiary: Color = this.iconActionTertiary,
+        actionChipSelected: Color = this.actionChipSelected,
         iconGradientStart: Color = this.iconGradientStart,
         iconGradientEnd: Color = this.iconGradientEnd,
         borderPrimary: Color = this.borderPrimary,
@@ -615,6 +628,7 @@ class AcornColors(
         layerCritical = layerCritical,
         layerInformation = layerInformation,
         layerSearch = layerSearch,
+        layerAutofillText = layerAutofillText,
         actionPrimary = actionPrimary,
         actionPrimaryDisabled = actionPrimaryDisabled,
         actionSecondary = actionSecondary,
@@ -666,6 +680,7 @@ class AcornColors(
         iconActionPrimary = iconActionPrimary,
         iconActionSecondary = iconActionSecondary,
         iconActionTertiary = iconActionTertiary,
+        actionChipSelected = actionChipSelected,
         iconGradientStart = iconGradientStart,
         iconGradientEnd = iconGradientEnd,
         borderPrimary = borderPrimary,
@@ -701,6 +716,7 @@ val darkColorPalette = AcornColors(
     layerCritical = PhotonColors.Pink80,
     layerInformation = PhotonColors.Blue50,
     layerSearch = PhotonColors.DarkGrey80,
+    layerAutofillText = PhotonColors.LightGrey05A34,
     actionPrimary = PhotonColors.Violet60,
     actionPrimaryDisabled = PhotonColors.Violet60A50,
     actionSecondary = PhotonColors.DarkGrey05,
@@ -752,6 +768,7 @@ val darkColorPalette = AcornColors(
     iconActionPrimary = PhotonColors.LightGrey05,
     iconActionSecondary = PhotonColors.LightGrey05,
     iconActionTertiary = PhotonColors.LightGrey05,
+    actionChipSelected = PhotonColors.Violet50A32,
     iconGradientStart = PhotonColors.Violet20,
     iconGradientEnd = PhotonColors.Blue20,
     borderPrimary = PhotonColors.DarkGrey05,
@@ -786,6 +803,7 @@ val lightColorPalette = AcornColors(
     layerCritical = PhotonColors.Red10,
     layerInformation = PhotonColors.Blue50A44,
     layerSearch = PhotonColors.LightGrey30,
+    layerAutofillText = PhotonColors.DarkGrey05A43,
     actionPrimary = PhotonColors.Ink20,
     actionPrimaryDisabled = PhotonColors.Ink20A20,
     actionSecondary = PhotonColors.LightGrey30,
@@ -837,6 +855,7 @@ val lightColorPalette = AcornColors(
     iconActionPrimary = PhotonColors.LightGrey05,
     iconActionSecondary = PhotonColors.DarkGrey90,
     iconActionTertiary = PhotonColors.DarkGrey90,
+    actionChipSelected = PhotonColors.Violet50A32,
     iconGradientStart = PhotonColors.Violet50,
     iconGradientEnd = PhotonColors.Blue60,
     borderPrimary = PhotonColors.LightGrey30,
@@ -858,6 +877,7 @@ val privateColorPalette = darkColorPalette.copy(
     layer2 = PhotonColors.Violet90,
     layer3 = PhotonColors.Ink90,
     layerSearch = PhotonColors.Ink90,
+    layerAutofillText = PhotonColors.Violet60,
     borderPrimary = PhotonColors.Ink05,
     borderSecondary = PhotonColors.Ink10,
     borderToolbarDivider = PhotonColors.Violet80,

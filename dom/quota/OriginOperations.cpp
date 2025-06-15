@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <utility>
 
+#include "DirectoryMetadata.h"
 #include "ErrorList.h"
 #include "FileUtils.h"
 #include "GroupInfo.h"
@@ -113,20 +114,19 @@ class FinalizeOriginEvictionOp : public OriginOperationBase {
   virtual void UnblockOpen() override;
 };
 
-class SaveOriginAccessTimeOp
-    : public OpenStorageDirectoryHelper<ResolvableNormalOriginOp<bool>> {
+class SaveOriginAccessTimeOp : public ResolvableNormalOriginOp<bool> {
   const OriginMetadata mOriginMetadata;
-  int64_t mTimestamp;
+  RefPtr<UniversalDirectoryLock> mDirectoryLock;
   bool mSaved;
 
  public:
   SaveOriginAccessTimeOp(MovingNotNull<RefPtr<QuotaManager>> aQuotaManager,
                          const OriginMetadata& aOriginMetadata,
-                         int64_t aTimestamp)
-      : OpenStorageDirectoryHelper(std::move(aQuotaManager),
-                                   "dom::quota::SaveOriginAccessTimeOp"),
+                         RefPtr<UniversalDirectoryLock> aDirectoryLock)
+      : ResolvableNormalOriginOp(std::move(aQuotaManager),
+                                 "dom::quota::SaveOriginAccessTimeOp"),
         mOriginMetadata(aOriginMetadata),
-        mTimestamp(aTimestamp),
+        mDirectoryLock(std::move(aDirectoryLock)),
         mSaved(false) {
     AssertIsOnOwningThread();
   }
@@ -1003,11 +1003,23 @@ RefPtr<OriginOperationBase> CreateFinalizeOriginEvictionOp(
                                               std::move(aLocks));
 }
 
+RefPtr<UniversalDirectoryLock> CreateSaveOriginAccessTimeLock(
+    QuotaManager& aQuotaManager, const OriginMetadata& aOriginMetadata) {
+  RefPtr<UniversalDirectoryLock> directoryLock =
+      aQuotaManager.CreateDirectoryLockInternal(
+          PersistenceScope::CreateFromValue(aOriginMetadata.mPersistenceType),
+          OriginScope::FromOrigin(aOriginMetadata),
+          ClientStorageScope::CreateFromMetadata(), /* aExclusive */ false);
+
+  return directoryLock;
+}
+
 RefPtr<ResolvableNormalOriginOp<bool>> CreateSaveOriginAccessTimeOp(
     MovingNotNull<RefPtr<QuotaManager>> aQuotaManager,
-    const OriginMetadata& aOriginMetadata, int64_t aTimestamp) {
+    const OriginMetadata& aOriginMetadata,
+    RefPtr<UniversalDirectoryLock> aDirectoryLock) {
   return MakeRefPtr<SaveOriginAccessTimeOp>(std::move(aQuotaManager),
-                                            aOriginMetadata, aTimestamp);
+                                            aOriginMetadata, aDirectoryLock);
 }
 
 RefPtr<ResolvableNormalOriginOp<bool>> CreateClearPrivateRepositoryOp(
@@ -1296,43 +1308,52 @@ void FinalizeOriginEvictionOp::UnblockOpen() {
 RefPtr<BoolPromise> SaveOriginAccessTimeOp::OpenDirectory() {
   AssertIsOnOwningThread();
 
-  return OpenStorageDirectory(
-      PersistenceScope::CreateFromValue(mOriginMetadata.mPersistenceType),
-      OriginScope::FromOrigin(mOriginMetadata),
-      ClientStorageScope::CreateFromMetadata(),
-      /* aExclusive */ false);
+  MOZ_ASSERT(mDirectoryLock);
+
+  return BoolPromise::CreateAndResolve(true, __func__);
 }
 
 nsresult SaveOriginAccessTimeOp::DoDirectoryWork(QuotaManager& aQuotaManager) {
   AssertIsOnIOThread();
-  aQuotaManager.AssertStorageIsInitializedInternal();
 
   AUTO_PROFILER_LABEL("SaveOriginAccessTimeOp::DoDirectoryWork", OTHER);
 
-  QM_TRY(MOZ_TO_RESULT(!QuotaManager::IsShuttingDown()), NS_ERROR_ABORT);
+  QM_TRY(OkIf(aQuotaManager.IsStorageInitializedInternal()),
+         NS_ERROR_NOT_INITIALIZED);
+
+  QM_TRY(OkIf(aQuotaManager.IsTemporaryStorageInitializedInternal()),
+         NS_ERROR_NOT_INITIALIZED);
+
+  QM_TRY(
+      OkIf(aQuotaManager.IsTemporaryOriginInitializedInternal(mOriginMetadata)),
+      NS_ERROR_NOT_INITIALIZED);
+
+  auto maybeOriginStateMetadata =
+      aQuotaManager.GetOriginStateMetadata(mOriginMetadata);
+
+  auto originStateMetadata = maybeOriginStateMetadata.extract();
+
+  originStateMetadata.mLastAccessTime = PR_Now();
 
   QM_TRY_INSPECT(const auto& file,
                  aQuotaManager.GetOriginDirectory(mOriginMetadata));
 
-  // The origin directory might not exist
-  // anymore, because it was deleted by a clear operation.
+  // The origin directory may not exist if the origin was initialized without
+  // ensuring the origin directory.
+
   QM_TRY_INSPECT(const bool& exists, MOZ_TO_RESULT_INVOKE_MEMBER(file, Exists));
 
   if (exists) {
-    QM_TRY(MOZ_TO_RESULT(file->Append(nsLiteralString(METADATA_V2_FILE_NAME))));
-
-    QM_TRY_INSPECT(const auto& stream,
-                   GetBinaryOutputStream(*file, FileFlag::Update));
-    MOZ_ASSERT(stream);
-
-    QM_TRY(MOZ_TO_RESULT(stream->Write64(mTimestamp)));
-
-    QM_TRY(MOZ_TO_RESULT(stream->Close()));
+    QM_TRY(
+        MOZ_TO_RESULT(SaveDirectoryMetadataHeader(*file, originStateMetadata)));
 
     mSaved = true;
 
     aQuotaManager.IncreaseSaveOriginAccessTimeCountInternal();
   }
+
+  aQuotaManager.UpdateOriginAccessTime(mOriginMetadata,
+                                       originStateMetadata.mLastAccessTime);
 
   return NS_OK;
 }
@@ -1388,15 +1409,6 @@ void ClearPrivateRepositoryOp::CloseDirectory() {
 
 RefPtr<BoolPromise> ShutdownStorageOp::OpenDirectory() {
   AssertIsOnOwningThread();
-
-  // Clear OpenClientDirectoryInfos (which also saves origin access time)
-  // before acquiring the exclusive lock below. Otherwise, saving of origin
-  // access time would be scheduled after storage shutdown and that would
-  // initialize storage again in the end.
-  //
-  // XXX This call and the method can be removed once the save origin access
-  // time op uses a pre-acquired directory lock.
-  mQuotaManager->ClearOpenClientDirectoryInfos();
 
   mDirectoryLock = mQuotaManager->CreateDirectoryLockInternal(
       PersistenceScope::CreateFromNull(), OriginScope::FromNull(),
@@ -2640,15 +2652,6 @@ void ClearStorageOp::DeleteStorageFile(QuotaManager& aQuotaManager) {
 RefPtr<BoolPromise> ClearStorageOp::OpenDirectory() {
   AssertIsOnOwningThread();
 
-  // Clear OpenClientDirectoryInfos (which also saves origin access time)
-  // before acquiring the exclusive lock below. Otherwise, saving of origin
-  // access time would be scheduled after storage shutdown and that would
-  // initialize storage again in the end.
-  //
-  // XXX This call and the method can be removed once the save origin access
-  // time op uses a pre-acquired directory lock.
-  mQuotaManager->ClearOpenClientDirectoryInfos();
-
   return OpenStorageDirectory(
       PersistenceScope::CreateFromNull(), OriginScope::FromNull(),
       ClientStorageScope::CreateFromNull(),
@@ -3533,8 +3536,9 @@ nsresult PersistOp::DoDirectoryWork(QuotaManager& aQuotaManager) {
         timestamp = PR_Now();
       }
 
-      FullOriginMetadata fullOriginMetadata =
-          FullOriginMetadata{originMetadata, /* aPersisted */ true, timestamp};
+      FullOriginMetadata fullOriginMetadata = FullOriginMetadata{
+          originMetadata,
+          OriginStateMetadata{timestamp, /* aPersisted */ true}};
 
       // Usually, infallible operations are placed after fallible ones.
       // However, since we lack atomic support for creating the origin
@@ -3546,7 +3550,10 @@ nsresult PersistOp::DoDirectoryWork(QuotaManager& aQuotaManager) {
     }
 
     QM_TRY(MOZ_TO_RESULT(QuotaManager::CreateDirectoryMetadata2(
-        *directory, timestamp, /* aPersisted */ true, originMetadata)));
+        *directory,
+        FullOriginMetadata{
+            originMetadata,
+            OriginStateMetadata{timestamp, /* aPersisted */ true}})));
 
     // Update or create OriginInfo too if temporary storage was already
     // initialized.
@@ -3564,7 +3571,8 @@ nsresult PersistOp::DoDirectoryWork(QuotaManager& aQuotaManager) {
         // origin directory has been just created.
 
         FullOriginMetadata fullOriginMetadata = FullOriginMetadata{
-            originMetadata, /* aPersisted */ true, timestamp};
+            originMetadata,
+            OriginStateMetadata{timestamp, /* aPersisted */ true}};
 
         aQuotaManager.InitQuotaForOrigin(fullOriginMetadata, ClientUsageArray(),
                                          /* aUsageBytes */ 0);
@@ -3592,22 +3600,11 @@ nsresult PersistOp::DoDirectoryWork(QuotaManager& aQuotaManager) {
         }()));
 
     if (!persisted) {
-      QM_TRY_INSPECT(const auto& file,
-                     CloneFileAndAppend(
-                         *directory, nsLiteralString(METADATA_V2_FILE_NAME)));
-
-      QM_TRY_INSPECT(const auto& stream,
-                     GetBinaryOutputStream(*file, FileFlag::Update));
-
-      MOZ_ASSERT(stream);
-
-      // Update origin access time while we are here.
-      QM_TRY(MOZ_TO_RESULT(stream->Write64(PR_Now())));
-
-      // Set the persisted flag to true.
-      QM_TRY(MOZ_TO_RESULT(stream->WriteBoolean(true)));
-
-      QM_TRY(MOZ_TO_RESULT(stream->Close()));
+      // Set the persisted flag to true and also update origin access time
+      // while we are here.
+      QM_TRY(MOZ_TO_RESULT(SaveDirectoryMetadataHeader(
+          *directory, OriginStateMetadata{/* aLastAccessTime */ PR_Now(),
+                                          /* aPersisted */ true})));
 
       // Directory metadata has been successfully updated.
       // Update OriginInfo too if temporary storage was already initialized.

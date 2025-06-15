@@ -190,6 +190,7 @@
 
 #include "nsArray.h"
 #include "nsArrayUtils.h"
+#include "nsBrowserStatusFilter.h"
 #include "nsCExternalHandlerService.h"
 #include "nsContentDLF.h"
 #include "nsContentPolicyUtils.h"  // NS_CheckContentLoadPolicy(...)
@@ -563,7 +564,8 @@ void nsDocShell::DestroyChildren() {
 NS_IMPL_CYCLE_COLLECTION_WEAK_PTR_INHERITED(nsDocShell, nsDocLoader,
                                             mScriptGlobal, mInitialClientSource,
                                             mBrowsingContext,
-                                            mChromeEventHandler)
+                                            mChromeEventHandler,
+                                            mBCWebProgressStatusFilter)
 
 NS_IMPL_ADDREF_INHERITED(nsDocShell, nsDocLoader)
 NS_IMPL_RELEASE_INHERITED(nsDocShell, nsDocLoader)
@@ -2886,7 +2888,7 @@ nsresult nsDocShell::AddChildSHEntry(nsISHEntry* aCloneRef,
   } else {
     RefPtr<ChildSHistory> shistory = GetRootSessionHistory();
     if (shistory) {
-      rv = shistory->LegacySHistory()->AddChildSHEntryHelper(
+      rv = shistory->LegacySHistory()->AddNestedSHEntry(
           aCloneRef, aNewEntry, mBrowsingContext->Top(), aCloneChildren);
     }
   }
@@ -3240,11 +3242,13 @@ nsresult nsDocShell::FixupAndLoadURIString(
       triggeringPrincipal = nsContentUtils::GetSystemPrincipal();
     }
     if (mozilla::SessionHistoryInParent()) {
+      UniquePtr<SessionHistoryInfo> previousActiveEntry(mActiveEntry.release());
       mActiveEntry = MakeUnique<SessionHistoryInfo>(
           uri, triggeringPrincipal, nullptr, nullptr, nullptr,
           nsLiteralCString("text/html"));
       mBrowsingContext->SetActiveSessionHistoryEntry(
-          Nothing(), mActiveEntry.get(), MAKE_LOAD_TYPE(LOAD_NORMAL, loadFlags),
+          Nothing(), mActiveEntry.get(), previousActiveEntry.get(),
+          MAKE_LOAD_TYPE(LOAD_NORMAL, loadFlags),
           /* aUpdatedCacheKey = */ 0);
     }
     if (DisplayLoadError(rv, nullptr, PromiseFlatString(aURIString).get(),
@@ -4541,6 +4545,8 @@ nsDocShell::Destroy() {
 
   mChromeEventHandler = nullptr;
 
+  mBCWebProgressStatusFilter = nullptr;
+
   // Cancel any timers that were set for this docshell; this is needed
   // to break the cycle between us and the timers.
   CancelRefreshURITimers();
@@ -5559,8 +5565,8 @@ static bool IsFollowupPartOfMultipart(nsIRequest* aRequest) {
 
 nsresult nsDocShell::Embed(nsIDocumentViewer* aDocumentViewer,
                            WindowGlobalChild* aWindowActor,
-                           bool aIsTransientAboutBlank, bool aPersist,
-                           nsIRequest* aRequest, nsIURI* aPreviousURI) {
+                           bool aIsTransientAboutBlank, nsIRequest* aRequest,
+                           nsIURI* aPreviousURI) {
   // Save the LayoutHistoryState of the previous document, before
   // setting up new document
   PersistLayoutHistoryState();
@@ -5617,7 +5623,8 @@ nsresult nsDocShell::Embed(nsIDocumentViewer* aDocumentViewer,
     }
 
     MOZ_LOG(gSHLog, LogLevel::Debug, ("document %p Embed", this));
-    MoveLoadingToActiveEntry(aPersist, expired, cacheKey, aPreviousURI,
+
+    MoveLoadingToActiveEntry(expired, cacheKey, aPreviousURI,
                              partitionedPrincipal);
   }
 
@@ -5678,13 +5685,20 @@ nsDocShell::OnProgressChange(nsIWebProgress* aProgress, nsIRequest* aRequest,
 NS_IMETHODIMP
 nsDocShell::OnStateChange(nsIWebProgress* aProgress, nsIRequest* aRequest,
                           uint32_t aStateFlags, nsresult aStatus) {
-  // If we're receiving a notification on ourselves, also notify WebProgress on
-  // BrowsingContextWebProgress, potentially over IPC.
+  // If we're receiving a notification on ourselves which has at least one of
+  // the state change flags in kStateChangeFlagFilter, also notify WebProgress
+  // on BrowsingContextWebProgress, potentially over IPC.
   //
   // NOTE: We don't notify for bubbled notifications (aProgress != this), as
   // BrowsingContextWebProgress independently handles event bubbling in the
   // parent process.
-  if (aProgress == this) {
+  //
+  // NOTE: We don't filter notifications when registering our listener, as
+  // `STATE_IS_REDIRECTED_DOCUMENT` cannot be filtered for at registration time.
+  static constexpr uint32_t kStateChangeFlagFilter =
+      STATE_IS_NETWORK | STATE_IS_DOCUMENT | STATE_IS_WINDOW |
+      STATE_IS_REDIRECTED_DOCUMENT;
+  if (aProgress == this && (aStateFlags & kStateChangeFlagFilter) != 0) {
     if (nsCOMPtr<nsIWebProgressListener> listener = BCWebProgressListener()) {
       listener->OnStateChange(aProgress, aRequest, aStateFlags, aStatus);
     }
@@ -5890,11 +5904,36 @@ nsDocShell::OnContentBlockingEvent(nsIWebProgress* aWebProgress,
 }
 
 already_AddRefed<nsIWebProgressListener> nsDocShell::BCWebProgressListener() {
-  if (XRE_IsParentProcess()) {
-    return do_AddRef(mBrowsingContext->Canonical()->GetWebProgress());
+  // If this BrowsingContext has been replaced, we should discard any
+  // notifications which would otherwise be delivered in-process.
+  if (XRE_IsParentProcess() && mBrowsingContext->Canonical()->IsReplaced()) {
+    return nullptr;
   }
-  nsCOMPtr<nsIWebProgressListener> bc = do_QueryReferent(mBrowserChild);
-  return bc.forget();
+
+  // Create a nsBrowserStatusFilter to perform some throttling of
+  // OnProgressChange and OnStatusChange notifications which are delivered to
+  // our BCWebProgress listener. This reduces the amount of IPC traffic.
+  if (!mBCWebProgressStatusFilter && !mIsBeingDestroyed) {
+    nsCOMPtr<nsIWebProgressListener> innerListener;
+    if (XRE_IsParentProcess()) {
+      innerListener = mBrowsingContext->Canonical()->GetWebProgress();
+    } else {
+      innerListener = do_QueryReferent(mBrowserChild);
+    }
+    if (innerListener) {
+      // NOTE: We need to disable filtering of StateChange events here, as
+      // listeners on BrowsingContextWebProgress may depend on state change
+      // notifications are otherwise filtered.
+      // NOTE: Unlike other nsIWebProgress types, nsBrowserStatusFilter holds a
+      // strong cycle-collected reference to the inner listener.
+      mBCWebProgressStatusFilter =
+          new nsBrowserStatusFilter(/* aDisableStateChangeFilters */ true);
+      mBCWebProgressStatusFilter->AddProgressListener(
+          innerListener, nsIWebProgress::NOTIFY_ALL);
+    }
+  }
+
+  return do_AddRef(mBCWebProgressStatusFilter);
 }
 
 already_AddRefed<nsIURIFixupInfo> nsDocShell::KeywordToURI(
@@ -6738,7 +6777,10 @@ nsresult nsDocShell::CreateAboutBlankDocumentViewer(
       // hook 'em up
       if (viewer) {
         viewer->SetContainer(this);
-        rv = Embed(viewer, aActor, true, false, nullptr, mCurrentURI);
+        if (mLoadingEntry && mBrowsingContext->IsTop()) {
+          mLoadingEntry->mInfo.SetTransient();
+        }
+        rv = Embed(viewer, aActor, true, nullptr, mCurrentURI);
         NS_ENSURE_SUCCESS(rv, rv);
 
         SetCurrentURI(blankDoc->GetDocumentURI(), nullptr,
@@ -7970,9 +8012,11 @@ nsresult nsDocShell::CreateDocumentViewer(const nsACString& aContentType,
     aOpenedChannel->SetNotificationCallbacks(this);
   }
 
-  NS_ENSURE_SUCCESS(Embed(viewer, nullptr, false,
-                          ShouldAddToSessionHistory(finalURI, aOpenedChannel),
-                          aOpenedChannel, previousURI),
+  if (mLoadingEntry && mBrowsingContext->IsTop() &&
+      !ShouldAddToSessionHistory(finalURI, aOpenedChannel)) {
+    mLoadingEntry->mInfo.SetTransient();
+  }
+  NS_ENSURE_SUCCESS(Embed(viewer, nullptr, false, aOpenedChannel, previousURI),
                     NS_ERROR_FAILURE);
 
   if (!mBrowsingContext->GetHasLoadedNonInitialDocument()) {
@@ -9136,7 +9180,7 @@ nsresult nsDocShell::HandleSameDocumentNavigation(
       // URI, but in that case mCurrentURI won't be null here.
       mBrowsingContext->SessionHistoryCommit(
           *mLoadingEntry, mLoadType, mCurrentURI, previousActiveEntry.get(),
-          true, true,
+          true,
           /* No expiration update on the same document loads*/
           false, cacheKey, doc->PartitionedPrincipal());
       // FIXME Need to set postdata.
@@ -9167,8 +9211,10 @@ nsresult nsDocShell::HandleSameDocumentNavigation(
       MOZ_LOG(gSHLog, LogLevel::Debug,
               ("Creating an active entry on nsDocShell %p to %s", this,
                newURI->GetSpecOrDefault().get()));
-      if (mActiveEntry) {
-        mActiveEntry = MakeUnique<SessionHistoryInfo>(*mActiveEntry, newURI);
+      UniquePtr<SessionHistoryInfo> previousActiveEntry(mActiveEntry.release());
+      if (previousActiveEntry) {
+        mActiveEntry =
+            MakeUnique<SessionHistoryInfo>(*previousActiveEntry, newURI);
       } else {
         mActiveEntry = MakeUnique<SessionHistoryInfo>(
             newURI, newURITriggeringPrincipal, newURIPrincipalToInherit,
@@ -9213,7 +9259,8 @@ nsresult nsDocShell::HandleSameDocumentNavigation(
         // FIXME We should probably just compute mChildOffset in the parent
         //       instead of passing it over IPC here.
         mBrowsingContext->SetActiveSessionHistoryEntry(
-            Some(scrollPos), mActiveEntry.get(), mLoadType, cacheKey);
+            Some(scrollPos), mActiveEntry.get(), previousActiveEntry.get(),
+            mLoadType, cacheKey);
         // FIXME Do we need to update mPreviousEntryIndex and mLoadedEntryIndex?
       }
     }
@@ -10898,11 +10945,14 @@ static nsresult AppendSegmentToString(nsIInputStream* aIn, void* aClosure,
     openFlags |= nsIURILoader::DONT_RETARGET;
   }
 
-  // Unless the pref is set, object/embed loads always specify DONT_RETARGET.
-  // See bug 1868001 for details.
-  if (!aIsDocumentLoad &&
-      !StaticPrefs::dom_navigation_object_embed_allow_retargeting()) {
-    openFlags |= nsIURILoader::DONT_RETARGET;
+  if (!aIsDocumentLoad) {
+    openFlags |= nsIURILoader::IS_OBJECT_EMBED;
+
+    // Unless the pref is set, object/embed loads always specify DONT_RETARGET.
+    // See bug 1868001 for details.
+    if (!StaticPrefs::dom_navigation_object_embed_allow_retargeting()) {
+      openFlags |= nsIURILoader::DONT_RETARGET;
+    }
   }
 
   return openFlags;
@@ -10993,8 +11043,14 @@ nsresult nsDocShell::OpenRedirectedChannel(nsDocShellLoadState* aLoadState) {
   // ClientInfo, so we just need to allocate a corresponding ClientSource.
   CreateReservedSourceIfNeeded(channel, GetMainThreadSerialEventTarget());
 
+  uint32_t documentOpenInfoFlags = nsIURILoader::DONT_RETARGET;
+  if (loadInfo->GetExternalContentPolicyType() ==
+      ExtContentPolicy::TYPE_OBJECT) {
+    documentOpenInfoFlags |= nsIURILoader::IS_OBJECT_EMBED;
+  }
+
   RefPtr<nsDocumentOpenInfo> loader =
-      new nsDocumentOpenInfo(this, nsIURILoader::DONT_RETARGET, nullptr);
+      new nsDocumentOpenInfo(this, documentOpenInfoFlags, nullptr);
   channel->SetLoadGroup(mLoadGroup);
 
   MOZ_ALWAYS_SUCCEEDS(loader->Prepare());
@@ -12162,12 +12218,16 @@ nsresult nsDocShell::AddToSessionHistory(
                 userActivation);
 
   if (mBrowsingContext->IsTop() && GetSessionHistory()) {
-    bool shouldPersist = ShouldAddToSessionHistory(aURI, aChannel);
     Maybe<int32_t> previousEntryIndex;
     Maybe<int32_t> loadedEntryIndex;
+
+    if (mBrowsingContext->IsTop() &&
+        !ShouldAddToSessionHistory(aURI, aChannel)) {
+      entry->SetTransient();
+    }
     rv = GetSessionHistory()->LegacySHistory()->AddToRootSessionHistory(
         aCloneChildren, mOSHE, mBrowsingContext, entry, mLoadType,
-        shouldPersist, &previousEntryIndex, &loadedEntryIndex);
+        &previousEntryIndex, &loadedEntryIndex);
 
     MOZ_ASSERT(NS_SUCCEEDED(rv), "Could not add entry to root session history");
     if (previousEntryIndex.isSome()) {
@@ -12237,9 +12297,10 @@ void nsDocShell::UpdateActiveEntry(
     CollectWireframe();
   }
 
-  if (mActiveEntry) {
+  UniquePtr<SessionHistoryInfo> previousActiveEntry(mActiveEntry.release());
+  if (previousActiveEntry) {
     // Link this entry to the previous active entry.
-    mActiveEntry = MakeUnique<SessionHistoryInfo>(*mActiveEntry, aURI);
+    mActiveEntry = MakeUnique<SessionHistoryInfo>(*previousActiveEntry, aURI);
   } else {
     mActiveEntry = MakeUnique<SessionHistoryInfo>(
         aURI, aTriggeringPrincipal, nullptr, nullptr, aCsp, mContentTypeHint);
@@ -12260,7 +12321,8 @@ void nsDocShell::UpdateActiveEntry(
     // FIXME We should probably just compute mChildOffset in the parent
     //       instead of passing it over IPC here.
     mBrowsingContext->SetActiveSessionHistoryEntry(
-        aPreviousScrollPos, mActiveEntry.get(), mLoadType,
+        aPreviousScrollPos, mActiveEntry.get(), previousActiveEntry.get(),
+        mLoadType,
         /* aCacheKey = */ 0);
     // FIXME Do we need to update mPreviousEntryIndex and mLoadedEntryIndex?
   }
@@ -13957,8 +14019,7 @@ void nsDocShell::SetLoadingSessionHistoryInfo(
       aNeedToReportActiveAfterLoadingBecomesActive;
 }
 
-void nsDocShell::MoveLoadingToActiveEntry(bool aPersist, bool aExpired,
-                                          uint32_t aCacheKey,
+void nsDocShell::MoveLoadingToActiveEntry(bool aExpired, uint32_t aCacheKey,
                                           nsIURI* aPreviousURI,
                                           nsIPrincipal* aPartitionedPrincipal) {
   MOZ_ASSERT(mozilla::SessionHistoryInParent());
@@ -13983,10 +14044,13 @@ void nsDocShell::MoveLoadingToActiveEntry(bool aPersist, bool aExpired,
       if (mNeedToReportActiveAfterLoadingBecomesActive) {
         // Needed to pass various history length WPTs.
         mBrowsingContext->SetActiveSessionHistoryEntry(
-            mozilla::Nothing(), mActiveEntry.get(), mLoadType,
+            mozilla::Nothing(), mActiveEntry.get(), previousActiveEntry.get(),
+            mLoadType,
             /* aUpdatedCacheKey = */ 0, false);
       }
-      mBrowsingContext->IncrementHistoryEntryCountForBrowsingContext();
+      if (!(previousActiveEntry && previousActiveEntry->IsTransient())) {
+        mBrowsingContext->IncrementHistoryEntryCountForBrowsingContext();
+      }
     }
   }
   mNeedToReportActiveAfterLoadingBecomesActive = false;
@@ -14007,12 +14071,13 @@ void nsDocShell::MoveLoadingToActiveEntry(bool aPersist, bool aExpired,
       // URI, but in that case mCurrentURI won't be null here.
       mBrowsingContext->SessionHistoryCommit(
           *loadingEntry, loadType, aPreviousURI, previousActiveEntry.get(),
-          aPersist, false, aExpired, aCacheKey, aPartitionedPrincipal);
+          false, aExpired, aCacheKey, aPartitionedPrincipal);
     }
 
     // Only update navigation if the new entry will be persisted (i.e., is not
     // an about: page).
-    if (aPersist && GetWindow() && GetWindow()->GetCurrentInnerWindow()) {
+    if (!loadingEntry->mInfo.IsTransient() && GetWindow() &&
+        GetWindow()->GetCurrentInnerWindow()) {
       if (RefPtr navigation =
               GetWindow()->GetCurrentInnerWindow()->Navigation()) {
         mBrowsingContext->GetContiguousHistoryEntries(*mActiveEntry,

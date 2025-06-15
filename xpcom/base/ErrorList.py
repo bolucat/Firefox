@@ -361,6 +361,10 @@ with modules["NETWORK"]:
     # The user attempted basic HTTP authentication while
     # the basic_http_auth pref is disabled
     errors["NS_ERROR_BASIC_HTTP_AUTH_DISABLED"] = FAILURE(92)
+    errors["NS_ERROR_LOCAL_NETWORK_ACCESS_DENIED"] = FAILURE(93)
+    # Used to indicate cases where we need to fall back from HTTP/2
+    # to HTTP/1.1.
+    errors["NS_ERROR_HTTP2_FALLBACK_TO_HTTP1"] = FAILURE(94)
 
     # XXX really need to better rationalize these error codes.  are consumers of
     # necko really expected to know how to discern the meaning of these??
@@ -1166,9 +1170,9 @@ with modules["DOM_MEDIA"]:
     errors["NS_ERROR_DOM_MEDIA_CDM_ERR"] = FAILURE(13)
     errors["NS_ERROR_DOM_MEDIA_NEED_NEW_DECODER"] = FAILURE(14)
     errors["NS_ERROR_DOM_MEDIA_INITIALIZING_DECODER"] = FAILURE(15)
-    errors["NS_ERROR_DOM_MEDIA_REMOTE_DECODER_CRASHED_RDD_OR_GPU_ERR"] = FAILURE(16)
-    errors["NS_ERROR_DOM_MEDIA_REMOTE_DECODER_CRASHED_UTILITY_ERR"] = FAILURE(17)
-    errors["NS_ERROR_DOM_MEDIA_REMOTE_DECODER_CRASHED_MF_CDM_ERR"] = FAILURE(18)
+    errors["NS_ERROR_DOM_MEDIA_REMOTE_CRASHED_RDD_OR_GPU_ERR"] = FAILURE(16)
+    errors["NS_ERROR_DOM_MEDIA_REMOTE_CRASHED_UTILITY_ERR"] = FAILURE(17)
+    errors["NS_ERROR_DOM_MEDIA_REMOTE_CRASHED_MF_CDM_ERR"] = FAILURE(18)
 
     # QuotaExceededError specializations
     errors["NS_ERROR_DOM_MEDIA_KEY_QUOTA_EXCEEDED_ERR"] = FAILURE(30)

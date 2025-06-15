@@ -4818,7 +4818,7 @@ pub extern "C" fn Servo_ParsePseudoElement(
     }
 
     let (pseudo_type, name) = pseudo.pseudo_type_and_argument();
-    let name_ptr = name.map_or(std::ptr::null_mut(), |name| name.0.as_ptr());
+    let name_ptr = name.map_or(std::ptr::null_mut(), |name| name.as_ptr());
     request.mType = pseudo_type;
     request.mIdentifier = unsafe { RefPtr::new(name_ptr).forget() };
 
@@ -6273,7 +6273,7 @@ pub extern "C" fn Servo_ResolveStyleLazily(
     );
 
     let matching_fn = |pseudo_selector: &PseudoElement| match pseudo_element {
-        Some(ref p) => p.matches(pseudo_selector),
+        Some(ref p) => p.matches(pseudo_selector, &element),
         _ => false,
     };
 

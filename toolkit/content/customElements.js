@@ -794,7 +794,6 @@
       ["named-deck", "chrome://global/content/elements/named-deck.js"],
       ["named-deck-button", "chrome://global/content/elements/named-deck.js"],
       ["panel-list", "chrome://global/content/elements/panel-list.js"],
-      ["search-textbox", "chrome://global/content/elements/search-textbox.js"],
       ["stringbundle", "chrome://global/content/elements/stringbundle.js"],
       [
         "printpreview-pagination",
@@ -875,6 +874,10 @@
           [
             "moz-radio-group",
             "chrome://global/content/elements/moz-radio-group.mjs",
+          ],
+          [
+            "moz-reorderable-list",
+            "chrome://global/content/elements/moz-reorderable-list.mjs",
           ],
           ["moz-select", "chrome://global/content/elements/moz-select.mjs"],
           [

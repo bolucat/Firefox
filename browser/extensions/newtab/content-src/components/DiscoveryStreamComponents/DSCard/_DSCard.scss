@@ -54,7 +54,7 @@ $ds-card-image-gradient-solid: rgba(0, 0, 0, 100%);
 
     &.refined-cards {
       .placeholder-image {
-        height: 172px;
+        height: 150px;
       }
 
       .placeholder-description {
@@ -560,7 +560,7 @@ $ds-card-image-gradient-solid: rgba(0, 0, 0, 100%);
 
       .meta {
         z-index: 10;
-        padding: var(--space-large);
+        padding: var(--space-small) var(--space-large);
         padding-block-end: 0;
 
       }

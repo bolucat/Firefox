@@ -2573,7 +2573,7 @@
 # https://github.com/whatwg/html/pull/10737
 - name: dom.dialog.light-dismiss.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Disable custom highlight API; implementation pending.
@@ -2702,8 +2702,8 @@
   value: false
   mirror: always
 
-# Whether the invoketarget attribute implementation is enabled
-- name: dom.element.invokers.enabled
+# Whether the commandfor attribute implementation is enabled
+- name: dom.element.commandfor.enabled
   type: bool
   value: false
   mirror: always
@@ -5545,11 +5545,7 @@
 
 - name: dom.webnotifications.actions.enabled
   type: RelaxedAtomicBool
-#if defined(ANDROID)
-  value: false
-#else
   value: @IS_NIGHTLY_BUILD@
-#endif
   mirror: always
 
 # Setting log level for notification modules.
@@ -5569,6 +5565,12 @@
 #else
   value: 1000
 #endif
+  mirror: always
+
+# Forcing all notification requests do storage cleanup.
+- name: dom.webnotifications.testing.force_storage_cleanup.enabled
+  type: bool
+  value: false
   mirror: always
 
 - name: dom.worker.canceling.timeoutMilliseconds
@@ -5925,7 +5927,11 @@
 # over IPC from the child processes.
 - name: fission.disableSessionHistoryInParent
   type: bool
+#if defined(MOZ_WIDGET_ANDROID) && !defined(NIGHTLY_BUILD)
+  value: true
+#else
   value: false
+#endif
   mirror: once
   do_not_use_directly: true
 
@@ -7524,14 +7530,14 @@
 #endif
   mirror: once
 
-#ifdef NIGHTLY_BUILD
-  # Keep this pref hidden on non-nightly builds to avoid people accidentally
-  # turning it on.
 - name: gfx.webrender.layer-compositor
   type: bool
+#if defined(XP_WIN)
+  value: @IS_NIGHTLY_BUILD@
+#else
   value: false
-  mirror: once
 #endif
+  mirror: once
 
 #ifdef XP_WIN
 - name: gfx.webrender.layer-compositor-use-composition-surface
@@ -8930,22 +8936,6 @@
     mirror: always
     set_spidermonkey_pref: startup
 
--   name: javascript.options.wasm_exnref
-    type: bool
-    value: true
-    mirror: always
-    set_spidermonkey_pref: startup
-
--   name: javascript.options.wasm_gc
-    type: bool
-#if defined(ENABLE_WASM_GC)
-    value: true
-#else
-    value: false
-#endif
-    mirror: always
-    set_spidermonkey_pref: always
-
 -   name: javascript.options.wasm_memory_control
     type: bool
     value: false
@@ -8973,42 +8963,6 @@
     set_spidermonkey_pref: startup
 #endif
 #endif
-
--   name: javascript.options.wasm_memory64
-    type: bool
-#if defined(ENABLE_WASM_MEMORY64)
-    value: true
-#else
-    value: false
-#endif
-    mirror: always
-    set_spidermonkey_pref: always
-
--   name: javascript.options.wasm_multi_memory
-    type: bool
-#if defined(ENABLE_WASM_MULTI_MEMORY)
-    value: true
-#else
-    value: false
-#endif
-    mirror: always
-    set_spidermonkey_pref: always
-
--   name: javascript.options.wasm_js_string_builtins
-    type: bool
-    value: true
-    mirror: always
-    set_spidermonkey_pref: always
-
--   name: javascript.options.wasm_tail_calls
-    type: bool
-#if defined(ENABLE_WASM_TAIL_CALLS)
-    value: true
-#else
-    value: false
-#endif
-    mirror: always
-    set_spidermonkey_pref: always
 
 -   name: javascript.options.wasm_js_promise_integration
     type: bool
@@ -9625,13 +9579,6 @@
 
 # Whether content-box and stroke-box are enabled for transform-box.
 - name: layout.css.transform-box-content-stroke.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
-# Whether transition-behavior property is enabled?
-- name: layout.css.transition-behavior.enabled
   type: RelaxedAtomicBool
   value: true
   mirror: always
@@ -11279,6 +11226,20 @@
 # blank frames/audio instead of actually decoding. The blank decoder works on
 # all platforms.
 - name: media.use-blank-decoder
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# Specifies whether the PEMFactory can create PEMs for remote audio encoding
+# in the RDD or utility processes.
+- name: media.use-remote-encoder.audio
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# Specifies whether the PEMFactory can create PEMs for remote video encoding
+# in the RDD or GPU process.
+- name: media.use-remote-encoder.video
   type: RelaxedAtomicBool
   value: false
   mirror: always
@@ -13092,7 +13053,7 @@
 # but still checks for capacity overflow and reports telemetry
 - name: network.cookie.chips.partitionLimitDryRun
   type: bool
-  value: false
+  value: true
   mirror: always
 
 # The actual CHIPS parition limit in bytes
@@ -14186,6 +14147,18 @@
 - name: network.dns.always_ai_canonname
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+
+# This preference controls Local Network Access (LNA) feature.
+- name: network.lna.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+# This preference controls blocking requests for Local Network Access (LNA) failures.
+- name: network.lna.blocking
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
 
 # The proxy type. See nsIProtocolProxyService.idl
@@ -15710,8 +15683,14 @@
   mirror: always
 
 # Enable the clearing of cache data using the clear-site-data header. If enabled,
-# header values of "cache" and "*" will clear cached data from the site
+# header values of "cache" and "*" will clear cached data from the origin
 - name: privacy.clearSiteDataHeader.cache.enabled
+  type: bool
+  value: true
+  mirror: always
+
+# Also enable the clearing the bfcache for "Clear-Site-Data"-Header
+- name: privacy.clearSiteDataHeader.cache.bfcache.enabled
   type: bool
   value: true
   mirror: always
@@ -16153,6 +16132,12 @@
   value: true
   mirror: always
 
+# Controls whether or not the dFPI partition key includes non-standard ports
+- name: privacy.dynamic_firstparty.use_site.include_port
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 - name: privacy.partition.network_state
   type: RelaxedAtomicBool
   value: true
@@ -16509,7 +16494,11 @@
 - name: security.sandbox.gpu.level
   type: int32_t
 #if defined(XP_WIN)
+#if defined(NIGHTLY_BUILD)
+  value: 2
+#else
   value: 1
+#endif
 #else
   value: 0
 #endif
@@ -17195,6 +17184,11 @@
 - name: security.tls13.aes_256_gcm_sha384
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+
+- name: security.integrity_policy.enabled
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
 
 #---------------------------------------------------------------------------
@@ -18626,6 +18620,13 @@
 
 # Use frame callback based vsync
 - name: widget.wayland.vsync.enabled
+  type: bool
+  value: true
+  mirror: once
+
+# Whether experimental PiP support for Wayland is enabled via the xx_pip_v1
+# protocol.
+- name: widget.wayland.experimental.pip.enabled
   type: bool
   value: true
   mirror: once

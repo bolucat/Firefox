@@ -36,6 +36,7 @@ private val logger = Logger(DistributionIdManager::class.simpleName)
  * @param context application context
  * @param browserStoreProvider used to update and fetch the stored distribution Id
  * @param distributionProviderChecker used for checking content providers for a distribution provider
+ * @param legacyDistributionProviderChecker used for checking content providers for a distribution provider
  * @param appPreinstalledOnVivoDevice checks if the vivo preinstalled file exists.
  * @param isDtTelefonicaInstalled checks if the DT telefonica app is installed on the device
  * @param isDtUsaInstalled checks if one of the DT USA carrier apps is installed on the device
@@ -44,6 +45,7 @@ class DistributionIdManager(
     private val context: Context,
     private val browserStoreProvider: DistributionBrowserStoreProvider,
     private val distributionProviderChecker: DistributionProviderChecker,
+    private val legacyDistributionProviderChecker: DistributionProviderChecker,
     private val appPreinstalledOnVivoDevice: () -> Boolean = { wasAppPreinstalledOnVivoDevice() },
     private val isDtTelefonicaInstalled: () -> Boolean = { isDtTelefonicaInstalled(context) },
     private val isDtUsaInstalled: () -> Boolean = { isDtUsaInstalled(context) },
@@ -59,19 +61,56 @@ class DistributionIdManager(
         browserStoreProvider.getDistributionId()?.let { return it }
 
         val provider = distributionProviderChecker.queryProvider()
+        val providerLegacy = legacyDistributionProviderChecker.queryProvider()
+
+        val isProviderDigitalTurbine = isProviderDigitalTurbine(provider) || isProviderDigitalTurbine(providerLegacy)
 
         val distributionId = when {
-            isProviderDigitalTurbine(provider) && isDtTelefonicaInstalled() -> Distribution.DT_001.id
-            isProviderDigitalTurbine(provider) && isDtUsaInstalled() -> Distribution.DT_002.id
-            isProviderDigitalTurbine(provider) -> Distribution.DT_003.id
+            isProviderDigitalTurbine && isDtTelefonicaInstalled() -> Distribution.DT_001.id
+            isProviderDigitalTurbine && isDtUsaInstalled() -> Distribution.DT_002.id
+            isProviderDigitalTurbine -> Distribution.DT_003.id
             isProviderAura(provider) -> Distribution.AURA_001.id
             isDeviceVivo() && appPreinstalledOnVivoDevice() -> Distribution.VIVO_001.id
             else -> Distribution.DEFAULT.id
         }
 
+        recordProviderCheckerEvents(
+            isProviderDigitalTurbine = isProviderDigitalTurbine(provider),
+            isLegacyProviderDigitalTurbine = isProviderDigitalTurbine(providerLegacy),
+            distributionMetricsProvider = DefaultDistributionMetricsProvider(),
+        )
+
         browserStoreProvider.updateDistributionId(distributionId)
 
         return distributionId
+    }
+
+    @VisibleForTesting
+    internal fun recordProviderCheckerEvents(
+        isProviderDigitalTurbine: Boolean,
+        isLegacyProviderDigitalTurbine: Boolean,
+        distributionMetricsProvider: DistributionMetricsProvider,
+    ) {
+        when {
+            isProviderDigitalTurbine && isDtTelefonicaInstalled() -> {
+                distributionMetricsProvider.recordDt001Detected()
+            }
+            isLegacyProviderDigitalTurbine && isDtTelefonicaInstalled() -> {
+                distributionMetricsProvider.recordDt001LegacyDetected()
+            }
+            isProviderDigitalTurbine && isDtUsaInstalled() -> {
+                distributionMetricsProvider.recordDt002Detected()
+            }
+            isLegacyProviderDigitalTurbine && isDtUsaInstalled() -> {
+                distributionMetricsProvider.recordDt002LegacyDetected()
+            }
+            isProviderDigitalTurbine -> {
+                distributionMetricsProvider.recordDt003Detected()
+            }
+            isLegacyProviderDigitalTurbine -> {
+                distributionMetricsProvider.recordDt003LegacyDetected()
+            }
+        }
     }
 
     /**

@@ -21,8 +21,6 @@ try:
 except ImportError:
     import urllib.parse as urlparse
 
-from functools import lru_cache
-
 from six import string_types
 
 import mozharness
@@ -45,7 +43,6 @@ class MultipleWheelMatchError(Exception):
     pass
 
 
-@lru_cache(maxsize=None)
 def get_uv_executable():
     return shutil.which("uv")
 
@@ -565,32 +562,14 @@ class VirtualenvMixin:
                 [sys.executable, "--version"],
             )
 
-            # Temporary hack to get around a bug with venv in Python 3.7.3 in CI
-            # https://bugs.python.org/issue36441
-            if self._is_windows():
-                if sys.version_info[:3] == (3, 7, 3):
-                    python_exe = Path(sys.executable)
-                    debug_exe_dir = (
-                        python_exe.parent / "lib" / "venv" / "scripts" / "nt"
-                    )
-
-                    if debug_exe_dir.exists():
-                        for executable in (
-                            "python.exe",
-                            "python_d.exe",
-                            "pythonw.exe",
-                            "pythonw_d.exe",
-                        ):
-                            expected_python_debug_exe = debug_exe_dir / executable
-                            if not expected_python_debug_exe.exists():
-                                shutil.copy(
-                                    sys.executable, str(expected_python_debug_exe)
-                                )
-
             if uv_executable := get_uv_executable():
                 self.run_command([uv_executable, "--version"])
 
-                python_path = os.environ["MOZ_PYTHON_HOME"]
+                # MOZ_PYTHON_HOME is only set in CI, but this code can execute locally for testing
+                # (e.g.: `./mach raptor`), so let's fall back to the sys.executable path in that case.
+                python_path = os.environ.get(
+                    "MOZ_PYTHON_HOME", Path(sys.executable).parents[1]
+                )
                 uv_venv_creation_command = [
                     "uv",
                     "venv",

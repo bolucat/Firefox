@@ -223,7 +223,8 @@ class QuotaManager final : public BackgroundThreadObject {
                               const OriginMetadata& aOriginMetadata,
                               Client::Type aClientType);
 
-  void UpdateOriginAccessTime(const OriginMetadata& aOriginMetadata);
+  void UpdateOriginAccessTime(const OriginMetadata& aOriginMetadata,
+                              int64_t aTimestamp);
 
   void RemoveQuota();
 
@@ -286,8 +287,7 @@ class QuotaManager final : public BackgroundThreadObject {
       const OriginMetadata& aOriginMetadata);
 
   static nsresult CreateDirectoryMetadata2(
-      nsIFile& aDirectory, int64_t aTimestamp, bool aPersisted,
-      const OriginMetadata& aOriginMetadata);
+      nsIFile& aDirectory, const FullOriginMetadata& aFullOriginMetadata);
 
   nsresult RestoreDirectoryMetadata2(nsIFile* aDirectory);
 
@@ -545,7 +545,11 @@ class QuotaManager final : public BackgroundThreadObject {
   RefPtr<BoolPromise> InitializeAllTemporaryOrigins();
 
   RefPtr<BoolPromise> SaveOriginAccessTime(
-      const OriginMetadata& aOriginMetadata, int64_t aTimestamp);
+      const OriginMetadata& aOriginMetadata);
+
+  RefPtr<BoolPromise> SaveOriginAccessTime(
+      const OriginMetadata& aOriginMetadata,
+      RefPtr<UniversalDirectoryLock> aDirectoryLock);
 
   RefPtr<OriginUsageMetadataArrayPromise> GetUsage(
       bool aGetAll, RefPtr<BoolPromise> aOnCancelPromise = nullptr);
@@ -669,6 +673,9 @@ class QuotaManager final : public BackgroundThreadObject {
   void SetThumbnailPrivateIdentityId(uint32_t aThumbnailPrivateIdentityId);
 
   uint64_t GetGroupLimit() const;
+
+  Maybe<OriginStateMetadata> GetOriginStateMetadata(
+      const OriginMetadata& aOriginMetadata);
 
   std::pair<uint64_t, uint64_t> GetUsageAndLimitForEstimate(
       const OriginMetadata& aOriginMetadata);
@@ -826,10 +833,9 @@ class QuotaManager final : public BackgroundThreadObject {
   nsresult InitializeRepository(PersistenceType aPersistenceType,
                                 OriginFunc&& aOriginFunc);
 
-  nsresult InitializeOrigin(PersistenceType aPersistenceType,
-                            const OriginMetadata& aOriginMetadata,
-                            int64_t aAccessTime, bool aPersisted,
-                            nsIFile* aDirectory, bool aForGroup = false);
+  nsresult InitializeOrigin(nsIFile* aDirectory,
+                            const FullOriginMetadata& aFullOriginMetadata,
+                            bool aForGroup = false);
 
   using OriginInfosFlatTraversable =
       nsTArray<NotNull<RefPtr<const OriginInfo>>>;
@@ -859,8 +865,6 @@ class QuotaManager final : public BackgroundThreadObject {
       (*mClients)[type]->ReleaseIOThreadObjects();
     }
   }
-
-  void ClearOpenClientDirectoryInfos();
 
   void AddTemporaryOrigin(const FullOriginMetadata& aFullOriginMetadata);
 
@@ -922,6 +926,25 @@ class QuotaManager final : public BackgroundThreadObject {
   template <typename UpdateCallback>
   void RegisterClientDirectoryLockHandle(const OriginMetadata& aOriginMetadata,
                                          UpdateCallback&& aUpdateCallback);
+
+  /**
+   * Invokes the given callback with the active OpenClientDirectoryInfo entry
+   * for the specified origin.
+   *
+   * This method is typically used after the first handle has been registered
+   * via RegisterClientDirectoryLockHandle. It provides easy access to the
+   * associated OpenClientDirectoryInfo for reading and/or updating its data.
+   *
+   * Currently, it is primarily used in the final step of OpenClientDirectory
+   * to retrieve the first-access promise returned by SaveOriginAccessTime,
+   * which is stored during the first handle registration. The returned promise
+   * is then used to ensure that client access is blocked until the origin
+   * access time update is complete.
+   */
+  template <typename Callback>
+  auto WithOpenClientDirectoryInfo(const OriginMetadata& aOriginMetadata,
+                                   Callback&& aCallback)
+      -> std::invoke_result_t<Callback, OpenClientDirectoryInfo&>;
 
   /**
    * Unregisters a ClientDirectoryLockHandle for the given origin.
@@ -1033,6 +1056,12 @@ class QuotaManager final : public BackgroundThreadObject {
   // Maintains a list of directory locks that are acquired or queued. It can be
   // accessed on the owning (PBackground) thread only.
   nsTArray<NotNull<DirectoryLockImpl*>> mDirectoryLocks;
+
+  // Maintains a list of directory locks that are exclusive. This is a subset
+  // of mDirectoryLocks and is used to optimize lock acquisition by allowing
+  // shared locks to skip unnecessary comparisons. It is accessed only on the
+  // owning (PBackground) thread.
+  nsTArray<NotNull<DirectoryLockImpl*>> mExclusiveDirectoryLocks;
 
   // Only modifed on the owning thread, but read on multiple threads. Therefore
   // all modifications (including those on the owning thread) and all reads off

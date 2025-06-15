@@ -25,6 +25,7 @@ import mozilla.components.feature.customtabs.store.CustomTabsServiceStore
 import mozilla.components.feature.downloads.DateTimeProvider
 import mozilla.components.feature.downloads.DefaultDateTimeProvider
 import mozilla.components.feature.downloads.DefaultFileSizeFormatter
+import mozilla.components.feature.downloads.DownloadEstimator
 import mozilla.components.feature.downloads.DownloadMiddleware
 import mozilla.components.feature.downloads.DownloadsUseCases
 import mozilla.components.feature.downloads.FileSizeFormatter
@@ -35,7 +36,6 @@ import mozilla.components.feature.prompts.file.FileUploadsDirCleaner
 import mozilla.components.feature.prompts.file.FileUploadsDirCleanerMiddleware
 import mozilla.components.feature.search.SearchApplicationName
 import mozilla.components.feature.search.SearchDeviceType
-import mozilla.components.feature.search.SearchEngineSelector
 import mozilla.components.feature.search.SearchUpdateChannel
 import mozilla.components.feature.search.SearchUseCases
 import mozilla.components.feature.search.middleware.AdsTelemetryMiddleware
@@ -283,6 +283,8 @@ class Components(
 
     val dateTimeProvider: DateTimeProvider by lazy { DefaultDateTimeProvider() }
 
+    val downloadEstimator: DownloadEstimator by lazy { DownloadEstimator(dateTimeProvider = dateTimeProvider) }
+
     val remoteSettingsService by lazy {
         RemoteSettingsService(
             context,
@@ -345,7 +347,14 @@ private fun createCrashReporter(context: Context): CrashReporter {
     return CrashReporter(
         context = context,
         services = services,
-        telemetryServices = listOf(GleanCrashReporterService(context)),
+        telemetryServices = listOf(
+            GleanCrashReporterService(
+                context,
+                appChannel = org.mozilla.geckoview.BuildConfig.MOZ_UPDATE_CHANNEL,
+                appVersion = org.mozilla.geckoview.BuildConfig.MOZ_APP_VERSION,
+                appBuildId = org.mozilla.geckoview.BuildConfig.MOZ_APP_BUILDID,
+            ),
+        ),
         promptConfiguration = CrashReporter.PromptConfiguration(
             appName = context.resources.getString(R.string.app_name),
         ),
@@ -394,7 +403,6 @@ private fun getSearchEngineSelectorConfig(context: Context): SearchEngineSelecto
         deviceType = deviceType,
         experiment = "",
         updateChannel = updateChannel,
-        selector = SearchEngineSelector(),
         service = context.components.remoteSettingsService,
     )
 }

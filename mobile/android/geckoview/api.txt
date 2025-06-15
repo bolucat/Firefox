@@ -118,6 +118,7 @@ import org.mozilla.geckoview.WebExtension;
 import org.mozilla.geckoview.WebExtensionController;
 import org.mozilla.geckoview.WebMessage;
 import org.mozilla.geckoview.WebNotification;
+import org.mozilla.geckoview.WebNotificationAction;
 import org.mozilla.geckoview.WebNotificationDelegate;
 import org.mozilla.geckoview.WebPushController;
 import org.mozilla.geckoview.WebPushDelegate;
@@ -764,6 +765,7 @@ package org.mozilla.geckoview {
     ctor public GeckoPreferenceController();
     method @AnyThread @NonNull public static GeckoResult<Void> clearGeckoUserPref(@NonNull String);
     method @AnyThread @NonNull public static GeckoResult<GeckoPreferenceController.GeckoPreference<?>> getGeckoPref(@NonNull String);
+    method @AnyThread @NonNull public static GeckoResult<List<GeckoPreferenceController.GeckoPreference<?>>> getGeckoPrefs(@NonNull List<String>);
     method @AnyThread @NonNull public static GeckoResult<Void> setGeckoPref(@NonNull String, @NonNull String, int);
     method @AnyThread @NonNull public static GeckoResult<Void> setGeckoPref(@NonNull String, @NonNull Integer, int);
     method @AnyThread @NonNull public static GeckoResult<Void> setGeckoPref(@NonNull String, @NonNull Boolean, int);
@@ -2737,6 +2739,7 @@ package org.mozilla.geckoview {
     field @Nullable public final String downloadUrl;
     field public final boolean enabled;
     field @Nullable public final String fullDescription;
+    field @NonNull public final String[] grantedOptionalDataCollectionPermissions;
     field @NonNull public final String[] grantedOptionalOrigins;
     field @NonNull public final String[] grantedOptionalPermissions;
     field @Nullable public final String homepageUrl;
@@ -2745,9 +2748,11 @@ package org.mozilla.geckoview {
     field public final boolean isRecommended;
     field @Nullable public final String name;
     field public final boolean openOptionsPageInTab;
+    field @NonNull public final String[] optionalDataCollectionPermissions;
     field @NonNull public final String[] optionalOrigins;
     field @NonNull public final String[] optionalPermissions;
     field @Nullable public final String optionsPageUrl;
+    field @NonNull public final String[] requiredDataCollectionPermissions;
     field @NonNull public final String[] requiredOrigins;
     field @NonNull public final String[] requiredPermissions;
     field public final int reviewCount;
@@ -2759,9 +2764,11 @@ package org.mozilla.geckoview {
   }
 
   public static class WebExtension.PermissionPromptResponse {
-    ctor public PermissionPromptResponse(@Nullable Boolean, @Nullable Boolean);
+    ctor @Deprecated @DeprecationSchedule(id="web-extension-permission-prompt-response",version=143) public PermissionPromptResponse(@Nullable Boolean, @Nullable Boolean);
+    ctor public PermissionPromptResponse(Boolean, Boolean, Boolean);
     field @Nullable public final Boolean isPermissionsGranted;
     field @Nullable public final Boolean isPrivateModeGranted;
+    field @Nullable public final Boolean isTechnicalAndInteractionDataGranted;
   }
 
   @UiThread public static class WebExtension.Port {
@@ -2885,7 +2892,8 @@ package org.mozilla.geckoview {
   }
 
   @UiThread public static interface WebExtensionController.PromptDelegate {
-    method @Nullable default public GeckoResult<WebExtension.PermissionPromptResponse> onInstallPromptRequest(@NonNull WebExtension, @NonNull String[], @NonNull String[]);
+    method @Deprecated @DeprecationSchedule(id="web-extension-on-install-prompt-request",version=143) @Nullable default public GeckoResult<WebExtension.PermissionPromptResponse> onInstallPromptRequest(@NonNull WebExtension, @NonNull String[], @NonNull String[]);
+    method @Nullable default public GeckoResult<WebExtension.PermissionPromptResponse> onInstallPromptRequest(@NonNull WebExtension, @NonNull String[], @NonNull String[], @NonNull String[]);
     method @Nullable default public GeckoResult<AllowOrDeny> onOptionalPrompt(@NonNull WebExtension, @NonNull String[], @NonNull String[]);
     method @Nullable default public GeckoResult<AllowOrDeny> onUpdatePrompt(@NonNull WebExtension, @NonNull WebExtension, @NonNull String[], @NonNull String[]);
   }
@@ -2904,8 +2912,10 @@ package org.mozilla.geckoview {
 
   public class WebNotification implements Parcelable {
     method @UiThread public void click();
+    method @UiThread public void click(@NonNull String);
     method @UiThread public void dismiss();
     field public static final Parcelable.Creator<WebNotification> CREATOR;
+    field @NonNull public final WebNotificationAction[] actions;
     field @Nullable public final String imageUrl;
     field @Nullable public final String lang;
     field public final boolean privateBrowsing;
@@ -2917,6 +2927,13 @@ package org.mozilla.geckoview {
     field @Nullable public final String textDirection;
     field @Nullable public final String title;
     field @NonNull public final int[] vibrate;
+  }
+
+  public class WebNotificationAction implements Parcelable {
+    ctor public WebNotificationAction(@NonNull String, @NonNull String);
+    field public static final Parcelable.Creator<WebNotificationAction> CREATOR;
+    field @NonNull public final String name;
+    field @NonNull public final String title;
   }
 
   public interface WebNotificationDelegate {

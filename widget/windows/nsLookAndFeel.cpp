@@ -396,10 +396,6 @@ nsresult nsLookAndFeel::NativeGetColor(ColorID aID, ColorScheme aScheme,
     case ColorID::Threedface:
       idx = COLOR_3DFACE;
       break;
-    case ColorID::Buttonborder:
-    case ColorID::MozButtonhoverborder:
-    case ColorID::MozButtonactiveborder:
-    case ColorID::MozButtondisabledborder:
     case ColorID::Threedhighlight:
       idx = COLOR_3DHIGHLIGHT;
       break;
@@ -483,6 +479,10 @@ nsresult nsLookAndFeel::NativeGetColor(ColorID aID, ColorScheme aScheme,
     case ColorID::MozAutofillBackground:
     case ColorID::TargetTextBackground:
     case ColorID::TargetTextForeground:
+    case ColorID::Buttonborder:
+    case ColorID::MozButtonhoverborder:
+    case ColorID::MozButtonactiveborder:
+    case ColorID::MozButtondisabledborder:
       aColor = GetStandinForNativeColor(aID, aScheme);
       return NS_OK;
     default:

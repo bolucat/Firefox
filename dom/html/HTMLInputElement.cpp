@@ -23,6 +23,7 @@
 #include "mozilla/dom/NumericInputTypes.h"
 #include "mozilla/dom/WindowContext.h"
 #include "mozilla/dom/InputType.h"
+#include "mozilla/dom/UnionTypes.h"
 #include "mozilla/dom/UserActivation.h"
 #include "mozilla/dom/MouseEvent.h"
 #include "mozilla/dom/MutationEventBinding.h"
@@ -1934,10 +1935,8 @@ void HTMLInputElement::SetValueAsDate(JSContext* aCx,
 
 void HTMLInputElement::SetValueAsNumber(double aValueAsNumber,
                                         ErrorResult& aRv) {
-  // TODO: return TypeError when HTMLInputElement is converted to WebIDL, see
-  // bug 825197.
   if (std::isinf(aValueAsNumber)) {
-    aRv.Throw(NS_ERROR_INVALID_ARG);
+    aRv.ThrowTypeError("Value being assigned is infinite.");
     return;
   }
 
@@ -4200,11 +4199,7 @@ void HTMLInputElement::ActivationBehavior(EventChainPostVisitor& aVisitor) {
       break;
   }  // switch
   if (IsButtonControl()) {
-    if (!GetInvokeTargetElement()) {
-      HandlePopoverTargetAction();
-    } else {
-      HandleInvokeTargetAction();
-    }
+    HandlePopoverTargetAction();
   }
 
   EndSubmitClick(aVisitor);

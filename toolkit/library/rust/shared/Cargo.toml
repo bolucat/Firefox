@@ -12,7 +12,6 @@ moz_asserts = "0.1"
 mozglue-static = { path = "../../../../mozglue/static/rust" }
 geckoservo = { path = "../../../../servo/ports/geckolib" }
 kvstore = { path = "../../../components/kvstore" }
-lmdb-rkv-sys = { version = "0.11", features = ["mdb_idl_logn_9"] }
 mp4parse_capi = { git = "https://github.com/mozilla/mp4parse-rust", rev = "d3e4d255bd149d341c7e90f5e9fc84e743a8e179", features = ["missing-pixi-permitted"] }
 nserror = { path = "../../../../xpcom/rust/nserror" }
 nsstring = { path = "../../../../xpcom/rust/nsstring" }
@@ -123,6 +122,7 @@ webext-storage = "0.1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 detect_win32k_conflicts = { path = "../../../xre/detect_win32k_conflicts" }
+widget_windows = { path = "../../../../widget/windows/rust" }
 
 [features]
 default = []

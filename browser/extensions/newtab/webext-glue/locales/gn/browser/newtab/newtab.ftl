@@ -117,6 +117,8 @@ newtab-menu-delete-pocket = Embogue { -pocket-brand-name }-pe
 newtab-menu-archive-pocket = Eñongatu { -pocket-brand-name }-pe
 newtab-menu-show-privacy-info = Ore pytyvõhára ha iñemigua
 newtab-menu-about-fakespot = { -fakespot-brand-name } rehegua
+# Report is a verb (i.e. report issue with the content).
+newtab-menu-report = Momarandu
 newtab-menu-report-content = Emomarandu ko tetepy rehegua
 # Context menu option to personalize New Tab recommended stories by blocking a section of stories,
 # e.g. "Sports". "Block" is a verb here.
@@ -190,6 +192,8 @@ newtab-label-sponsored-by = Ohepyme’ẽva { $sponsor }
 #   $source (string) - The name of a company or their domain
 #   $timeToRead (number) - The estimated number of minutes to read this story
 newtab-label-source-read-time = { $source } · { $timeToRead } min
+# This string is used under fixed size ads to indicate sponsored content
+newtab-label-sponsored-fixed = Pytyvõpyréva
 
 ## Section Menu: These strings are displayed in the section context menu and are
 ## meant as a call to action for the given section.
@@ -311,6 +315,9 @@ newtab-custom-recent-toggle =
 newtab-custom-weather-toggle =
     .label = Arapytu
     .description = Ko árape g̃uara ára
+newtab-custom-trending-search-toggle =
+    .label = Jeheka ojejapovéva
+    .description = Umi téma ojeguerohory ha ojehekavéva
 newtab-custom-close-button = Mboty
 newtab-custom-settings = Eñangareko hetave ñembohekóre
 
@@ -558,3 +565,14 @@ newtab-report-cancel = Heja
 newtab-report-submit = Mondo
 newtab-toast-thanks-for-reporting =
     .message = Aguyje emomarandu haguére.
+
+## Strings for trending searches
+
+# "Trending on Google" refers to the trending topics coming from Google Search, usually seen when a user is focused on the search bar
+newtab-trending-searches-trending-on-google = Google-pe ojehekavéva
+newtab-trending-searches-show-trending =
+    .title = Ehechauka jeheka ojejapovéva
+newtab-trending-searches-hide-trending =
+    .title = Eñomi jeheka ojejapovéva
+newtab-trending-searches-learn-more = Eikuaave
+newtab-trending-searches-dismiss = Eñomi jeheka ojejapovéva

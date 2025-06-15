@@ -13,6 +13,7 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.NoMatchingViewException
@@ -78,12 +79,13 @@ class SettingsSubMenuAddonsManagerRobot {
 
     fun verifyAddonPermissionPrompt(addonName: String) {
         waitForAddonsDownloadOverlayToBeGone()
-        mDevice.waitNotNull(Until.findObject(By.text("Add $addonName?")), waitingTime)
+        mDevice.waitNotNull(Until.findObject(By.text("Add $addonName")), waitingTime)
         Log.i(TAG, "verifyAddonPermissionPrompt: Trying to verify that the add-ons permission prompt items are displayed")
         onView(
             allOf(
-                withText("Add $addonName?"),
-                hasSibling(withText(containsString("It requires your permission to:"))),
+                withText("Add $addonName"),
+                hasSibling(withText(containsString("Required permissions:"))),
+                hasSibling(withText("Allow extension to run in private browsing")),
             ),
         )
             .inRoot(isDialog())
@@ -94,7 +96,6 @@ class SettingsSubMenuAddonsManagerRobot {
                 withText("Add"),
                 hasSibling(withText("Cancel")),
                 hasSibling(withText("Learn more")),
-                hasSibling(withText("Allow in private browsing")),
             ),
         )
             .inRoot(isDialog())
@@ -240,7 +241,7 @@ class SettingsSubMenuAddonsManagerRobot {
     }
 
     fun selectAllowInPrivateBrowsing() {
-        assertUIObjectExists(itemWithText("Allow in private browsing"), waitingTime = waitingTimeLong)
+        assertUIObjectExists(itemWithText("Allow extension to run in private browsing"), waitingTime = waitingTimeLong)
         Log.i(TAG, "selectAllowInPrivateBrowsing: Trying to click the \"Allow in private browsing\" check box")
         onView(withId(R.id.allow_in_private_browsing)).click()
         Log.i(TAG, "selectAllowInPrivateBrowsing: Clicked the \"Allow in private browsing\" check box")
@@ -298,12 +299,12 @@ class SettingsSubMenuAddonsManagerRobot {
         Log.i(TAG, "verifyNoInstalledExtensionsPromotionBanner: Verified that that the \"Learn more\" link is displayed")
     }
 
-    fun verifyDisabledExtensionsPromotionBanner(composeTestRule: ComposeTestRule) {
-        Log.i(TAG, "verifyDisabledExtensionsPromotionBanner: Trying to verify that the \"You have extensions installed, but not enabled\" heading is displayed")
+    fun verifyExtensionsEnabledButton(composeTestRule: ComposeTestRule) {
+        Log.i(TAG, "verifyExtensionsEnabledButton: Trying to verify that the \"You have extensions installed, but not enabled\" heading is displayed")
         composeTestRule.onNode(
             hasText(getStringResource(R.string.browser_menu_disabled_extensions_banner_onboarding_header)),
         ).assertIsDisplayed()
-        Log.i(TAG, "verifyDisabledExtensionsPromotionBanner: Verified that the \"You have extensions installed, but not enabled\" heading is displayed")
+        Log.i(TAG, "verifyExtensionsEnabledButton: Verified that the \"You have extensions installed, but not enabled\" heading is displayed")
         Log.i(TAG, "verifyDisabledExtensionsPromotionBanner: Trying to verify that that the \"To use extensions, enable them in settings or by selecting “Manage extensions” below.\" message is displayed")
         composeTestRule.onNode(
             hasText("To use extensions, enable them in settings or by selecting “Manage extensions” below."),
@@ -363,7 +364,7 @@ class SettingsSubMenuAddonsManagerRobot {
     }
 
     fun clickManageExtensionsButtonFromRedesignedMainMenu(composeTestRule: ComposeTestRule) =
-        composeTestRule.onNodeWithContentDescription(getStringResource(R.string.browser_menu_manage_extensions)).performClick()
+        composeTestRule.onNodeWithText(getStringResource(R.string.browser_menu_manage_extensions), useUnmergedTree = true).performClick()
 
     class Transition {
         fun goBack(interact: HomeScreenRobot.() -> Unit): HomeScreenRobot.Transition {

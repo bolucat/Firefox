@@ -189,10 +189,15 @@ fn generate_cpp_callback_interface(
             .callback_interface
             .then(|| format!("FfiValueCallbackInterface{module_name}_{interface_name}")),
         handler_var: format!(
-            "gUniffiCallbackHandler{}",
+            "gUniffiCallbackHandler{}{}",
+            module_name.to_upper_camel_case(),
             interface_name.to_upper_camel_case()
         ),
-        vtable_var: format!("kUniffiVtable{}", interface_name.to_upper_camel_case()),
+        vtable_var: format!(
+            "kUniffiVtable{}{}",
+            module_name.to_upper_camel_case(),
+            interface_name.to_upper_camel_case()
+        ),
         vtable_struct_type: vtable.struct_type.clone(),
         init_fn: vtable.init_fn.clone(),
         free_fn: format!(
@@ -203,18 +208,18 @@ fn generate_cpp_callback_interface(
         methods: vtable
             .methods
             .iter()
-            .enumerate()
-            .map(|(i, vtable_meth)| {
+            .map(|vtable_meth| {
+                let FfiType::Function(FfiFunctionTypeName(name)) = &vtable_meth.ffi_type.ty else {
+                    bail!(
+                        "Invalid FFI TYPE for VTable method {:?}",
+                        vtable_meth.ffi_type.ty
+                    );
+                };
                 let ffi_func = ffi_func_map
-                    .get(&format!("CallbackInterface{interface_name}Method{i}"))
+                    .get(name)
                     .cloned()
-                    .ok_or_else(|| {
-                        anyhow!(
-                            "Callback interface method not found: {}",
-                            vtable_meth.callable.name
-                        )
-                    })?;
-                map_method(vtable_meth, ffi_func, &module_name, interface_name)
+                    .ok_or_else(|| anyhow!("Callback interface method not found: {name}"))?;
+                map_method(vtable_meth, ffi_func, module_name, interface_name)
             })
             .collect::<Result<Vec<_>>>()?,
     })

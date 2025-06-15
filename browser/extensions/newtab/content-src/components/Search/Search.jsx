@@ -9,7 +9,7 @@ import { connect } from "react-redux";
 import { IS_NEWTAB } from "content-src/lib/constants";
 import { Logo } from "content-src/components/Logo/Logo";
 import React from "react";
-import { TrendingSearchesVarA } from "../DiscoveryStreamComponents/TrendingSearches/TrendingSearchesVarA";
+import { TrendingSearches } from "../DiscoveryStreamComponents/TrendingSearches/TrendingSearches";
 
 export class _Search extends React.PureComponent {
   constructor(props) {
@@ -22,10 +22,6 @@ export class _Search extends React.PureComponent {
     this.onInputMountHandoff = this.onInputMountHandoff.bind(this);
     this.onSearchHandoffButtonMount =
       this.onSearchHandoffButtonMount.bind(this);
-    this.trendingSearchEnabled =
-      this.props.Prefs.values["trendingSearch.enabled"];
-    this.trendingSearchVariant =
-      this.props.Prefs.values["trendingSearch.variant"];
   }
 
   handleEvent(event) {
@@ -154,6 +150,11 @@ export class _Search extends React.PureComponent {
       .filter(v => v)
       .join(" ");
 
+    const trendingSearchEnabled =
+      this.props.Prefs.values["trendingSearch.enabled"];
+    const trendingSearchVariant =
+      this.props.Prefs.values["trendingSearch.variant"];
+
     return (
       <>
         <div className={wrapperClassName}>
@@ -173,8 +174,9 @@ export class _Search extends React.PureComponent {
                 data-l10n-id="newtab-search-box-search-button"
                 onClick={this.onSearchClick}
               />
-              {this.trendingSearchEnabled &&
-                this.trendingSearchVariant === "a" && <TrendingSearchesVarA />}
+              {trendingSearchEnabled && trendingSearchVariant === "a" && (
+                <TrendingSearches />
+              )}
             </div>
           )}
           {this.props.handoffEnabled && (
@@ -202,8 +204,9 @@ export class _Search extends React.PureComponent {
                   }}
                 />
               </button>
-              {this.trendingSearchEnabled &&
-                this.trendingSearchVariant === "a" && <TrendingSearchesVarA />}
+              {trendingSearchEnabled && trendingSearchVariant === "a" && (
+                <TrendingSearches />
+              )}
             </div>
           )}
         </div>

@@ -391,6 +391,8 @@ const LOGGER_ID_BASE = "addons.webextension.";
 const UUID_MAP_PREF = "extensions.webextensions.uuids";
 const LEAVE_STORAGE_PREF = "extensions.webextensions.keepStorageOnUninstall";
 const LEAVE_UUID_PREF = "extensions.webextensions.keepUuidOnUninstall";
+const WEBCOMPAT_ADDON_ID = "webcompat@mozilla.org";
+const WEBCOMPAT_UUID = "9a310967-e580-48bf-b3e8-4eafebbc122d";
 
 // All moz-extension URIs use a machine-specific UUID rather than the
 // extension's own ID in the host component. This makes it more
@@ -415,6 +417,23 @@ var UUIDMap = {
 
   get(id, create = true) {
     let map = this._read();
+
+    // In general, the UUID should not change once assigned because it may be
+    // stored elsewhere within the profile directory, when the extension URL is
+    // exposed (e.g. history, bookmarks, site permissions, web or extension
+    // APIs that associate data with the extension principal or origin).
+    // The webcompat add-on does not rely on the persisted uuid, so we can
+    // simply migrate the uuid below, see bug 1717672.
+    if (id === WEBCOMPAT_ADDON_ID) {
+      if (!create && !(id in map)) {
+        return null;
+      }
+      if (map[id] !== WEBCOMPAT_UUID) {
+        map[id] = WEBCOMPAT_UUID;
+        this._write(map);
+      }
+      return WEBCOMPAT_UUID;
+    }
 
     if (id in map) {
       return map[id];
@@ -1447,7 +1466,8 @@ export class ExtensionData {
         perm => !oldPermissions.permissions.includes(perm)
       ),
       data_collection: newPermissions.data_collection.filter(
-        perm => newPermissions.data_collection.includes(perm) && perm !== "none"
+        perm =>
+          !oldPermissions.data_collection.includes(perm) && perm !== "none"
       ),
     };
   }
@@ -1467,9 +1487,11 @@ export class ExtensionData {
       permissions: oldPermissions.permissions.filter(perm =>
         newPermissions.permissions.includes(perm)
       ),
-      data_collection: oldPermissions.data_collection.filter(
-        perm => newPermissions.data_collection.includes(perm) && perm !== "none"
-      ),
+      data_collection:
+        oldPermissions.data_collection?.filter(
+          perm =>
+            newPermissions.data_collection?.includes(perm) && perm !== "none"
+        ) ?? [],
     };
   }
 
@@ -1518,9 +1540,27 @@ export class ExtensionData {
       removed
     );
 
+    // Compute removed data collection permissions and account for addons
+    // installed before support for data collection permissions was introduced.
+    let dataCollectionSet = new Set(
+      [].concat(
+        newPermissions.data_collection ?? [],
+        newOptionalPermissions.data_collection ?? []
+      )
+    );
+    let oldDataCollectionSet = new Set(
+      [].concat(
+        oldPermissions.data_collection ?? [],
+        oldOptionalPermissions.data_collection ?? []
+      )
+    );
+
     // Remove any optional permissions that have been removed from the manifest.
     await lazy.ExtensionPermissions.remove(id, {
       permissions: removed,
+      data_collection: Array.from(
+        oldDataCollectionSet.difference(dataCollectionSet)
+      ),
       origins: [],
     });
   }
@@ -3242,7 +3282,11 @@ class BootstrapScope {
     if (data.oldPermissions) {
       // New permissions may be null, ensure we have an empty
       // permission set in that case.
-      let emptyPermissions = { permissions: [], origins: [] };
+      let emptyPermissions = {
+        permissions: [],
+        origins: [],
+        data_collection: [],
+      };
       await ExtensionData.migratePermissions(
         data.id,
         data.oldPermissions,

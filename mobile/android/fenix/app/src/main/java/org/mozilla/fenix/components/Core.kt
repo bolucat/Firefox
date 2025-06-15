@@ -45,6 +45,7 @@ import mozilla.components.feature.customtabs.store.CustomTabsServiceStore
 import mozilla.components.feature.downloads.DateTimeProvider
 import mozilla.components.feature.downloads.DefaultDateTimeProvider
 import mozilla.components.feature.downloads.DefaultFileSizeFormatter
+import mozilla.components.feature.downloads.DownloadEstimator
 import mozilla.components.feature.downloads.DownloadMiddleware
 import mozilla.components.feature.downloads.FileSizeFormatter
 import mozilla.components.feature.fxsuggest.facts.FxSuggestFactsMiddleware
@@ -62,7 +63,6 @@ import mozilla.components.feature.recentlyclosed.RecentlyClosedMiddleware
 import mozilla.components.feature.recentlyclosed.RecentlyClosedTabsStorage
 import mozilla.components.feature.search.SearchApplicationName
 import mozilla.components.feature.search.SearchDeviceType
-import mozilla.components.feature.search.SearchEngineSelector
 import mozilla.components.feature.search.SearchUpdateChannel
 import mozilla.components.feature.search.middleware.AdsTelemetryMiddleware
 import mozilla.components.feature.search.middleware.SearchExtraParams
@@ -415,6 +415,11 @@ class Core(
     val dateTimeProvider: DateTimeProvider by lazyMonitored { DefaultDateTimeProvider() }
 
     /**
+     * [DateTimeProvider] used to provide date and time information.
+     */
+    val downloadEstimator: DownloadEstimator by lazyMonitored { DownloadEstimator(dateTimeProvider = dateTimeProvider) }
+
+    /**
      * The [RelationChecker] checks Digital Asset Links relationships for Trusted Web Activities.
      */
     val relationChecker: RelationChecker by lazyMonitored {
@@ -708,7 +713,6 @@ class Core(
             deviceType = deviceType,
             experiment = "",
             updateChannel = updateChannel,
-            selector = SearchEngineSelector(),
             service = context.components.remoteSettingsService.value,
         )
     }

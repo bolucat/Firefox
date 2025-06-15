@@ -572,6 +572,10 @@ pref("browser.urlbar.quicksuggest.dynamicSuggestionTypes", "");
 // Whether Suggest will use the ML backend in addition to Rust.
 pref("browser.urlbar.quicksuggest.mlEnabled", false);
 
+// How long to wait in seconds after startup before initializing the Suggest ML
+// backend.
+pref("browser.urlbar.quicksuggest.mlInitDelaySeconds", 0);
+
 // Which Suggest settings to show in the settings UI. See
 // `QuickSuggest.SETTINGS_UI` for values.
 pref("browser.urlbar.quicksuggest.settingsUi", 0);
@@ -725,6 +729,21 @@ pref("browser.urlbar.suggest.fakespot", true);
 // The minimum prefix length of addons keyword the user must type to trigger
 // the suggestion. 0 means the min length should be taken from Nimbus.
 pref("browser.urlbar.addons.minKeywordLength", 0);
+
+// Feature gate pref for AMP suggestions in the urlbar.
+pref("browser.urlbar.amp.featureGate", false);
+
+// If `browser.urlbar.amp.featureGate` is true, this controls whether AMP
+// suggestions are turned on.
+pref("browser.urlbar.suggest.amp", true);
+
+// Feature gate pref for Wikipedia suggestions in the urlbar (part of Firefox
+// Suggest).
+pref("browser.urlbar.wikipedia.featureGate", false);
+
+// If `browser.urlbar.wikipedia.featureGate` is true, this controls whether
+// Wikipedia suggestions are turned on.
+pref("browser.urlbar.suggest.wikipedia", true);
 
 // Enable creating and editing user defined search engines.
 pref("browser.urlbar.update2.engineAliasRefresh", true);
@@ -1982,7 +2001,7 @@ pref("browser.newtabpage.activity-stream.telemetry.surfaceId", "");
 #ifdef EARLY_BETA_OR_EARLIER
   pref("browser.newtabpage.activity-stream.discoverystream.thumbsUpDown.region-thumbs-config", "US, CA");
 #else
-  pref("browser.newtabpage.activity-stream.discoverystream.thumbsUpDown.region-thumbs-config", "");
+  pref("browser.newtabpage.activity-stream.discoverystream.thumbsUpDown.region-thumbs-config", "US");
 #endif
 
 // Shows users compact layout of Home New Tab page. Also requires region-thumbs-config.
@@ -2088,6 +2107,7 @@ pref("sidebar.new-sidebar.has-used", false);
 pref("browser.ml.chat.enabled", true);
 pref("browser.ml.chat.hideLocalhost", true);
 pref("browser.ml.chat.page", false);
+pref("browser.ml.chat.page.footerBadge", true);
 pref("browser.ml.chat.prompt.prefix", '{"l10nId":"genai-prompt-prefix-selection"}');
 pref("browser.ml.chat.prompts.0", '{"id":"summarize","l10nId":"genai-prompts-summarize"}');
 pref("browser.ml.chat.prompts.1", '{"id":"explain","l10nId":"genai-prompts-explain"}');
@@ -2682,6 +2702,16 @@ pref("screenshots.browser.component.last-saved-method", "download");
 // Preference that prevents events from reaching the content page.
 pref("screenshots.browser.component.preventContentEvents", true);
 
+// Determines the default save location for screenshots
+// Valid values are 0, 1, 2 and 3.
+//   0 - Use the desktop as the default save location.
+//   1 - Use the system's downloads folder as the default save location.
+//   2 - Use the folder set in browser.screenshots.dir as the default save location.
+//   3 - Use system's screenshot folder as the default save location.
+// Options 2 and 3 will fallback to the system downloads folder if their specified folder is not found.
+pref("browser.screenshots.folderList", 1);
+pref("browser.screenshots.dir", "");
+
 // DoH Rollout: whether to clear the mode value at shutdown.
 pref("doh-rollout.clearModeOnShutdown", false);
 
@@ -3268,7 +3298,6 @@ pref("cookiebanners.ui.desktop.cfrVariant", 0);
 
 #ifdef NIGHTLY_BUILD
   pref("dom.security.credentialmanagement.identity.enabled", true);
-  pref("dom.security.credentialmanagement.identity.heavyweight.enabled", true);
 #endif
 
 pref("ui.new-webcompat-reporter.enabled", true);
@@ -3351,3 +3380,6 @@ pref("toolkit.contentRelevancy.log", false);
 // rotation altogether.
 pref("browser.contextual-services.contextId.rotation-in-days", 0);
 pref("browser.contextual-services.contextId.rust-component.enabled", true);
+
+// Pref to enable the IP protection feature
+pref("browser.ipProtection.enabled", false);

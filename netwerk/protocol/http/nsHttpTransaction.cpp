@@ -171,7 +171,10 @@ nsresult nsHttpTransaction::Init(
     uint64_t browserId, HttpTrafficCategory trafficCategory,
     nsIRequestContext* requestContext, ClassOfService classOfService,
     uint32_t initialRwin, bool responseTimeoutEnabled, uint64_t channelId,
-    TransactionObserverFunc&& transactionObserver) {
+    TransactionObserverFunc&& transactionObserver,
+    nsILoadInfo::IPAddressSpace aParentIpAddressSpace,
+    const dom::ContentPermissionRequestBase::PromptResult
+        aLnaPermissionStatus) {
   nsresult rv;
 
   LOG1(("nsHttpTransaction::Init [this=%p caps=%x]\n", this, caps));
@@ -213,6 +216,9 @@ nsresult nsHttpTransaction::Init(
   mCallbacks = callbacks;
   mConsumerTarget = target;
   mCaps = caps;
+
+  mParentIPAddressSpace = aParentIpAddressSpace;
+  mLnaPermissionStatus = aLnaPermissionStatus;
   // eventsink is a nsHttpChannel when we expect "103 Early Hints" responses.
   // We expect it in document requests and not e.g. in TRR requests.
   mEarlyHintObserver = do_QueryInterface(eventsink);
@@ -1383,6 +1389,7 @@ void nsHttpTransaction::Close(nsresult reason) {
   if ((reason == NS_ERROR_NET_RESET || reason == NS_OK ||
        reason ==
            psm::GetXPCOMFromNSSError(SSL_ERROR_DOWNGRADE_WITH_EARLY_DATA) ||
+       reason == NS_ERROR_HTTP2_FALLBACK_TO_HTTP1 ||
        ShouldRestartOn0RttError(reason) ||
        shouldRestartTransactionForHTTPSRR) &&
       (!(mCaps & NS_HTTP_STICKY_CONNECTION) ||
@@ -3643,6 +3650,42 @@ void nsHttpTransaction::SetIsForWebTransport(bool aIsForWebTransport) {
 void nsHttpTransaction::RemoveConnection() {
   MutexAutoLock lock(mLock);
   mConnection = nullptr;
+}
+
+bool nsHttpTransaction::AllowedToConnectToIpAddressSpace(
+    nsILoadInfo::IPAddressSpace aTargetIpAddressSpace) {
+  // skip checks if LNA feature is disabled
+  if (!StaticPrefs::network_lna_enabled()) {
+    return true;
+  }
+  // Deny access to a request moving to a more private addresspsace.
+  // Specifically,
+  // 1. local host resources cannot be accessed from Private or Public
+  // network
+  // 2. private network resources cannot be accessed from Public
+  // network
+  // Refer
+  // https://wicg.github.io/private-network-access/#private-network-request-heading
+  // for private network access
+  // XXX add link to LNA spec once it is published
+
+  if (mozilla::net::IsLocalNetworkAccess(mParentIPAddressSpace,
+                                         aTargetIpAddressSpace)) {
+    // Permission is denied when transaction is created. Currently we block any
+    // LNA from a tracker script
+    if (mLnaPermissionStatus ==
+        dom::ContentPermissionRequestBase::PromptResult::Denied) {
+      return false;
+    }
+
+    if (StaticPrefs::network_lna_blocking()) {
+      // If LNA blocking is enabled, we block any LNA requests. Currently we
+      // should hit this case for tests
+      return false;
+    }
+  }
+
+  return true;
 }
 
 }  // namespace mozilla::net

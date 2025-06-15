@@ -59,7 +59,7 @@
 #include "mozilla/layers/WebRenderBridgeChild.h"
 #include "mozilla/layers/WebRenderLayerManager.h"
 #include "mozilla/net/UrlClassifierFeatureFactory.h"
-#include "mozilla/RemoteDecoderManagerChild.h"
+#include "mozilla/RemoteMediaManagerChild.h"
 #include "mozilla/KeySystemConfig.h"
 #include "mozilla/WheelHandlingHelper.h"
 #include "nsIRFPTargetSetIDL.h"
@@ -1714,6 +1714,12 @@ void ChromeUtils::ClearResourceCache(
   if (clearImage) {
     imgLoader::ClearCache();
   }
+}
+
+void ChromeUtils::ClearBfcacheByPrincipal(GlobalObject& aGlobal,
+                                          nsIPrincipal* aPrincipal,
+                                          ErrorResult& aRv) {
+  aRv = CanonicalBrowsingContext::ClearBfcacheByPrincipal(aPrincipal);
 }
 
 #define PROCTYPE_TO_WEBIDL_CASE(_procType, _webidl) \

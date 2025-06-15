@@ -258,6 +258,7 @@ class HTMLSharedElement;
 class HTMLVideoElement;
 class HTMLImageElement;
 class ImageTracker;
+class IntegrityPolicy;
 enum class InteractiveWidget : uint8_t;
 struct LifecycleCallbackArgs;
 class Link;
@@ -789,6 +790,8 @@ class Document : public nsINode,
    * Set referrer policy and upgrade-insecure-requests flags
    */
   void ApplySettingsFromCSP(bool aSpeculative);
+
+  IntegrityPolicy* GetIntegrityPolicy() const { return mIntegrityPolicy; }
 
   already_AddRefed<nsIParser> CreatorParserOrNull() {
     nsCOMPtr<nsIParser> parser = mParser;
@@ -1527,6 +1530,7 @@ class Document : public nsINode,
   friend class nsUnblockOnloadEvent;
 
   nsresult InitCSP(nsIChannel* aChannel);
+  nsresult InitIntegrityPolicy(nsIChannel* aChannel);
   nsresult InitCOEP(nsIChannel* aChannel);
   nsresult InitDocPolicy(nsIChannel* aChannel);
 
@@ -5157,6 +5161,7 @@ class Document : public nsINode,
   // CSP so we do not have to deserialize the CSP from the Client all the time.
   nsCOMPtr<nsIContentSecurityPolicy> mCSP;
   nsCOMPtr<nsIContentSecurityPolicy> mPreloadCSP;
+  RefPtr<IntegrityPolicy> mIntegrityPolicy;
 
  private:
   nsCString mContentType;

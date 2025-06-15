@@ -993,8 +993,8 @@
       "memshrink-telemetry-alerts@mozilla.com",
       "pbone@mozilla.com"
     ],
-    "bug_numbers": [1829127, 1892149],
-    "expires_in_version": "142",
+    "bug_numbers": [1829127, 1892149, 1969170],
+    "expires_in_version": "152",
     "kind": "exponential",
     "low": 4096,
     "high": 8388608,
@@ -1009,8 +1009,8 @@
       "memshrink-telemetry-alerts@mozilla.com",
       "pbone@mozilla.com"
     ],
-    "bug_numbers": [1829127, 1892149],
-    "expires_in_version": "142",
+    "bug_numbers": [1829127, 1892149, 1969170],
+    "expires_in_version": "152",
     "kind": "exponential",
     "high": 16384,
     "n_buckets": 64,
@@ -1024,25 +1024,12 @@
       "memshrink-telemetry-alerts@mozilla.com",
       "pbone@mozilla.com"
     ],
-    "bug_numbers": [1829127, 1892149],
-    "expires_in_version": "142",
+    "bug_numbers": [1829127, 1892149, 1969170],
+    "expires_in_version": "152",
     "kind": "exponential",
     "high": 16384,
     "n_buckets": 64,
     "description": "Number of PHC slots allocated-then-freed",
-    "releaseChannelCollection": "opt-out"
-  },
-  "PROCESS_LIFETIME": {
-    "record_in_processes": ["main"],
-    "products": ["firefox"],
-    "alert_emails": ["pbone@mozilla.com"],
-    "bug_numbers": [1897060],
-    "expires_in_version": "142",
-    "kind": "exponential",
-    "low": 15,
-    "high": 86400,
-    "n_buckets": 24,
-    "description": "Average lifetime of a content process in seconds",
     "releaseChannelCollection": "opt-out"
   },
   "FONTLIST_INITOTHERFAMILYNAMES": {
@@ -1847,14 +1834,6 @@
     "bug_numbers": [1743965, 1796398],
     "keyed": true,
     "description": "The time between navigationStart and the first contentful paint of a foreground http or https root content document, in milliseconds. The contentful paint timestamp is taken during display list building and does not include rasterization or compositing of that paint. This is collected only on page load where the main document uses HTTP3. It is keyed based on whether a \"priority\" header has been received."
-  },
-  "HTTP_PROXY_TYPE": {
-    "record_in_processes": ["main", "socket"],
-    "products": ["firefox", "fennec"],
-    "expires_in_version": "never",
-    "kind": "enumerated",
-    "n_values": 8,
-    "description": "HTTP Proxy Type (none, http, socks)"
   },
   "HTTP_TRANSACTION_IS_SSL": {
     "record_in_processes": ["main", "content"],

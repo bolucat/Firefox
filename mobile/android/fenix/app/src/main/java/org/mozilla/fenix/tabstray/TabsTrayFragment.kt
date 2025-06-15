@@ -45,9 +45,6 @@ import org.mozilla.fenix.GleanMetrics.TabsTray
 import org.mozilla.fenix.HomeActivity
 import org.mozilla.fenix.NavGraphDirections
 import org.mozilla.fenix.R
-import org.mozilla.fenix.biometricauthentication.AuthenticationStatus
-import org.mozilla.fenix.biometricauthentication.BiometricAuthenticationManager
-import org.mozilla.fenix.biometricauthentication.BiometricAuthenticationNeededInfo
 import org.mozilla.fenix.browser.tabstrip.isTabStripEnabled
 import org.mozilla.fenix.components.StoreProvider
 import org.mozilla.fenix.compose.core.Action
@@ -63,6 +60,8 @@ import org.mozilla.fenix.ext.requireComponents
 import org.mozilla.fenix.ext.runIfFragmentIsAttached
 import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.home.HomeScreenViewModel
+import org.mozilla.fenix.lifecycle.registerForVerification
+import org.mozilla.fenix.lifecycle.verifyUser
 import org.mozilla.fenix.navigation.DefaultNavControllerProvider
 import org.mozilla.fenix.navigation.NavControllerProvider
 import org.mozilla.fenix.nimbus.FxNimbus
@@ -96,7 +95,10 @@ class TabsTrayFragment : AppCompatDialogFragment() {
     private lateinit var tabsTrayController: DefaultTabsTrayController
     private lateinit var navigationInteractor: DefaultNavigationInteractor
     private lateinit var enablePbmPinLauncher: ActivityResultLauncher<Intent>
-    private lateinit var unlockPrivateTabsPinLauncher: ActivityResultLauncher<Intent>
+
+    @VisibleForTesting
+    internal var verificationResultLauncher: ActivityResultLauncher<Intent> =
+        registerForVerification(onVerified = ::openPrivateTabsPage)
 
     @VisibleForTesting internal lateinit var tabsTrayStore: TabsTrayStore
 
@@ -152,11 +154,6 @@ class TabsTrayFragment : AppCompatDialogFragment() {
             onFailure = {
                 PrivateBrowsingLocked.authFailure.record()
             },
-        )
-
-        unlockPrivateTabsPinLauncher = registerForActivityResult(
-            onSuccess = { onUnlockPrivateTabsSuccess() },
-            onFailure = { onUnlockPrivateTabsFailure() },
         )
 
         tabsTrayStore = StoreProvider.get(this) {
@@ -809,49 +806,26 @@ class TabsTrayFragment : AppCompatDialogFragment() {
         dismissAllowingStateLoss()
     }
 
-    private fun onUnlockPrivateTabsSuccess() {
-        PrivateBrowsingLocked.authSuccess.record()
-
-        tabsTrayInteractor.onTrayPositionSelected(Page.PrivateTabs.ordinal, false)
-
-        requireComponents.privateBrowsingLockFeature.onSuccessfulAuthentication()
-    }
-
-    private fun onUnlockPrivateTabsFailure() {
-        PrivateBrowsingLocked.authFailure.record()
-    }
-
     @VisibleForTesting
     internal fun onTabPageClick(
-        biometricAuthenticationNeededInfo: BiometricAuthenticationNeededInfo =
-            BiometricAuthenticationManager.biometricAuthenticationNeededInfo,
         biometricUtils: BiometricUtils = DefaultBiometricUtils,
         tabsTrayInteractor: TabsTrayInteractor,
         page: Page,
         isPrivateScreenLocked: Boolean,
     ) {
-        val isPrivateTabPage = page == Page.PrivateTabs
-
-        if (isPrivateTabPage && isPrivateScreenLocked) {
-            biometricAuthenticationNeededInfo.authenticationStatus =
-                AuthenticationStatus.AUTHENTICATION_IN_PROGRESS
-
-            biometricUtils.bindBiometricsCredentialsPromptOrShowWarning(
-                view = requireView(),
-                onShowPinVerification = { intent -> unlockPrivateTabsPinLauncher.launch(intent) },
-                onAuthSuccess = ::onUnlockPrivateTabsSuccess,
-                onAuthFailure = ::onUnlockPrivateTabsFailure,
-                titleRes = R.string.pbm_authentication_unlock_private_tabs,
+        if (page == Page.PrivateTabs && isPrivateScreenLocked) {
+            verifyUser(
+                biometricUtils = biometricUtils,
+                fallbackVerification = verificationResultLauncher,
+                onVerified = ::openPrivateTabsPage,
             )
         } else {
-            // Reset authentication state when leaving PBM
-            if (!isPrivateTabPage) {
-                biometricAuthenticationNeededInfo.apply {
-                    authenticationStatus = AuthenticationStatus.NOT_AUTHENTICATED
-                }
-            }
             tabsTrayInteractor.onTrayPositionSelected(page.ordinal, false)
         }
+    }
+
+    private fun openPrivateTabsPage() {
+        tabsTrayInteractor.onTrayPositionSelected(Page.PrivateTabs.ordinal, false)
     }
 
     /**

@@ -10,7 +10,6 @@ import mozilla.components.feature.downloads.DownloadEstimator
 import mozilla.components.feature.downloads.FileSizeFormatter
 import org.mozilla.fenix.R
 import org.mozilla.fenix.downloads.listscreen.store.FileItem
-import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.getBaseDomainUrl
 import kotlin.time.Duration.Companion.seconds
 
@@ -34,11 +33,14 @@ interface FileItemDescriptionProvider {
  *
  * @param context The Android context used to retrieve string resources and retrieve the [DateTimeProvider].
  * @param fileSizeFormatter [FileSizeFormatter] used to format the size of the file item.
+ * @param downloadEstimator [DownloadEstimator] used to estimate the download time remaining.
  */
 class DefaultFileItemDescriptionProvider(
     private val context: Context,
     private val fileSizeFormatter: FileSizeFormatter,
+    private val downloadEstimator: DownloadEstimator,
 ) : FileItemDescriptionProvider {
+
     override fun getDescription(
         downloadState: DownloadState,
     ): String = when (downloadState.status) {
@@ -58,13 +60,17 @@ class DefaultFileItemDescriptionProvider(
         )
         DownloadState.Status.DOWNLOADING -> {
             val estimatedSecsRemaining = downloadState.contentLength?.let { contentLength ->
-                DownloadEstimator(
+                downloadEstimator.estimatedRemainingTime(
+                    startTime = downloadState.createdTime,
+                    bytesDownloaded = downloadState.currentBytesCopied,
                     totalBytes = contentLength,
-                    dateTimeProvider = context.components.core.dateTimeProvider,
-                ).estimatedRemainingTime(downloadState.currentBytesCopied)
+                )
             }
 
-            if (estimatedSecsRemaining == null) {
+            if (downloadState.contentLength == null) {
+                // This will be changed in https://bugzilla.mozilla.org/show_bug.cgi?id=1971338
+                fileSizeFormatter.formatSizeInBytes(downloadState.currentBytesCopied)
+            } else if (estimatedSecsRemaining == null) {
                 context.getString(
                     R.string.download_item_in_progress_description_pending,
                     fileSizeFormatter.formatSizeInBytes(downloadState.currentBytesCopied),
