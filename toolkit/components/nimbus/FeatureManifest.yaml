@@ -79,6 +79,20 @@ prefFlips:
     uri: resource://nimbus/schemas/PrefFlipsFeature.schema.json
     path: toolkit/components/nimbus/schemas/PrefFlipsFeature.schema.json
 
+# TODO(bug 1972426): Remove this feature.
+nimbusStore:
+  description: Configuration for the Nimbus ExperimentStore.
+  owner: beth@mozilla.com
+  hasExposure: false
+  variables:
+    dbEnabled:
+      type: boolean
+      description: >
+        If enabled, the NimbusEnrollments database table will be used as the
+        primary enrollment store.
+      setPref:
+        branch: user
+        pref: nimbus.profilesdatastoreservice.read.enabled
 
 search:
   description: Search service related features.
@@ -522,7 +536,7 @@ urlbar:
         pref: places.semanticHistory.distanceThreshold
       description: >-
         semantic similarity distance threshold (0.0 - 1.0)
-        defaulted at 0.75.
+        defaulted at 0.6.
     suggestSemanticHistoryMinLength:
       type: int
       setPref:
@@ -1049,27 +1063,6 @@ newtabInlineTopicSelection:
       description: >-
         Enables inline topic selection
 
-newtabLayoutExperiment:
-  description: >-
-    Change the default layout of new tab by adjusting sizes and spacing of elements.
-  owner: achurchwell@mozilla.com, sdowne@mozilla.com
-  hasExposure: false
-  variables:
-    variantA:
-      type: boolean
-      setPref:
-        branch: user
-        pref: browser.newtabpage.activity-stream.newtabLayouts.variant-a
-      description: >-
-        Variant A in layouts experiment.
-    variantB:
-      type: boolean
-      setPref:
-        branch: user
-        pref: browser.newtabpage.activity-stream.newtabLayouts.variant-b
-      description: >-
-        Variant B in layouts experiment.
-
 newtabCustomWallpaper:
   description: >-
     Modify the wallpaper selection feature to support user-uploaded custom wallpaper images
@@ -1409,7 +1402,7 @@ newtabPrivatePing:
       type: boolean
       setPref:
         branch: user
-        pref: browser.newtabpage.activity-stream.telemetry.privatePing.inferred.enabled
+        pref: browser.newtabpage.activity-stream.telemetry.privatePing.inferredInterests.enabled
       description: >-
         Includes a differentially private intrest vector of general topical interests based on New Tab clicks. Only sent when user has enabled personalization.
     maxSubmissionDelayMs:
@@ -1442,7 +1435,7 @@ newtabMerinoOhttp:
       type: boolean
       setPref:
         branch: user
-        pref: browser.newtabpage.activity-stream.discoverystrean.merino-provider.ohttp.enabled
+        pref: browser.newtabpage.activity-stream.discoverystream.merino-provider.ohttp.enabled
       description: >-
         Enables using OHTTP for merino content requests
 
@@ -1643,12 +1636,6 @@ pocketNewtab:
         browser.newtabpage.activity-stream.discoverystream.newSponsoredLabel.enabled
       description: >-
         Updates the sponsored label position to below the image for Pocket cards on newtab.
-    sendToPocket:
-      type: boolean
-      fallbackPref: >-
-        browser.newtabpage.activity-stream.discoverystream.sendToPocket.enabled
-      description: >-
-        Decides what to do when a logged out user click "Save to Pocket" from a Pocket card.
     wallpapers:
       type: boolean
       setPref:
@@ -2747,6 +2734,18 @@ networkingBannedPorts:
         branch: default
         pref: "network.security.ports.banned"
 
+localNetworkAccess:
+  description: "Networking (Necko) Local Network Access prefs"
+  owner: vgosu@mozilla.com
+  hasExposure: false
+  variables:
+    blockTrackers:
+      description: Whether network requests triggered by third party scripts classified as trackers should be blocked when making a localhost request.
+      type: boolean
+      setPref:
+        branch: default
+        pref: "network.lna.block_trackers"
+
 essentialFallbackDomains:
   description: "Whether to retry failing system requests with a backup domain"
   owner: vgosu@mozilla.com
@@ -3397,30 +3396,6 @@ queryStripping:
       description: >-
         List of query params to be stripped from URIs. This list will be merged
         with records coming from RemoteSettings.
-
-fontvisibility:
-  description: Control Font Visibility in PBM
-  owner: tom@mozilla.com
-  hasExposure: false
-  variables:
-    enabledETP:
-      type: int
-      setPref:
-        branch: default
-        pref: layout.css.font-visibility.trackingprotection
-      description: Set the Font Visibility level when Enhanced Tracking Protection is enabled
-    enabledStandard:
-      type: int
-      setPref:
-        branch: default
-        pref: layout.css.font-visibility.standard
-      description: Set the Font Visibility level for normal browsing
-    enabledPBM:
-      type: int
-      setPref:
-        branch: default
-        pref: layout.css.font-visibility.private
-      description: Set the Font Visibility level for private browsing (will override ETP)
 
 fingerprintingProtection:
   description: Control Fingerprinting Protection
@@ -4943,3 +4918,16 @@ ipProtection:
         pref: browser.ipProtection.enabled
       description: >-
         Enables the IP Protection feature.
+
+webApps:
+  description: Enables or disables web apps.
+  owner: nrishel@mozilla.com
+  hasExposure: false
+  variables:
+    enabled:
+      type: boolean
+      setPref:
+        branch: user
+        pref: browser.taskbarTabs.enabled
+      description: >-
+        Controls whether web apps can be installed and accessed.

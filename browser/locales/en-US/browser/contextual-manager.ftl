@@ -15,6 +15,7 @@ contextual-manager-more-options-popup =
 
 ## Passwords
 
+contextual-manager-passwords-title = Passwords
 contextual-manager-passwords-command-create = Add password
 contextual-manager-passwords-command-import-from-browser = Import from another browser…
 contextual-manager-passwords-command-import = Import from a file…
@@ -179,6 +180,9 @@ contextual-manager-passwords-password-already-exists-error-button = Go to passwo
 contextual-manager-passwords-update-password-success-heading =
   .heading = Password saved
 contextual-manager-passwords-update-password-success-button = Done
+
+contextual-manager-passwords-update-username-success-heading =
+  .heading = Username saved
 
 # Message to confirm successful removal of a password/passwords.
 #   $total (number) - Total number of passwords

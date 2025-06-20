@@ -10,8 +10,6 @@ import android.content.DialogInterface
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.drawable.GradientDrawable
-import android.icu.text.ListFormatter
-import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -34,7 +32,6 @@ import mozilla.components.feature.addons.Addon
 import mozilla.components.feature.addons.R
 import mozilla.components.support.base.log.logger.Logger
 import mozilla.components.support.utils.ext.getParcelableCompat
-import java.util.Locale
 
 internal const val KEY_ADDON = "KEY_ADDON"
 private const val KEY_DIALOG_GRAVITY = "KEY_DIALOG_GRAVITY"
@@ -50,6 +47,7 @@ internal const val KEY_PERMISSIONS = "KEY_PERMISSIONS"
 internal const val KEY_ORIGINS = "KEY_ORIGINS"
 internal const val KEY_DATA_COLLECTION_PERMISSIONS = "KEY_DATA_COLLECTION_PERMISSIONS"
 private const val DEFAULT_VALUE = Int.MAX_VALUE
+private const val TECHNICAL_AND_INTERACTION_PERM = "technicalAndInteraction"
 
 /**
  * A dialog that shows a set of permission required by an [Addon].
@@ -60,7 +58,7 @@ class PermissionsDialogFragment : AddonDialogFragment() {
      * A lambda called when the allow button is clicked which contains the [Addon] and
      * whether the addon is allowed in private browsing mode.
      */
-    var onPositiveButtonClicked: ((Addon, Boolean) -> Unit)? = null
+    var onPositiveButtonClicked: ((Addon, Boolean, Boolean) -> Unit)? = null
 
     /**
      * A lambda called when the deny button is clicked.
@@ -250,6 +248,8 @@ class PermissionsDialogFragment : AddonDialogFragment() {
         val optionalsSettingsTitle = rootView.findViewById<TextView>(R.id.optional_settings_title)
         val allowedInPrivateBrowsing =
             rootView.findViewById<AppCompatCheckBox>(R.id.allow_in_private_browsing)
+        val technicalAndInteraction =
+            rootView.findViewById<AppCompatCheckBox>(R.id.technical_and_interaction_data)
 
         var extraPermissionWarning: String? = null
         if (isUserScriptsPermission) {
@@ -257,8 +257,13 @@ class PermissionsDialogFragment : AddonDialogFragment() {
                 .getString(R.string.mozac_feature_addons_permissions_user_scripts_extra_warning)
         }
 
+        val showTechnicalAndInteraction =
+            dataCollectionPermissions.contains(TECHNICAL_AND_INTERACTION_PERM) && !forOptionalPermissions
         val requiredDataCollectionPermissionText =
-            buildRequiredDataCollectionPermissionsText(dataCollectionPermissions.toList())
+            buildRequiredDataCollectionPermissionsText(
+                dataCollectionPermissions.filter { it != TECHNICAL_AND_INTERACTION_PERM }
+                    .toList(),
+            )
 
         permissionsRecyclerView.adapter = RequiredPermissionsAdapter(
             permissions = listPermissions,
@@ -291,8 +296,19 @@ class PermissionsDialogFragment : AddonDialogFragment() {
             allowedInPrivateBrowsing.isVisible = false
         }
 
+        if (showTechnicalAndInteraction) {
+            optionalsSettingsTitle.isVisible = true
+            technicalAndInteraction.isVisible = true
+            // This is an opt-out setting.
+            technicalAndInteraction.isChecked = true
+        }
+
         positiveButton.setOnClickListener {
-            onPositiveButtonClicked?.invoke(addon, allowedInPrivateBrowsing.isChecked)
+            onPositiveButtonClicked?.invoke(
+                addon,
+                allowedInPrivateBrowsing.isChecked,
+                technicalAndInteraction.isChecked,
+            )
             dismiss()
         }
 
@@ -375,30 +391,12 @@ class PermissionsDialogFragment : AddonDialogFragment() {
         }
 
         val localizedPermissions = Addon.localizeDataCollectionPermissions(permissions, requireContext())
-        val formattedList = formatLocalizedDataCollectionPermissions(localizedPermissions)
+        val formattedList = Addon.formatLocalizedDataCollectionPermissions(localizedPermissions)
 
         return requireContext().getString(
-            R.string.mozac_feature_addons_permissions_required_data_collection_description,
+            R.string.mozac_feature_addons_permissions_required_data_collection_description_2,
             formattedList,
         )
-    }
-
-    @VisibleForTesting
-    internal fun formatLocalizedDataCollectionPermissions(localizedPermissions: List<String>): String? {
-        val formattedList = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            ListFormatter.getInstance(Locale.getDefault(), ListFormatter.Type.AND, ListFormatter.Width.NARROW)
-                .format(localizedPermissions)
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // Unfortunately, this is going to use `ListFormatter.Type.AND` and `ListFormatter.Width.WIDE`,
-            // which results in the following formatted list in English: `x, y and z` instead of `x, y, z`
-            // (which is what we want).
-            //
-            // It's probably better to use a list formatter than the "join string with a comma" fallback...
-            ListFormatter.getInstance(Locale.getDefault()).format(localizedPermissions)
-        } else {
-            localizedPermissions.joinToString(", ")
-        }
-        return formattedList
     }
 
     @VisibleForTesting
@@ -472,7 +470,7 @@ class PermissionsDialogFragment : AddonDialogFragment() {
                 gravity = Gravity.BOTTOM,
                 shouldWidthMatchParent = true,
             ),
-            onPositiveButtonClicked: ((Addon, Boolean) -> Unit)? = null,
+            onPositiveButtonClicked: ((Addon, Boolean, Boolean) -> Unit)? = null,
             onNegativeButtonClicked: (() -> Unit)? = null,
             onLearnMoreClicked: (() -> Unit)? = null,
         ): PermissionsDialogFragment {

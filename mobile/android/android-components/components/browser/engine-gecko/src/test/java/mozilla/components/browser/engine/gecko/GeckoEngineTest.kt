@@ -941,7 +941,8 @@ class GeckoEngineTest {
         val extId = "test-webext"
         val extUrl = "resource://android/assets/extensions/test"
         val permissions = listOf("permission1")
-        val origin = listOf("origin")
+        val origins = listOf("origin")
+        val dataCollectionPermissions = listOf("data")
 
         val extensionController: WebExtensionController = mock()
         whenever(runtime.webExtensionController).thenReturn(extensionController)
@@ -955,7 +956,8 @@ class GeckoEngineTest {
             extensionController.addOptionalPermissions(
                 extId,
                 permissions.toTypedArray(),
-                origin.toTypedArray(),
+                origins.toTypedArray(),
+                dataCollectionPermissions.toTypedArray(),
             ),
         ).thenReturn(
             result,
@@ -963,7 +965,8 @@ class GeckoEngineTest {
         engine.addOptionalPermissions(
             extId,
             permissions,
-            origin,
+            origins,
+            dataCollectionPermissions,
             onSuccess = { onSuccessCalled = true },
             onError = { _ -> onErrorCalled = true },
         )
@@ -971,7 +974,7 @@ class GeckoEngineTest {
 
         shadowOf(getMainLooper()).idle()
 
-        verify(extensionController).addOptionalPermissions(anyString(), any(), any())
+        verify(extensionController).addOptionalPermissions(anyString(), any(), any(), any())
         assertTrue(onSuccessCalled)
         assertFalse(onErrorCalled)
     }
@@ -1001,7 +1004,8 @@ class GeckoEngineTest {
         val extId = "test-webext"
         val extUrl = "resource://android/assets/extensions/test"
         val permissions = listOf("permission1")
-        val origin = listOf("origin")
+        val origins = listOf("origin")
+        val dataCollectionPermissions = listOf("data")
 
         val extensionController: WebExtensionController = mock()
         whenever(runtime.webExtensionController).thenReturn(extensionController)
@@ -1015,7 +1019,8 @@ class GeckoEngineTest {
             extensionController.removeOptionalPermissions(
                 extId,
                 permissions.toTypedArray(),
-                origin.toTypedArray(),
+                origins.toTypedArray(),
+                dataCollectionPermissions.toTypedArray(),
             ),
         ).thenReturn(
             result,
@@ -1023,7 +1028,8 @@ class GeckoEngineTest {
         engine.removeOptionalPermissions(
             extId,
             permissions,
-            origin,
+            origins,
+            dataCollectionPermissions,
             onSuccess = { onSuccessCalled = true },
             onError = { _ -> onErrorCalled = true },
         )
@@ -1031,7 +1037,7 @@ class GeckoEngineTest {
 
         shadowOf(getMainLooper()).idle()
 
-        verify(extensionController).removeOptionalPermissions(anyString(), any(), any())
+        verify(extensionController).removeOptionalPermissions(anyString(), any(), any(), any())
         assertTrue(onSuccessCalled)
         assertFalse(onErrorCalled)
     }
@@ -1403,6 +1409,7 @@ class GeckoEngineTest {
             PermissionPromptResponse(
                 isPermissionsGranted = true,
                 isPrivateModeGranted = false,
+                isTechnicalAndInteractionDataGranted = false,
             ),
         )
 
@@ -1414,10 +1421,11 @@ class GeckoEngineTest {
         shadowOf(getMainLooper()).idle()
         assertTrue(nativePermissionPromptResponse!!.isPermissionsGranted!!)
         assertFalse(nativePermissionPromptResponse!!.isPrivateModeGranted!!)
+        assertFalse(nativePermissionPromptResponse!!.isTechnicalAndInteractionDataGranted!!)
     }
 
     @Test
-    fun `GIVEN permissions granted AND private mode granted WHEN onInstallPermissionRequest THEN delegate is called with all modes allowed`() {
+    fun `GIVEN permissions granted AND private mode granted AND technicalAndInteraction data granted WHEN onInstallPermissionRequest THEN delegate is called with all modes allowed`() {
         val runtime: GeckoRuntime = mock()
         val webExtensionController: WebExtensionController = mock()
         whenever(runtime.webExtensionController).thenReturn(webExtensionController)
@@ -1452,6 +1460,7 @@ class GeckoEngineTest {
             PermissionPromptResponse(
                 isPermissionsGranted = true,
                 isPrivateModeGranted = true,
+                isTechnicalAndInteractionDataGranted = true,
             ),
         )
 
@@ -1463,6 +1472,7 @@ class GeckoEngineTest {
         shadowOf(getMainLooper()).idle()
         assertTrue(nativePermissionPromptResponse!!.isPermissionsGranted!!)
         assertTrue(nativePermissionPromptResponse!!.isPrivateModeGranted!!)
+        assertTrue(nativePermissionPromptResponse!!.isTechnicalAndInteractionDataGranted!!)
     }
 
     @Test
@@ -1501,6 +1511,7 @@ class GeckoEngineTest {
             PermissionPromptResponse(
                 isPermissionsGranted = false,
                 isPrivateModeGranted = false,
+                isTechnicalAndInteractionDataGranted = false,
             ),
         )
 
@@ -1512,6 +1523,7 @@ class GeckoEngineTest {
         shadowOf(getMainLooper()).idle()
         assertFalse(nativePermissionPromptResponse!!.isPermissionsGranted!!)
         assertFalse(nativePermissionPromptResponse!!.isPrivateModeGranted!!)
+        assertFalse(nativePermissionPromptResponse!!.isTechnicalAndInteractionDataGranted!!)
     }
 
     @Test

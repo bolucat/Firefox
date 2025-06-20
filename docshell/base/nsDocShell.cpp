@@ -107,6 +107,7 @@
 #include "nsICaptivePortalService.h"
 #include "nsIChannel.h"
 #include "nsIChannelEventSink.h"
+#include "nsIClassifiedChannel.h"
 #include "nsIClassOfService.h"
 #include "nsIConsoleReportCollector.h"
 #include "nsIContent.h"
@@ -3902,14 +3903,37 @@ nsresult nsDocShell::LoadErrorPage(nsIURI* aErrorURI, nsIURI* aFailedURI,
   return InternalLoad(loadState);
 }
 
+MOZ_CAN_RUN_SCRIPT_BOUNDARY NS_IMETHODIMP
+nsDocShell::Reload(uint32_t aReloadFlags) {
+  return ReloadNavigable(Nothing(), aReloadFlags, nullptr,
+                         UserNavigationInvolvement::BrowserUI);
+}
+
 // https://html.spec.whatwg.org/#reload
 // To reload a navigable navigable given an optional serialized state-or-null
 // navigationAPIState (default null) and an optional user navigation
 // involvement userInvolvement (default "none"):
 nsresult nsDocShell::ReloadNavigable(
-    JSContext* aCx, uint32_t aReloadFlags,
+    mozilla::Maybe<NotNull<JSContext*>> aCx, uint32_t aReloadFlags,
     nsIStructuredCloneContainer* aNavigationAPIState,
     UserNavigationInvolvement aUserInvolvement) {
+  if (!IsNavigationAllowed()) {
+    return NS_OK;  // JS may not handle returning of an error code
+  }
+
+  NS_ASSERTION(((aReloadFlags & INTERNAL_LOAD_FLAGS_LOADURI_SETUP_FLAGS) == 0),
+               "Reload command not updated to use load flags!");
+  NS_ASSERTION((aReloadFlags & EXTRA_LOAD_FLAGS) == 0,
+               "Don't pass these flags to Reload");
+
+  uint32_t loadType = MAKE_LOAD_TYPE(LOAD_RELOAD_NORMAL, aReloadFlags);
+  NS_ENSURE_TRUE(IsValidLoadType(loadType), NS_ERROR_INVALID_ARG);
+  NS_ENSURE_TRUE(
+      aUserInvolvement == UserNavigationInvolvement::BrowserUI || aCx,
+      NS_ERROR_INVALID_ARG);
+
+  RefPtr<nsDocShell> docShell(this);
+
   // 1. If userInvolvement is not "browser UI", then:
   if (aUserInvolvement != UserNavigationInvolvement::BrowserUI) {
     // 1.1 Let navigation be navigable's active window's navigation API.
@@ -3939,7 +3963,7 @@ nsresult nsDocShell::ReloadNavigable(
     RefPtr destinationURL = mActiveEntry ? mActiveEntry->GetURI() : nullptr;
     if (navigation &&
         !navigation->FirePushReplaceReloadNavigateEvent(
-            aCx, NavigationType::Reload, destinationURL,
+            *aCx, NavigationType::Reload, destinationURL,
             /* aIsSameDocument */ false, Some(aUserInvolvement),
             /* aSourceElement*/ nullptr, /* aFormDataEntryList */ nullptr,
             destinationNavigationAPIState,
@@ -3947,29 +3971,8 @@ nsresult nsDocShell::ReloadNavigable(
       return NS_OK;
     }
   }
-  // 2. Set navigable's active session history entry's document state's reload
-  //    pending to true.
-  // 3. Let traversable be navigable's traversable navigable.
-  // 4. Append the following session history traversal steps to traversable:
-  // 4.1 Apply the reload history step to traversable given userInvolvement.
-  // XXX this is not complete yet. userInvolvement is not yet propagated,
-  //     and the navigate event is not yet fired (https://bugzil.la/1962710)
-  return Reload(aReloadFlags);
-}
 
-NS_IMETHODIMP
-nsDocShell::Reload(uint32_t aReloadFlags) {
-  if (!IsNavigationAllowed()) {
-    return NS_OK;  // JS may not handle returning of an error code
-  }
-
-  NS_ASSERTION(((aReloadFlags & INTERNAL_LOAD_FLAGS_LOADURI_SETUP_FLAGS) == 0),
-               "Reload command not updated to use load flags!");
-  NS_ASSERTION((aReloadFlags & EXTRA_LOAD_FLAGS) == 0,
-               "Don't pass these flags to Reload");
-
-  uint32_t loadType = MAKE_LOAD_TYPE(LOAD_RELOAD_NORMAL, aReloadFlags);
-  NS_ENSURE_TRUE(IsValidLoadType(loadType), NS_ERROR_INVALID_ARG);
+  // The following steps are implemented by the remainder of ReloadNavigable.
 
   // Send notifications to the HistoryListener if any, about the impending
   // reload
@@ -3979,7 +3982,6 @@ nsDocShell::Reload(uint32_t aReloadFlags) {
     bool forceReload = IsForceReloadType(loadType);
     if (!XRE_IsParentProcess()) {
       ++mPendingReloadCount;
-      RefPtr<nsDocShell> docShell(this);
       nsCOMPtr<nsIDocumentViewer> viewer(mDocumentViewer);
       NS_ENSURE_STATE(viewer);
 
@@ -4132,6 +4134,8 @@ nsresult nsDocShell::ReloadDocument(nsDocShell* aDocShell, Document* aDocument,
   uint32_t triggeringSandboxFlags = aDocument->GetSandboxFlags();
   uint64_t triggeringWindowId = aDocument->InnerWindowID();
   bool triggeringStorageAccess = aDocument->UsingStorageAccess();
+  net::ClassificationFlags triggeringClassificationFlags =
+      aDocument->GetScriptTrackingFlags();
 
   nsAutoString contentTypeHint;
   aDocument->GetContentType(contentTypeHint);
@@ -4180,6 +4184,7 @@ nsresult nsDocShell::ReloadDocument(nsDocShell* aDocShell, Document* aDocument,
   loadState->SetTriggeringSandboxFlags(triggeringSandboxFlags);
   loadState->SetTriggeringWindowId(triggeringWindowId);
   loadState->SetTriggeringStorageAccess(triggeringStorageAccess);
+  loadState->SetTriggeringClassificationFlags(triggeringClassificationFlags);
   loadState->SetPrincipalToInherit(triggeringPrincipal);
   loadState->SetCsp(csp);
   loadState->SetInternalLoadFlags(flags);
@@ -5162,6 +5167,7 @@ nsDocShell::ForceRefreshURI(nsIURI* aURI, nsIPrincipal* aPrincipal,
   loadState->SetTriggeringSandboxFlags(doc->GetSandboxFlags());
   loadState->SetTriggeringWindowId(doc->InnerWindowID());
   loadState->SetTriggeringStorageAccess(doc->UsingStorageAccess());
+  loadState->SetTriggeringClassificationFlags(doc->GetScriptTrackingFlags());
 
   loadState->SetPrincipalIsExplicit(true);
 
@@ -6769,6 +6775,19 @@ nsresult nsDocShell::CreateAboutBlankDocumentViewer(
       // after being set here.
       blankDoc->SetSandboxFlags(sandboxFlags);
 
+      // We inherit the classification flags from the parent document if the
+      // principal matches.
+      nsCOMPtr<nsIDocShellTreeItem> parentItem;
+      GetInProcessSameTypeParent(getter_AddRefs(parentItem));
+      if (parentItem) {
+        RefPtr<Document> parentDocument = parentItem->GetDocument();
+        if (parentDocument && principal &&
+            principal->Equals(parentDocument->NodePrincipal())) {
+          blankDoc->SetClassificationFlags(
+              parentDocument->GetClassificationFlags());
+        }
+      }
+
       // create a content viewer for us and the new document
       docFactory->CreateInstanceForDocument(
           NS_ISUPPORTS_CAST(nsIDocShell*, this), blankDoc, "view",
@@ -7970,6 +7989,19 @@ nsresult nsDocShell::CreateDocumentViewer(const nsACString& aContentType,
                                       nullptr, nullptr, nullptr, true, false);
   }
 
+  // We inherit the classification flags from the parent document if the
+  // document is about:blank and the principal matches.
+  nsCOMPtr<nsIDocShellTreeItem> parentItem;
+  GetInProcessSameTypeParent(getter_AddRefs(parentItem));
+  if (parentItem && finalURI && NS_IsAboutBlank(finalURI)) {
+    RefPtr<Document> doc = viewer->GetDocument();
+    RefPtr<Document> parentDocument = parentItem->GetDocument();
+    if (parentDocument && doc &&
+        doc->NodePrincipal()->Equals(parentDocument->NodePrincipal())) {
+      doc->SetClassificationFlags(parentDocument->GetClassificationFlags());
+    }
+  }
+
   // let's try resetting the load group if we need to...
   nsCOMPtr<nsILoadGroup> currentLoadGroup;
   NS_ENSURE_SUCCESS(
@@ -8572,6 +8604,8 @@ nsresult nsDocShell::PerformRetargeting(nsDocShellLoadState* aLoadState) {
       loadState->SetTriggeringWindowId(aLoadState->TriggeringWindowId());
       loadState->SetTriggeringStorageAccess(
           aLoadState->TriggeringStorageAccess());
+      loadState->SetTriggeringClassificationFlags(
+          aLoadState->TriggeringClassificationFlags());
       loadState->SetCsp(aLoadState->Csp());
       loadState->SetInheritPrincipal(aLoadState->HasInternalLoadFlags(
           INTERNAL_LOAD_FLAGS_INHERIT_PRINCIPAL));
@@ -10774,6 +10808,9 @@ nsresult nsDocShell::DoURILoad(nsDocShellLoadState* aLoadState,
   loadInfo->SetTriggeringWindowId(aLoadState->TriggeringWindowId());
   loadInfo->SetTriggeringStorageAccess(aLoadState->TriggeringStorageAccess());
   loadInfo->SetTriggeringSandboxFlags(aLoadState->TriggeringSandboxFlags());
+  net::ClassificationFlags flags = aLoadState->TriggeringClassificationFlags();
+  loadInfo->SetTriggeringFirstPartyClassificationFlags(flags.firstPartyFlags);
+  loadInfo->SetTriggeringThirdPartyClassificationFlags(flags.thirdPartyFlags);
   loadInfo->SetIsMetaRefresh(aLoadState->IsMetaRefresh());
 
   uint32_t cacheKey = 0;
@@ -13238,6 +13275,8 @@ nsresult nsDocShell::OnLinkClick(
       ownerDoc->ConsumeTextDirectiveUserActivation() ||
       hasValidUserGestureActivation);
   loadState->SetUserNavigationInvolvement(aUserInvolvement);
+  loadState->SetTriggeringClassificationFlags(
+      ownerDoc->GetScriptTrackingFlags());
 
   nsCOMPtr<nsIRunnable> ev = new OnLinkClickEvent(
       this, aContent, loadState, noOpenerImplied, aTriggeringPrincipal);

@@ -107,7 +107,6 @@ for (const type of [
   "ADS_RESET",
   "ADS_UPDATE_SPOCS",
   "ADS_UPDATE_TILES",
-  "ARCHIVE_FROM_POCKET",
   "BLOCK_SECTION",
   "BLOCK_URL",
   "BOOKMARK_URL",
@@ -115,7 +114,6 @@ for (const type of [
   "CLEAR_PREF",
   "COPY_DOWNLOAD_LINK",
   "DELETE_BOOKMARK_BY_ID",
-  "DELETE_FROM_POCKET",
   "DELETE_HISTORY_URL",
   "DIALOG_CANCEL",
   "DIALOG_CLOSE",
@@ -206,9 +204,7 @@ for (const type of [
   "PLACES_LINKS_CHANGED",
   "PLACES_LINKS_DELETED",
   "PLACES_LINK_BLOCKED",
-  "PLACES_SAVED_TO_POCKET",
   "POCKET_CTA",
-  "POCKET_LINK_DELETED_OR_ARCHIVED",
   "POCKET_LOGGED_IN",
   "POCKET_THUMBS_DOWN",
   "POCKET_THUMBS_UP",
@@ -226,7 +222,6 @@ for (const type of [
   "REPORT_CONTENT_SUBMIT",
   "RICH_ICON_MISSING",
   "SAVE_SESSION_PERF_DATA",
-  "SAVE_TO_POCKET",
   "SCREENSHOT_UPDATED",
   "SECTION_DEREGISTER",
   "SECTION_DISABLE",
@@ -4056,10 +4051,7 @@ class _DSCard extends (external_React_default()).PureComponent {
       descLines = 3,
       readTime: displayReadTime
     } = DiscoveryStream;
-    const layoutsVariantAEnabled = Prefs.values["newtabLayouts.variant-a"];
-    const layoutsVariantBEnabled = Prefs.values["newtabLayouts.variant-b"];
     const sectionsEnabled = Prefs.values["discoverystream.sections.enabled"];
-    const layoutsVariantAorB = layoutsVariantAEnabled || layoutsVariantBEnabled;
     const smartCrop = Prefs.values["images.smart"];
     const faviconEnabled = Prefs.values["discoverystream.publisherFavicon.enabled"];
     // Refined cards have their own excerpt hiding logic.
@@ -4091,7 +4083,7 @@ class _DSCard extends (external_React_default()).PureComponent {
       sizes = this.dsImageSizes;
       if (sectionsEnabled) {
         sizes = [this.getSectionImageSize("4", sectionsCardsImageSizes["4"]), this.getSectionImageSize("3", sectionsCardsImageSizes["3"]), this.getSectionImageSize("2", sectionsCardsImageSizes["2"]), this.getSectionImageSize("1", sectionsCardsImageSizes["1"])];
-      } else if (layoutsVariantAorB) {
+      } else {
         sizes = this.standardCardImageSizes;
       }
       if (isListCard) {
@@ -5005,12 +4997,15 @@ function TrendingSearches() {
   const ref = useIntersectionObserver(handleIntersection);
   if (!suggestions?.length) {
     return null;
-  } else if (variant === "a") {
+  } else if (variant === "a" || variant === "c") {
     return /*#__PURE__*/React.createElement("section", {
       ref: el => {
         ref.current = [el];
-      },
-      className: "trending-searches-pill-wrapper"
+      }
+      // Variant C matches the design of variant A but should only
+      // appear on hover
+      ,
+      className: `trending-searches-pill-wrapper ${variant === "c" ? "hover-only" : ""}`
     }, /*#__PURE__*/React.createElement("div", {
       className: "trending-searches-title-wrapper"
     }, /*#__PURE__*/React.createElement("span", {
@@ -5132,6 +5127,8 @@ const PREF_LEADERBOARD_ENABLED = "newtabAdSize.leaderboard";
 const PREF_LEADERBOARD_POSITION = "newtabAdSize.leaderboard.position";
 const PREF_BILLBOARD_POSITION = "newtabAdSize.billboard.position";
 const PREF_TRENDING_SEARCH = "trendingSearch.enabled";
+const PREF_TRENDING_SEARCH_SYSTEM = "system.trendingSearch.enabled";
+const PREF_SEARCH_ENGINE = "trendingSearch.defaultSearchEngine";
 const PREF_TRENDING_SEARCH_VARIANT = "trendingSearch.variant";
 const CardGrid_INTERSECTION_RATIO = 0.5;
 const CardGrid_VISIBLE = "visible";
@@ -5416,7 +5413,7 @@ class _CardGrid extends (external_React_default()).PureComponent {
     const listFeedSelectedFeed = prefs[PREF_LIST_FEED_SELECTED_FEED];
     const billboardEnabled = prefs[PREF_BILLBOARD_ENABLED];
     const leaderboardEnabled = prefs[PREF_LEADERBOARD_ENABLED];
-    const trendingEnabled = prefs[PREF_TRENDING_SEARCH];
+    const trendingEnabled = prefs[PREF_TRENDING_SEARCH] && prefs[PREF_TRENDING_SEARCH_SYSTEM] && prefs[PREF_SEARCH_ENGINE]?.toLowerCase() === "google";
     const trendingVariant = prefs[PREF_TRENDING_SEARCH_VARIANT];
 
     // filter out recs that should be in ListFeed
@@ -8098,25 +8095,6 @@ function Sections(prevState = INITIAL_STATE.Sections, action) {
           }),
         })
       );
-    case actionTypes.PLACES_SAVED_TO_POCKET:
-      if (!action.data) {
-        return prevState;
-      }
-      return prevState.map(section =>
-        Object.assign({}, section, {
-          rows: section.rows.map(item => {
-            if (item.url === action.data.url) {
-              return Object.assign({}, item, {
-                open_url: action.data.open_url,
-                pocket_id: action.data.pocket_id,
-                title: action.data.title,
-                type: "pocket",
-              });
-            }
-            return item;
-          }),
-        })
-      );
     case actionTypes.PLACES_BOOKMARKS_REMOVED:
       if (!action.data) {
         return prevState;
@@ -8157,15 +8135,6 @@ function Sections(prevState = INITIAL_STATE.Sections, action) {
       return prevState.map(section =>
         Object.assign({}, section, {
           rows: section.rows.filter(site => site.url !== action.data.url),
-        })
-      );
-    case actionTypes.DELETE_FROM_POCKET:
-    case actionTypes.ARCHIVE_FROM_POCKET:
-      return prevState.map(section =>
-        Object.assign({}, section, {
-          rows: section.rows.filter(
-            site => site.pocket_id !== action.data.pocket_id
-          ),
         })
       );
     default:
@@ -8460,29 +8429,6 @@ function DiscoveryStream(prevState = INITIAL_STATE.DiscoveryStream, action) {
         ? prevState
         : nextState(items =>
             items.filter(item => item.url !== action.data.url)
-          );
-
-    case actionTypes.PLACES_SAVED_TO_POCKET: {
-      const addPocketInfo = item => {
-        if (item.url === action.data.url) {
-          return Object.assign({}, item, {
-            open_url: action.data.open_url,
-            pocket_id: action.data.pocket_id,
-            context_type: "pocket",
-          });
-        }
-        return item;
-      };
-      return isNotReady()
-        ? prevState
-        : nextState(items => items.map(addPocketInfo));
-    }
-    case actionTypes.DELETE_FROM_POCKET:
-    case actionTypes.ARCHIVE_FROM_POCKET:
-      return isNotReady()
-        ? prevState
-        : nextState(items =>
-            items.filter(item => item.pocket_id !== action.data.pocket_id)
           );
 
     case actionTypes.PLACES_BOOKMARK_ADDED: {
@@ -9278,7 +9224,9 @@ class TopSiteLink extends (external_React_default()).PureComponent {
       "data-is-sponsored-link": !!link.sponsored_tile_id,
       title: title,
       onFocus: this.props.onFocus
-    }, /*#__PURE__*/external_React_default().createElement("div", {
+    }, shortcutsRefresh && link.isPinned && /*#__PURE__*/external_React_default().createElement("div", {
+      className: "icon icon-pin-small"
+    }), /*#__PURE__*/external_React_default().createElement("div", {
       className: "tile",
       "aria-hidden": true
     }, /*#__PURE__*/external_React_default().createElement("div", {
@@ -9294,9 +9242,7 @@ class TopSiteLink extends (external_React_default()).PureComponent {
       className: "top-site-icon default-icon",
       "data-fallback": smallFaviconStyle ? "" : letterFallback,
       style: smallFaviconStyle
-    })), shortcutsRefresh && link.isPinned && /*#__PURE__*/external_React_default().createElement("div", {
-      className: "icon icon-pin-small"
-    }), !shortcutsRefresh && link.searchTopSite && /*#__PURE__*/external_React_default().createElement("div", {
+    })), !shortcutsRefresh && link.searchTopSite && /*#__PURE__*/external_React_default().createElement("div", {
       className: "top-site-icon search-topsite"
     })), /*#__PURE__*/external_React_default().createElement("div", {
       className: `title${link.isPinned ? " has-icon pinned" : ""}${link.type === SPOC_TYPE || link.show_sponsored_label ? " sponsored" : ""}`
@@ -13359,7 +13305,6 @@ class _CustomizeMenu extends (external_React_default()).PureComponent {
       setPref: this.props.setPref,
       enabledSections: this.props.enabledSections,
       wallpapersEnabled: this.props.wallpapersEnabled,
-      trendingSearchEnabled: this.props.trendingSearchEnabled,
       activeWallpaper: this.props.activeWallpaper,
       pocketRegion: this.props.pocketRegion,
       mayHaveTopicSections: this.props.mayHaveTopicSections,
@@ -13570,7 +13515,8 @@ class _Search extends (external_React_default()).PureComponent {
    */
   render() {
     const wrapperClassName = ["search-wrapper", this.props.disable && "search-disabled", this.props.fakeFocus && "fake-focus"].filter(v => v).join(" ");
-    const trendingSearchEnabled = this.props.Prefs.values["trendingSearch.enabled"];
+    const prefs = this.props.Prefs.values;
+    const trendingSearchEnabled = prefs["trendingSearch.enabled"] && prefs["system.trendingSearch.enabled"] && prefs["trendingSearch.defaultSearchEngine"]?.toLowerCase() === "google";
     const trendingSearchVariant = this.props.Prefs.values["trendingSearch.variant"];
     return /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("div", {
       className: wrapperClassName
@@ -13587,7 +13533,7 @@ class _Search extends (external_React_default()).PureComponent {
       className: "search-button",
       "data-l10n-id": "newtab-search-box-search-button",
       onClick: this.onSearchClick
-    }), trendingSearchEnabled && trendingSearchVariant === "a" && /*#__PURE__*/external_React_default().createElement(TrendingSearches, null)), this.props.handoffEnabled && /*#__PURE__*/external_React_default().createElement("div", {
+    }), trendingSearchEnabled && (trendingSearchVariant === "a" || trendingSearchVariant === "c") && /*#__PURE__*/external_React_default().createElement(TrendingSearches, null)), this.props.handoffEnabled && /*#__PURE__*/external_React_default().createElement("div", {
       className: "search-inner-wrapper"
     }, /*#__PURE__*/external_React_default().createElement("button", {
       className: "search-handoff-button",
@@ -13609,7 +13555,7 @@ class _Search extends (external_React_default()).PureComponent {
       ref: el => {
         this.fakeCaret = el;
       }
-    })), trendingSearchEnabled && trendingSearchVariant === "a" && /*#__PURE__*/external_React_default().createElement(TrendingSearches, null))));
+    })), trendingSearchEnabled && (trendingSearchVariant === "a" || trendingSearchVariant === "c") && /*#__PURE__*/external_React_default().createElement(TrendingSearches, null))));
   }
 }
 const Search_Search = (0,external_ReactRedux_namespaceObject.connect)(state => ({
@@ -14600,8 +14546,6 @@ function Base_extends() { return Base_extends = Object.assign ? Object.assign.bi
 
 const Base_VISIBLE = "visible";
 const Base_VISIBILITY_CHANGE_EVENT = "visibilitychange";
-const Base_PREF_THUMBS_UP_DOWN_ENABLED = "discoverystream.thumbsUpDown.enabled";
-const PREF_THUMBS_UP_DOWN_LAYOUT_ENABLED = "discoverystream.thumbsUpDown.searchTopsitesCompact";
 const PREF_INFERRED_PERSONALIZATION_SYSTEM = "discoverystream.sections.personalization.inferred.enabled";
 const Base_PREF_INFERRED_PERSONALIZATION_USER = "discoverystream.sections.personalization.inferred.user.enabled";
 
@@ -14790,66 +14734,24 @@ class BaseContent extends (external_React_default()).PureComponent {
       return;
     }
     const logoAlwaysVisible = prefs["logowordmark.alwaysVisible"];
-    const layoutsVariantAEnabled = prefs["newtabLayouts.variant-a"];
-    const layoutsVariantBEnabled = prefs["newtabLayouts.variant-b"];
-    const layoutsVariantAorB = layoutsVariantAEnabled || layoutsVariantBEnabled;
-    const thumbsUpDownEnabled = prefs[Base_PREF_THUMBS_UP_DOWN_ENABLED];
-    // For the compact layout to be active,
-    // thumbs also has to be enabled until Bug 1932242 is fixed
-    const thumbsUpDownLayoutEnabled = prefs[PREF_THUMBS_UP_DOWN_LAYOUT_ENABLED] && thumbsUpDownEnabled;
 
     /* Bug 1917937: The logic presented below is fragile but accurate to the pixel. As new tab experiments with layouts, we have a tech debt of competing styles and classes the slightly modify where the search bar sits on the page. The larger solution for this is to replace everything with an intersection observer, but would require a larger refactor of this file. In the interim, we can programmatically calculate when to fire the fixed-scroll event and account for the moved elements so that topsites/etc stays in the same place. The CSS this references has been flagged to reference this logic so (hopefully) keep them in sync. */
 
     let SCROLL_THRESHOLD = 0; // When the fixed-scroll event fires
     let MAIN_OFFSET_PADDING = 0; // The padding to compensate for the moved elements
 
+    const CSS_VAR_SPACE_XXLARGE = 32.04; // Custom Acorn themed variable (8 * 0.267rem);
+
     let layout = {
-      outerWrapperPaddingTop: 30,
-      searchWrapperPaddingTop: 34,
-      searchWrapperPaddingBottom: 38,
+      outerWrapperPaddingTop: 24,
+      searchWrapperPaddingTop: 16,
+      searchWrapperPaddingBottom: CSS_VAR_SPACE_XXLARGE,
       searchWrapperFixedScrollPaddingTop: 27,
       searchWrapperFixedScrollPaddingBottom: 27,
       searchInnerWrapperMinHeight: 52,
-      logoAndWordmarkWrapperHeight: 64,
-      logoAndWordmarkWrapperMarginBottom: 48
+      logoAndWordmarkWrapperHeight: 0,
+      logoAndWordmarkWrapperMarginBottom: 0
     };
-    const CSS_VAR_SPACE_XXLARGE = 34.2; // Custom Acorn themed variable (8 * 0.267rem);
-
-    // Experimental layouts
-    // (Note these if statements are ordered to match the CSS cascade)
-    if (thumbsUpDownLayoutEnabled || layoutsVariantAorB) {
-      // Thumbs Compact View Layout
-      if (thumbsUpDownLayoutEnabled) {
-        layout.logoAndWordmarkWrapperMarginBottom = CSS_VAR_SPACE_XXLARGE;
-        if (!logoAlwaysVisible) {
-          layout.searchWrapperPaddingTop = CSS_VAR_SPACE_XXLARGE;
-          layout.searchWrapperPaddingBottom = CSS_VAR_SPACE_XXLARGE;
-        }
-      }
-
-      // Variant B Layout
-      if (layoutsVariantAEnabled) {
-        layout.outerWrapperPaddingTop = 24;
-        if (!thumbsUpDownLayoutEnabled) {
-          layout.searchWrapperPaddingTop = 0;
-          layout.searchWrapperPaddingBottom = 32;
-          layout.logoAndWordmarkWrapperMarginBottom = 32;
-        }
-      }
-
-      // Variant B Layout
-      if (layoutsVariantBEnabled) {
-        layout.outerWrapperPaddingTop = 24;
-        // Logo is positioned absolute, so remove it
-        layout.logoAndWordmarkWrapperHeight = 0;
-        layout.logoAndWordmarkWrapperMarginBottom = 0;
-        layout.searchWrapperPaddingTop = 16;
-        layout.searchWrapperPaddingBottom = CSS_VAR_SPACE_XXLARGE;
-        if (!thumbsUpDownLayoutEnabled) {
-          layout.searchWrapperPaddingBottom = 32;
-        }
-      }
-    }
 
     // Logo visibility applies to all layouts
     if (!logoAlwaysVisible) {
@@ -15089,10 +14991,7 @@ class BaseContent extends (external_React_default()).PureComponent {
       customizeMenuVisible
     } = App;
     const prefs = props.Prefs.values;
-    const layoutsVariantAEnabled = prefs["newtabLayouts.variant-a"];
-    const layoutsVariantBEnabled = prefs["newtabLayouts.variant-b"];
     const shortcutsRefresh = prefs["newtabShortcuts.refresh"];
-    const layoutsVariantAorB = layoutsVariantAEnabled || layoutsVariantBEnabled;
     const activeWallpaper = prefs[`newtabWallpapers.wallpaper`];
     const wallpapersEnabled = prefs["newtabWallpapers.enabled"];
     const weatherEnabled = prefs.showWeather;
@@ -15100,7 +14999,6 @@ class BaseContent extends (external_React_default()).PureComponent {
       showTopicSelection
     } = DiscoveryStream;
     const mayShowTopicSelection = showTopicSelection && prefs["discoverystream.topicSelection.enabled"];
-    const trendingSearchEnabled = prefs["trendingSearch.enabled"];
     const {
       pocketConfig
     } = prefs;
@@ -15132,7 +15030,7 @@ class BaseContent extends (external_React_default()).PureComponent {
     const supportUrl = prefs["support.url"];
 
     // Trending Searches experiment pref check
-    const mayHaveTrendingSearch = prefs["system.trendingSearch.enabled"] && prefs["trendingSearch.defaultSearchEngine"] === "Google";
+    const mayHaveTrendingSearch = prefs["system.trendingSearch.enabled"] && prefs["trendingSearch.defaultSearchEngine"].toLowerCase() === "google";
 
     // Mobile Download Promo Pref Checks
     const mobileDownloadPromoEnabled = prefs["mobileDownloadModal.enabled"];
@@ -15154,10 +15052,9 @@ class BaseContent extends (external_React_default()).PureComponent {
     // Mobile download promo modal is enabled/visible
     weatherEnabled && mayHaveWeather && "has-weather",
     // Weather widget is enabled/visible
-    prefs.showSearch ? "has-search" : "no-search", layoutsVariantAEnabled ? "layout-variant-a" : "",
-    // Layout experiment variant A
-    layoutsVariantBEnabled ? "layout-variant-b" : "",
-    // Layout experiment variant B
+    prefs.showSearch ? "has-search" : "no-search",
+    // layoutsVariantAEnabled ? "layout-variant-a" : "", // Layout experiment variant A
+    // layoutsVariantBEnabled ? "layout-variant-b" : "", // Layout experiment variant B
     shortcutsRefresh ? "shortcuts-refresh" : "",
     // Shortcuts refresh experiment
     pocketEnabled ? "has-recommended-stories" : "no-recommended-stories", sectionsEnabled ? "has-sections-grid" : ""].filter(v => v).join(" ");
@@ -15189,7 +15086,6 @@ class BaseContent extends (external_React_default()).PureComponent {
       enabledSections: enabledSections,
       wallpapersEnabled: wallpapersEnabled,
       activeWallpaper: activeWallpaper,
-      trendingSearchEnabled: trendingSearchEnabled,
       pocketRegion: pocketRegion,
       mayHaveTopicSections: mayHavePersonalizedTopicSections,
       mayHaveSponsoredTopSites: mayHaveSponsoredTopSites,
@@ -15215,10 +15111,8 @@ class BaseContent extends (external_React_default()).PureComponent {
       hiddenOverride: shouldShowDownloadHighlight,
       onDismiss: this.handleDismissDownloadHighlight,
       dispatch: this.props.dispatch
-    }, /*#__PURE__*/external_React_default().createElement(DownloadMobilePromoHighlight
-    // Var B layout has the weather right-aligned
-    , {
-      position: `${layoutsVariantBEnabled ? "inset-inline-start" : "inset-inline-end"} inset-block-end`,
+    }, /*#__PURE__*/external_React_default().createElement(DownloadMobilePromoHighlight, {
+      position: `inset-inline-start inset-block-end`,
       dispatch: this.props.dispatch
     })))), /*#__PURE__*/external_React_default().createElement("div", {
       className: outerClassName,
@@ -15231,7 +15125,7 @@ class BaseContent extends (external_React_default()).PureComponent {
     }, /*#__PURE__*/external_React_default().createElement(ErrorBoundary, null, /*#__PURE__*/external_React_default().createElement(Search_Search, Base_extends({
       showLogo: noSectionsEnabled || prefs["logowordmark.alwaysVisible"],
       handoffEnabled: searchHandoffEnabled
-    }, props.Search)))), !prefs.showSearch && layoutsVariantAorB && !noSectionsEnabled && /*#__PURE__*/external_React_default().createElement(Logo, null), /*#__PURE__*/external_React_default().createElement("div", {
+    }, props.Search)))), !prefs.showSearch && !noSectionsEnabled && /*#__PURE__*/external_React_default().createElement(Logo, null), /*#__PURE__*/external_React_default().createElement("div", {
       className: `body-wrapper${initialized ? " on" : ""}`
     }, isDiscoveryStream ? /*#__PURE__*/external_React_default().createElement(ErrorBoundary, {
       className: "borderless-error"

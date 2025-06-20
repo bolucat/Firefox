@@ -381,7 +381,7 @@ var SidebarController = {
       this._handleLauncherResize(entry)
     );
 
-    if (this.sidebarRevampEnabled) {
+    if (this.sidebarRevampEnabled && !BrowserHandler.kiosk) {
       if (!customElements.get("sidebar-main")) {
         ChromeUtils.importESModule(
           "chrome://browser/content/sidebar/sidebar-main.mjs",
@@ -1321,41 +1321,22 @@ var SidebarController = {
       // Nothing to do.
       return;
     }
-    this._pinnedTabsResizeObserver = new ResizeObserver(([entry]) => {
+    this._pinnedTabsResizeObserver = new ResizeObserver(() => {
       if (this.isPinnedTabsDragging) {
         this._state.pinnedTabsDragActive = true;
       }
-      if (
-        (entry.contentBoxSize[0].blockSize ===
-          this._state.expandedPinnedTabsHeight &&
-          this._state.launcherExpanded) ||
-        (entry.contentBoxSize[0].blockSize ===
-          this._state.collapsedPinnedTabsHeight &&
-          !this._state.launcherExpanded)
-      ) {
-        // condition already met, no need to re-update
-        return;
-      }
-      this._state.pinnedTabsHeight = entry.contentBoxSize[0].blockSize;
     });
 
     this._itemsWrapperResizeObserver = new ResizeObserver(async () => {
       await window.promiseDocumentFlushed(() => {
         // Adjust pinned tabs container height if needed
-        let itemsWrapperHeight = window.windowUtils.getBoundsWithoutFlushing(
-          this._pinnedTabsItemsWrapper
-        ).height;
         requestAnimationFrame(() => {
-          if (this._state.pinnedTabsHeight > itemsWrapperHeight) {
-            this._state.pinnedTabsHeight = itemsWrapperHeight;
-            if (this._state.launcherExpanded) {
-              this._state.expandedPinnedTabsHeight =
-                this._state.pinnedTabsHeight;
-            } else {
-              this._state.collapsedPinnedTabsHeight =
-                this._state.pinnedTabsHeight;
-            }
+          // If we are currently moving tabs, don't resize
+          if (this._pinnedTabsContainer.hasAttribute("dragActive")) {
+            return;
           }
+
+          this.updatePinnedTabsHeightOnResize();
         });
       });
     });
@@ -1405,6 +1386,20 @@ var SidebarController = {
     let sidebar = this.sidebars.get(commandID);
     if (typeof sidebar?.onload === "function") {
       sidebar.onload();
+    }
+  },
+
+  updatePinnedTabsHeightOnResize() {
+    let itemsWrapperHeight = window.windowUtils.getBoundsWithoutFlushing(
+      this._pinnedTabsItemsWrapper
+    ).height;
+    if (this._state.pinnedTabsHeight > itemsWrapperHeight) {
+      this._state.pinnedTabsHeight = itemsWrapperHeight;
+      if (this._state.launcherExpanded) {
+        this._state.expandedPinnedTabsHeight = this._state.pinnedTabsHeight;
+      } else {
+        this._state.collapsedPinnedTabsHeight = this._state.pinnedTabsHeight;
+      }
     }
   },
 
@@ -2085,11 +2080,14 @@ var SidebarController = {
       case "popuphidden":
         if (e.composedTarget.id !== "tab-preview-panel") {
           if (this._openPopupsCount < 2) {
-            // Collapse sidebar after context menu if needed
-            if (
-              this._state.launcherExpanded &&
-              !this.sidebarContainer.matches(":hover")
-            ) {
+            let isHovered;
+            MousePosTracker._callListener({
+              onMouseEnter: () => (isHovered = true),
+              onMouseLeave: () => (isHovered = false),
+              getMouseTargetRect: () => this.getMouseTargetRect(),
+            });
+            // Collapse sidebar after context menu is closed if needed
+            if (this._state.launcherExpanded && !isHovered) {
               if (this._animationEnabled && !window.gReduceMotion) {
                 this._animateSidebarMain();
               }

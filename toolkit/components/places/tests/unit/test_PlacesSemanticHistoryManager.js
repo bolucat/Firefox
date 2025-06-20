@@ -10,6 +10,9 @@ ChromeUtils.defineESModuleGetters(this, {
     "resource://gre/modules/PlacesSemanticHistoryManager.sys.mjs",
 });
 
+// Must be divisible by 8.
+const EMBEDDING_SIZE = 16;
+
 function approxEqual(a, b, tolerance = 1e-6) {
   return Math.abs(a - b) < tolerance;
 }
@@ -17,16 +20,29 @@ function approxEqual(a, b, tolerance = 1e-6) {
 function createPlacesSemanticHistoryManager() {
   return getPlacesSemanticHistoryManager(
     {
-      embeddingSize: 4,
+      embeddingSize: EMBEDDING_SIZE,
       rowLimit: 10,
-      samplingAttrib: "frecency",
-      changeThresholdCount: 3,
-      distanceThreshold: 0.75,
-      testFlag: true,
     },
     true
   );
 }
+
+class MockMLEngine {
+  async run(request) {
+    const texts = request.args[0];
+    return texts.map(text => {
+      if (typeof text !== "string" || text.trim() === "") {
+        throw new Error("Invalid input: text must be a non-empty string");
+      }
+      // Return a mock embedding vector (e.g., an array of zeros)
+      return Array(EMBEDDING_SIZE).fill(0);
+    });
+  }
+}
+
+add_setup(async function () {
+  Services.fog.initializeFOG();
+});
 
 add_task(async function test_tensorToBindable() {
   const semanticManager = createPlacesSemanticHistoryManager();
@@ -145,6 +161,14 @@ add_task(async function test_removeDatabaseFilesOnDisable() {
     await IOUtils.exists(semanticManager.semanticDB.databaseFilePath + "-wal")
   );
 
+  Services.fog.testResetFOG();
+  await PlacesDBUtils.telemetry();
+  Assert.equal(
+    Glean.places.databaseSemanticHistoryFilesize.testGetValue().count,
+    1,
+    "Check for file size being collected"
+  );
+
   await semanticManager.shutdown();
 
   // Create a new instance of the manager after disabling the feature.
@@ -200,4 +224,102 @@ add_task(async function test_removeDatabaseFilesOnStartup() {
     ),
     "Pref should have been reset."
   );
+});
+
+add_task(async function test_chunksTelemetry() {
+  await PlacesTestUtils.addVisits([
+    { url: "https://test1.moz.com/", title: "test 1" },
+    { url: "https://test2.moz.com/", title: "test 2" },
+  ]);
+
+  Services.fog.testResetFOG();
+
+  Assert.strictEqual(
+    Glean.places.semanticHistoryFindChunksTime.testGetValue(),
+    null,
+    "No value initially"
+  );
+  Assert.strictEqual(
+    Glean.places.semanticHistoryChunkCalculateTime.testGetValue(),
+    null,
+    "No value initially"
+  );
+  Assert.strictEqual(
+    Glean.places.semanticHistoryMaxChunksCount.testGetValue(),
+    null,
+    "No value initially"
+  );
+  Services.prefs.setBoolPref("places.semanticHistory.featureGate", true);
+
+  let semanticManager = createPlacesSemanticHistoryManager();
+  // Ensure only one task execution for measuremant purposes.
+  semanticManager.setDeferredTaskIntervalForTests(3000);
+  await semanticManager.getConnection();
+  semanticManager.embedder.setEngine(new MockMLEngine());
+  await TestUtils.topicObserved(
+    "places-semantichistorymanager-update-complete"
+  );
+
+  Assert.equal(
+    Glean.places.semanticHistoryFindChunksTime.testGetValue().count,
+    1
+  );
+  Assert.greater(
+    Glean.places.semanticHistoryFindChunksTime.testGetValue().sum,
+    0
+  );
+
+  Assert.equal(
+    Glean.places.semanticHistoryChunkCalculateTime.testGetValue().count,
+    1
+  );
+  Assert.greater(
+    Glean.places.semanticHistoryChunkCalculateTime.testGetValue().sum,
+    0
+  );
+
+  Assert.equal(Glean.places.semanticHistoryMaxChunksCount.testGetValue(), 1);
+
+  await semanticManager.shutdown();
+});
+
+add_task(async function test_duplicate_urlhash() {
+  const urls = [
+    { url: "https://test1.moz.com/", title: "test 1" },
+    { url: "https://test2.moz.com/", title: "test 2" },
+    { url: "https://test3.moz.com/", title: "test 3" },
+  ];
+  await PlacesTestUtils.addVisits(urls);
+  // We're manually editing the database to create a duplicate url hash.
+  const urlHash = PlacesUtils.history.hashURL(urls[0].url);
+  await PlacesUtils.withConnectionWrapper("test", async db => {
+    await db.execute(
+      `UPDATE moz_places SET url_hash = :urlHash WHERE url = :url`,
+      { urlHash, url: urls[1].url }
+    );
+  });
+
+  let semanticManager = createPlacesSemanticHistoryManager();
+  // Ensure only one task execution for measuremant purposes.
+  semanticManager.setDeferredTaskIntervalForTests(3000);
+  let conn = await semanticManager.getConnection();
+  semanticManager.embedder.setEngine(new MockMLEngine());
+  await TestUtils.topicObserved(
+    "places-semantichistorymanager-update-complete"
+  );
+
+  // Check the update continued despite the duplicate url hash.
+  let rows = await conn.execute(`SELECT url_hash FROM vec_history_mapping`);
+  Assert.equal(rows.length, 2, "There should be two entries");
+  Assert.equal(
+    rows[0].getResultByName("url_hash"),
+    PlacesUtils.history.hashURL(urls[0].url),
+    "First URL hash should match"
+  );
+  Assert.equal(
+    rows[1].getResultByName("url_hash"),
+    PlacesUtils.history.hashURL(urls[2].url),
+    "Third URL hash should match"
+  );
+  await semanticManager.shutdown();
 });

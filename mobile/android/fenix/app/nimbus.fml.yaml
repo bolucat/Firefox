@@ -11,7 +11,6 @@ channels:
   - developer
 includes:
   - onboarding.fml.yaml
-  - pbm.fml.yaml
   - messaging-fenix.fml.yaml
 import:
   - path: ../../android-components/components/browser/engine-gecko/geckoview.fml.yaml
@@ -104,7 +103,6 @@ features:
           {
             "sync-cfr": true,
             "wallpapers-selection-tool": true,
-            "jump-back-in-cfr": true,
             "tcp-cfr": true,
             "tcp-feature": true,
           }
@@ -114,7 +112,6 @@ features:
           "sections-enabled": {
             "sync-cfr": true,
             "wallpapers-selection-tool": true,
-            "jump-back-in-cfr": true,
           }
         }
   query-parameter-stripping:
@@ -885,6 +882,25 @@ features:
         type: Boolean
         default: true
 
+  toolbar-redesign-option:
+    description: Control the visibility of toolbar redesign option in settings.
+    variables:
+      show-options:
+        description: >
+          Whether or not the toolbar redesign option is visible to the user.  This allows the user to switch between simple and expanded toolbar.
+        type: Boolean
+        default: false
+      show-simple-customization:
+        description: >
+          Whether or not the simple toolbar customization option is visible to the user.
+        type: Boolean
+        default: false
+      show-expanded-customization:
+        description: >
+          Whether or not the expanded toolbar customization option is visible to the user.
+        type: Boolean
+        default: false
+
 types:
   objects: {}
 
@@ -914,8 +930,6 @@ types:
           description: CFR for the first time you see a synced tab on the home screen.
         wallpapers-selection-tool:
           description: Wallpapers selection dialog tool for the home screen.
-        jump-back-in-cfr:
-          description: Jump back-in onboarding message.
         tcp-cfr:
           description: CFR for the first time you use the browse with Total Cookie Protection on the browser screen.
         tcp-feature:

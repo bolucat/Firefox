@@ -1337,6 +1337,16 @@
   value: true
   mirror: always
 
+# Should Firefox use content analysis for download operations?
+# Note that this has no effect unless browser.contentanalysis.enabled
+# is true.
+# This defaults to false so as to not break existing content analysis
+# configurations.
+- name: browser.contentanalysis.interception_point.download.enabled
+  type: bool
+  value: false
+  mirror: always
+
 # Should Firefox use content analysis for drag and drop operations?
 # Note that this has no effect unless browser.contentanalysis.enabled
 # is true.
@@ -4688,7 +4698,7 @@
 # Whether to exclude third-party trackers from Storage Access API auto grants.
 - name: dom.storage_access.auto_grants.exclude_third_party_trackers
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Storage-access API.
@@ -5389,7 +5399,7 @@
 
 - name: dom.webkitBlink.dirPicker.enabled
   type: RelaxedAtomicBool
-  value: @IS_NOT_MOBILE@
+  value: true
   mirror: always
 
 # Whether allowing selection across the boundary
@@ -5489,7 +5499,7 @@
 # Is support for HTMLInputElement.webkitEntries enabled?
 - name: dom.webkitBlink.filesystem.enabled
   type: bool
-  value: @IS_NOT_MOBILE@
+  value: true
   mirror: always
 
 # Whether the WebMIDI API is enabled
@@ -5768,13 +5778,6 @@
 - name: editor.use_css
   type: bool
   value: false
-  mirror: always
-
-# Whether enabling blink compatible white-space normalizer or keep using
-# Gecko's traditional white-space normalizer.
-- name: editor.white_space_normalization.blink_compatible
-  type: bool
-  value: true
   mirror: always
 
 # General prefs for editor, indicating whether Gecko-specific editing UI is
@@ -6942,9 +6945,17 @@
   mirror: always
 
 # Whether OTS validation should be applied to OpenType Layout (OTL) tables.
+#   0 - no validation
+#   1 - validate (logging errors to console) but drop table without rejecting
+#       font resource if errors are found
+#   2 (or other) - validate, and reject font if errors are found
 - name: gfx.downloadable_fonts.otl_validation
-  type: RelaxedAtomicBool
-  value: @IS_NOT_RELEASE_OR_BETA@
+  type: RelaxedAtomicUint32
+#if defined(RELEASE_OR_BETA)
+  value: 0
+#else
+  value: 1
+#endif
   mirror: always
 
 - name: gfx.e10s.font-list.shared
@@ -7530,14 +7541,14 @@
 #endif
   mirror: once
 
+#ifdef NIGHTLY_BUILD
+  # Keep this pref hidden on non-nightly builds to avoid people accidentally
+  # turning it on.
 - name: gfx.webrender.layer-compositor
   type: bool
-#if defined(XP_WIN)
-  value: @IS_NIGHTLY_BUILD@
-#else
   value: false
-#endif
   mirror: once
+#endif
 
 #ifdef XP_WIN
 - name: gfx.webrender.layer-compositor-use-composition-surface
@@ -9046,7 +9057,11 @@
 # both unrolling and peeling.
 - name: javascript.options.wasm_unroll_loops
   type: bool
+#ifdef NIGHTLY_BUILD
   value: true
+#else
+  value: false
+#endif
   mirror: always
   set_spidermonkey_pref: always
 
@@ -9841,7 +9856,7 @@
 # Is support for font-variant-emoji enabled?
 - name: layout.css.font-variant-emoji.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
@@ -11253,6 +11268,11 @@
 #endif
   mirror: always
 
+- name: media.gpu-process-encoder
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 - name: media.ffvpx-hw.enabled
   type: RelaxedAtomicBool
 #if defined(MOZ_WIDGET_GTK)
@@ -11457,47 +11477,6 @@
 - name: media.utility-process.max-crashes
   type: RelaxedAtomicInt32
   value: 2
-  mirror: always
-
-#ifdef MOZ_FFMPEG
-- name: media.utility-ffmpeg.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-#endif
-
-- name: media.utility-ffvpx.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
-#ifdef MOZ_WMF
-- name: media.utility-wmf.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-#endif
-
-#ifdef MOZ_APPLEMEDIA
-- name: media.utility-applemedia.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-#endif
-
-- name: media.utility-vorbis.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
-- name: media.utility-wav.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
-- name: media.utility-opus.enabled
-  type: RelaxedAtomicBool
-  value: true
   mirror: always
 
 #ifdef ANDROID
@@ -13013,13 +12992,13 @@
 # cookieBehavior=5.
 - name: network.cookie.cookieBehavior.trackerCookieBlocking
   type: bool
-  value: @IS_NOT_NIGHTLY_BUILD@
+  value: false
   mirror: always
 
 # Whether to support CHIPS(Cookies Having Independent Partitioned State).
 - name: network.cookie.CHIPS.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Updated to match the target count when we migrate the unpartitioned CHIPS
@@ -13033,7 +13012,7 @@
 # This lets us remotely perform a database migration with Nimbus.
 - name: network.cookie.CHIPS.migrateDatabaseTarget
   type: RelaxedAtomicUint32
-  value: 1
+  value: 2
   mirror: always
 
 # Stale threshold for cookies in seconds.
@@ -13132,6 +13111,12 @@
 
 # Use sever time (Date header) to adjust the expire cookie attribute
 - name: network.cookie.useServerTime
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+# When true, Firefox will reject nameless cookies that contain `=` in value.
+- name: network.cookie.block_nameless_with_equal_char
   type: RelaxedAtomicBool
   value: true
   mirror: always
@@ -14159,6 +14144,13 @@
 - name: network.lna.blocking
   type: RelaxedAtomicBool
   value: false
+  mirror: always
+
+# When this pref is true, loads triggered by scripts classified as trackers
+# will automatically be blocked.
+- name: network.lna.block_trackers
+  type: RelaxedAtomicBool
+  value: true
   mirror: always
 
 # The proxy type. See nsIProtocolProxyService.idl
@@ -15600,6 +15592,14 @@
   value: false
   mirror: always
 
+# Whether we directly use the system print dialog to collect the user's print
+# settings rather than using the tab-modal print preview dialog.
+# Note: `print.always_print_silent` overrides this.
+- name: print.prefer_system_dialog
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 # Whether we attempt to generate links in Save As PDF output.
 - name: print.save_as_pdf.links.enabled
   type: RelaxedAtomicBool
@@ -15803,6 +15803,39 @@
   value: true
   mirror: always
 
+# Annotate channels based on the anti-fraud list
+# Note: anti-fraud annotations will be disabled if tracking protection is disabled
+- name: privacy.trackingprotection.antifraud.annotate_channels
+  type: bool
+  value: true
+  mirror: always
+
+# Skip blocking for anti-fraud resources in all modes.
+- name: privacy.trackingprotection.antifraud.skip.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# Skip blocking for anti-fraud resources in Private Browsing mode.
+- name: privacy.trackingprotection.antifraud.skip.pbmode.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+# Enable the "baseline" allow-list for fixing severe site breakage (e.g. blank
+# page).
+- name: privacy.trackingprotection.allow_list.baseline.enabled
+  type: bool
+  value: true
+  mirror: always
+
+# Enable the "convenience" allow-list for less severe site breakage (e.g. embeds
+# or images missing).
+- name: privacy.trackingprotection.allow_list.convenience.enabled
+  type: bool
+  value: true
+  mirror: always
+
 # Whether to spoof user locale to English (used as part of Resist
 # Fingerprinting).
 # 0 - will prompt
@@ -16000,7 +16033,7 @@
 # Enable the heuristic to allow storage access for windows opened using window.open()
 - name: privacy.restrict3rdpartystorage.heuristic.window_open
   type: bool
-  value: @IS_NOT_NIGHTLY_BUILD@
+  value: false
   mirror: always
 
 # Enable the heuristic to allow storage access for windows opened using window.open()
@@ -16015,7 +16048,7 @@
 #if defined(ANDROID)
   value: false
 #else
-  value: @IS_NIGHTLY_BUILD@
+  value: true
 #endif
   mirror: always
 
@@ -16070,7 +16103,7 @@
 #if defined(ANDROID)
   value: true
 #else
-  value: @IS_NOT_NIGHTLY_BUILD@
+  value: false
 #endif
   mirror: always
 
@@ -16083,7 +16116,7 @@
 # Whether to exclude third-party trackers from the storage access heuristics.
 - name: privacy.restrict3rdpartystorage.heuristic.exclude_third_party_trackers
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Recent visited pages redirection permission expiration.
@@ -16349,7 +16382,7 @@
 
 - name: security.csp.truncate_blocked_uri_for_frame_navigations
   type: bool
-  value: true
+  value: false
   mirror: always
 
 # Limit the number of CSP reports that are send in a specific timespan.
@@ -17185,6 +17218,15 @@
 - name: security.integrity_policy.enabled
   type: RelaxedAtomicBool
   value: false
+  mirror: always
+
+# Which mechanism the secret decoder ring should use for encryption. Decryption
+# can always happen with all mechanisms.
+# 0 - DES3_CBC
+# 1 - AES_CBC
+- name: security.sdr.mechanism
+  type: RelaxedAtomicUint32
+  value: 0
   mirror: always
 
 #---------------------------------------------------------------------------
@@ -18840,8 +18882,7 @@
 
 # Mechanism to use to mark fullscreen windows.
 #
-# (If no problems are reported which adjusting this pref solves, it should be
-# removed in v141, and fixed at `1`.)
+# This value can be fixed once we settle on a version that works universally.
 #
 # * 0: Default. Use Gecko-internal heuristics. May vary between versions.
 # * 1: Use only "NonRudeHWND". Historical default on Win7.
@@ -18849,7 +18890,7 @@
 # * 3: Use both. (Never a default; not well-tested.)
 - name: widget.windows.fullscreen_marking_method
   type: RelaxedAtomicUint32
-  value: 0
+  value: 2
   mirror: always
 
 # Whether to open the Windows file and folder pickers "remotely" (in a utility

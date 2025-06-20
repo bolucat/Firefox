@@ -1341,29 +1341,6 @@ bool IsOriginUnaccessed(const FullOriginMetadata& aFullOriginMetadata,
          StaticPrefs::dom_quotaManager_unaccessedForLongTimeThresholdSec();
 }
 
-bool IsDirectoryLockBlockedBy(
-    const DirectoryLockImpl::PrepareInfo& aPrepareInfo,
-    const EnumSet<DirectoryLockCategory>& aCategories) {
-  const auto& locks = aPrepareInfo.BlockedOnRef();
-  return std::any_of(locks.cbegin(), locks.cend(),
-                     [&aCategories](const auto& lock) {
-                       return aCategories.contains(lock->Category());
-                     });
-}
-
-bool IsDirectoryLockBlockedByUninitStorageOperation(
-    const DirectoryLockImpl::PrepareInfo& aPrepareInfo) {
-  return IsDirectoryLockBlockedBy(aPrepareInfo,
-                                  DirectoryLockCategory::UninitStorage);
-}
-
-bool IsDirectoryLockBlockedByUninitStorageOrUninitOriginsOperation(
-    const DirectoryLockImpl::PrepareInfo& aPrepareInfo) {
-  return IsDirectoryLockBlockedBy(aPrepareInfo,
-                                  {DirectoryLockCategory::UninitStorage,
-                                   DirectoryLockCategory::UninitOrigins});
-}
-
 }  // namespace
 
 /*******************************************************************************
@@ -3422,6 +3399,7 @@ QuotaManager::GetOrCreateTemporaryOriginDirectory(
                   OriginMetadataArray originMetadataArray;
                   originMetadataArray.AppendElement(aOriginMetadata);
 
+                  quotaManager->NoteUninitializedClients(originMetadataArray);
                   quotaManager->NoteUninitializedOrigins(originMetadataArray);
                 }),
             NS_DISPATCH_NORMAL));
@@ -5189,7 +5167,7 @@ RefPtr<BoolPromise> QuotaManager::InitializeStorage() {
   // return from the function because the clear and shutdown storage operation
   // uninitializes storage.
   if (mStorageInitialized &&
-      !IsDirectoryLockBlockedByUninitStorageOperation(prepareInfo)) {
+      !prepareInfo.IsBlockedBy(kUninitStorageOnlyCategory)) {
     return BoolPromise::CreateAndResolve(true, __func__);
   }
 
@@ -5377,7 +5355,8 @@ RefPtr<UniversalDirectoryLockPromise> QuotaManager::OpenStorageDirectory(
   RefPtr<UniversalDirectoryLock> storageDirectoryLock =
       CreateDirectoryLockForInitialization(
           *this, PersistenceScope::CreateFromNull(), OriginScope::FromNull(),
-          mStorageInitialized, IsDirectoryLockBlockedByUninitStorageOperation,
+          ClientStorageScope::CreateFromNull(), mStorageInitialized,
+          MakeBlockedByChecker(kUninitStorageOnlyCategory),
           MakeBackInserter(promises));
 
   RefPtr<UniversalDirectoryLock> persistentStorageDirectoryLock;
@@ -5388,8 +5367,9 @@ RefPtr<UniversalDirectoryLockPromise> QuotaManager::OpenStorageDirectory(
     if (MatchesPersistentPersistenceScope(aPersistenceScope)) {
       persistentStorageDirectoryLock = CreateDirectoryLockForInitialization(
           *this, PersistenceScope::CreateFromValue(PERSISTENCE_TYPE_PERSISTENT),
-          OriginScope::FromNull(), mPersistentStorageInitialized,
-          IsDirectoryLockBlockedByUninitStorageOperation,
+          OriginScope::FromNull(), ClientStorageScope::CreateFromNull(),
+          mPersistentStorageInitialized,
+          MakeBlockedByChecker(kUninitStorageOnlyCategory),
           MakeBackInserter(promises));
     }
 
@@ -5404,8 +5384,9 @@ RefPtr<UniversalDirectoryLockPromise> QuotaManager::OpenStorageDirectory(
           *this,
           PersistenceScope::CreateFromSet(PERSISTENCE_TYPE_TEMPORARY,
                                           PERSISTENCE_TYPE_DEFAULT),
-          OriginScope::FromNull(), mTemporaryStorageInitialized,
-          IsDirectoryLockBlockedByUninitStorageOperation,
+          OriginScope::FromNull(), ClientStorageScope::CreateFromNull(),
+          mTemporaryStorageInitialized,
+          MakeBlockedByChecker(kUninitStorageOnlyCategory),
           MakeBackInserter(promises));
     }
   }
@@ -5499,7 +5480,8 @@ QuotaManager::OpenClientDirectoryImpl(
   RefPtr<UniversalDirectoryLock> storageDirectoryLock =
       CreateDirectoryLockForInitialization(
           *this, PersistenceScope::CreateFromNull(), OriginScope::FromNull(),
-          mStorageInitialized, IsDirectoryLockBlockedByUninitStorageOperation,
+          ClientStorageScope::CreateFromNull(), mStorageInitialized,
+          MakeBlockedByChecker(kUninitStorageOnlyCategory),
           MakeBackInserter(promises));
 
   RefPtr<UniversalDirectoryLock> temporaryStorageDirectoryLock;
@@ -5511,8 +5493,9 @@ QuotaManager::OpenClientDirectoryImpl(
         *this,
         PersistenceScope::CreateFromSet(PERSISTENCE_TYPE_TEMPORARY,
                                         PERSISTENCE_TYPE_DEFAULT),
-        OriginScope::FromNull(), mTemporaryStorageInitialized,
-        IsDirectoryLockBlockedByUninitStorageOperation,
+        OriginScope::FromNull(), ClientStorageScope::CreateFromNull(),
+        mTemporaryStorageInitialized,
+        MakeBlockedByChecker(kUninitStorageOnlyCategory),
         MakeBackInserter(promises));
 
     const bool groupInitialized = IsTemporaryGroupInitialized(aClientMetadata);
@@ -5521,8 +5504,9 @@ QuotaManager::OpenClientDirectoryImpl(
         *this,
         PersistenceScope::CreateFromSet(PERSISTENCE_TYPE_TEMPORARY,
                                         PERSISTENCE_TYPE_DEFAULT),
-        OriginScope::FromGroup(aClientMetadata.mGroup), groupInitialized,
-        IsDirectoryLockBlockedByUninitStorageOperation,
+        OriginScope::FromGroup(aClientMetadata.mGroup),
+        ClientStorageScope::CreateFromNull(), groupInitialized,
+        MakeBlockedByChecker(kUninitStorageOnlyCategory),
         MakeBackInserter(promises));
   }
 
@@ -5536,19 +5520,26 @@ QuotaManager::OpenClientDirectoryImpl(
 
     originDirectoryLock = CreateDirectoryLockForInitialization(
         *this, PersistenceScope::CreateFromValue(persistenceType),
-        OriginScope::FromOrigin(aClientMetadata), originInitialized,
-        IsDirectoryLockBlockedByUninitStorageOrUninitOriginsOperation,
+        OriginScope::FromOrigin(aClientMetadata),
+        ClientStorageScope::CreateFromNull(), originInitialized,
+        MakeBlockedByChecker(kUninitOriginsAndBroaderCategories),
         MakeBackInserter(promises));
   }
 
-  RefPtr<UniversalDirectoryLock> clientInitDirectoryLock =
-      CreateDirectoryLockInternal(
-          PersistenceScope::CreateFromValue(aClientMetadata.mPersistenceType),
-          OriginScope::FromOrigin(aClientMetadata),
-          ClientStorageScope::CreateFromClient(aClientMetadata.mClientType),
-          /* aExclusive */ false);
+  RefPtr<UniversalDirectoryLock> clientInitDirectoryLock;
 
-  promises.AppendElement(clientInitDirectoryLock->Acquire());
+  const bool clientInitialized =
+      persistenceType == PERSISTENCE_TYPE_PERSISTENT
+          ? IsPersistentClientInitialized(aClientMetadata)
+          : IsTemporaryClientInitialized(aClientMetadata);
+
+  clientInitDirectoryLock = CreateDirectoryLockForInitialization(
+      *this, PersistenceScope::CreateFromValue(persistenceType),
+      OriginScope::FromOrigin(aClientMetadata),
+      ClientStorageScope::CreateFromClient(aClientMetadata.mClientType),
+      clientInitialized,
+      MakeBlockedByChecker(kUninitClientsAndBroaderCategories),
+      MakeBackInserter(promises));
 
   RefPtr<ClientDirectoryLock> clientDirectoryLock =
       CreateDirectoryLock(aClientMetadata, /* aExclusive */ false);
@@ -5729,7 +5720,7 @@ RefPtr<BoolPromise> QuotaManager::InitializePersistentStorage() {
   // the promise and return from the function because the clear or shutdown
   // storage operation uninitializes storage.
   if (mPersistentStorageInitialized &&
-      !IsDirectoryLockBlockedByUninitStorageOperation(prepareInfo)) {
+      !prepareInfo.IsBlockedBy(kUninitStorageOnlyCategory)) {
     return BoolPromise::CreateAndResolve(true, __func__);
   }
 
@@ -5843,7 +5834,7 @@ RefPtr<BoolPromise> QuotaManager::InitializeTemporaryGroup(
   // promise and return from the function because the clear and shutdown
   // storage operation uninitializes storage.
   if (IsTemporaryGroupInitialized(aPrincipalMetadata) &&
-      !IsDirectoryLockBlockedByUninitStorageOperation(prepareInfo)) {
+      !prepareInfo.IsBlockedBy(kUninitStorageOnlyCategory)) {
     return BoolPromise::CreateAndResolve(true, __func__);
   }
 
@@ -6003,8 +5994,7 @@ RefPtr<BoolPromise> QuotaManager::InitializePersistentOrigin(
   // includes uninitialization of origins) and because clear and shutdown origin
   // operations uninitialize origins directly.
   if (IsPersistentOriginInitialized(aOriginMetadata) &&
-      !IsDirectoryLockBlockedByUninitStorageOrUninitOriginsOperation(
-          prepareInfo)) {
+      !prepareInfo.IsBlockedBy(kUninitOriginsAndBroaderCategories)) {
     return BoolPromise::CreateAndResolve(true, __func__);
   }
 
@@ -6180,8 +6170,7 @@ RefPtr<BoolPromise> QuotaManager::InitializeTemporaryOrigin(
   // includes uninitialization of origins) and because clear and shutdown origin
   // operations uninitialize origins directly.
   if (IsTemporaryOriginInitialized(aOriginMetadata) &&
-      !IsDirectoryLockBlockedByUninitStorageOrUninitOriginsOperation(
-          prepareInfo)) {
+      !prepareInfo.IsBlockedBy(kUninitOriginsAndBroaderCategories)) {
     return BoolPromise::CreateAndResolve(true, __func__);
   }
 
@@ -6373,6 +6362,22 @@ RefPtr<BoolPromise> QuotaManager::InitializePersistentClient(
       ClientStorageScope::CreateFromClient(aClientMetadata.mClientType),
       /* aExclusive */ false);
 
+  auto prepareInfo = directoryLock->Prepare();
+
+  // If the persistent client is initialized but there's a clear storage,
+  // shutdown storage, clear origin, shutdown origin, clear client, or shutdown
+  // client operation already scheduled, we can't immediately resolve the
+  // promise and return from the function. This is because:
+  // - clear and shutdown storage operations uninitialize storage,
+  //   which cascades to origins and clients;
+  // - clear and shutdown origin operations uninitialize origins,
+  //   which also uninitialize clients;
+  // - clear and shutdown client operations uninitialize the client directly.
+  if (IsPersistentClientInitialized(aClientMetadata) &&
+      !prepareInfo.IsBlockedBy(kUninitClientsAndBroaderCategories)) {
+    return BoolPromise::CreateAndResolve(true, __func__);
+  }
+
   return directoryLock->Acquire()->Then(
       GetCurrentSerialEventTarget(), __func__,
       [self = RefPtr(this), aClientMetadata,
@@ -6394,6 +6399,20 @@ RefPtr<BoolPromise> QuotaManager::InitializePersistentClient(
   MOZ_ASSERT(aDirectoryLock);
   MOZ_ASSERT(aDirectoryLock->Acquired());
 
+  // If the persistent client is initialized and the directory lock for the
+  // initialize persistent client operation is acquired, we can immediately
+  // resolve the promise and return from the function because there can't be a
+  // clear storage, shutdown storage, clear origin, shutdown origin, clear
+  // client, or shutdown client operation in progress. These operations would
+  // otherwise uninitialize storage (which cascades to origins and clients),
+  // uninitialize origins (which also uninitialize clients), or uninitialize
+  // the client directly.
+  if (IsPersistentClientInitialized(aClientMetadata)) {
+    DropDirectoryLock(aDirectoryLock);
+
+    return BoolPromise::CreateAndResolve(true, __func__);
+  }
+
   auto initializePersistentClientOp = CreateInitializePersistentClientOp(
       WrapMovingNotNullUnchecked(this), aClientMetadata,
       std::move(aDirectoryLock));
@@ -6402,7 +6421,26 @@ RefPtr<BoolPromise> QuotaManager::InitializePersistentClient(
 
   initializePersistentClientOp->RunImmediately();
 
-  return initializePersistentClientOp->OnResults();
+  return Map<BoolPromise>(
+      initializePersistentClientOp->OnResults(),
+      [self = RefPtr(this), origin = aClientMetadata.mOrigin,
+       clientType = aClientMetadata.mClientType](
+          const BoolPromise::ResolveOrRejectValue& aValue) {
+        self->NoteInitializedClient(PERSISTENCE_TYPE_PERSISTENT, origin,
+                                    clientType);
+
+        return aValue.ResolveValue();
+      });
+}
+
+bool QuotaManager::IsPersistentClientInitialized(
+    const ClientMetadata& aClientMetadata) {
+  AssertIsOnOwningThread();
+  MOZ_ASSERT(aClientMetadata.mPersistenceType == PERSISTENCE_TYPE_PERSISTENT);
+
+  return IsClientInitialized(aClientMetadata.mPersistenceType,
+                             aClientMetadata.mOrigin,
+                             aClientMetadata.mClientType);
 }
 
 Result<std::pair<nsCOMPtr<nsIFile>, bool>, nsresult>
@@ -6436,6 +6474,22 @@ RefPtr<BoolPromise> QuotaManager::InitializeTemporaryClient(
       ClientStorageScope::CreateFromClient(aClientMetadata.mClientType),
       /* aExclusive */ false);
 
+  auto prepareInfo = directoryLock->Prepare();
+
+  // If the temporary client is initialized but there's a clear storage,
+  // shutdown storage, clear origin, shutdown origin, clear client, or shutdown
+  // client operation already scheduled, we can't immediately resolve the
+  // promise and return from the function. This is because:
+  // - clear and shutdown storage operations uninitialize storage,
+  //   which cascades to origins and clients;
+  // - clear and shutdown origin operations uninitialize origins,
+  //   which also uninitialize clients;
+  // - clear and shutdown client operations uninitialize the client directly.
+  if (IsTemporaryClientInitialized(aClientMetadata) &&
+      !prepareInfo.IsBlockedBy(kUninitClientsAndBroaderCategories)) {
+    return BoolPromise::CreateAndResolve(true, __func__);
+  }
+
   return directoryLock->Acquire()->Then(
       GetCurrentSerialEventTarget(), __func__,
       [self = RefPtr(this), aClientMetadata, aCreateIfNonExistent,
@@ -6457,6 +6511,20 @@ RefPtr<BoolPromise> QuotaManager::InitializeTemporaryClient(
   MOZ_ASSERT(aDirectoryLock);
   MOZ_ASSERT(aDirectoryLock->Acquired());
 
+  // If the temporary client is initialized and the directory lock for the
+  // initialize persistent client operation is acquired, we can immediately
+  // resolve the promise and return from the function because there can't be a
+  // clear storage, shutdown storage, clear origin, shutdown origin, clear
+  // client, or shutdown client operation in progress. These operations would
+  // otherwise uninitialize storage (which cascades to origins and clients),
+  // uninitialize origins (which also uninitialize clients), or uninitialize
+  // the client directly.
+  if (IsTemporaryClientInitialized(aClientMetadata)) {
+    DropDirectoryLock(aDirectoryLock);
+
+    return BoolPromise::CreateAndResolve(true, __func__);
+  }
+
   auto initializeTemporaryClientOp = CreateInitializeTemporaryClientOp(
       WrapMovingNotNullUnchecked(this), aClientMetadata, aCreateIfNonExistent,
       std::move(aDirectoryLock));
@@ -6465,7 +6533,26 @@ RefPtr<BoolPromise> QuotaManager::InitializeTemporaryClient(
 
   initializeTemporaryClientOp->RunImmediately();
 
-  return initializeTemporaryClientOp->OnResults();
+  return Map<BoolPromise>(
+      initializeTemporaryClientOp->OnResults(),
+      [self = RefPtr(this), persistenceType = aClientMetadata.mPersistenceType,
+       origin = aClientMetadata.mOrigin,
+       clientType = aClientMetadata.mClientType](
+          const BoolPromise::ResolveOrRejectValue& aValue) {
+        self->NoteInitializedClient(persistenceType, origin, clientType);
+
+        return aValue.ResolveValue();
+      });
+}
+
+bool QuotaManager::IsTemporaryClientInitialized(
+    const ClientMetadata& aClientMetadata) {
+  AssertIsOnOwningThread();
+  MOZ_ASSERT(aClientMetadata.mPersistenceType != PERSISTENCE_TYPE_PERSISTENT);
+
+  return IsClientInitialized(aClientMetadata.mPersistenceType,
+                             aClientMetadata.mOrigin,
+                             aClientMetadata.mClientType);
 }
 
 Result<std::pair<nsCOMPtr<nsIFile>, bool>, nsresult>
@@ -6511,7 +6598,7 @@ RefPtr<BoolPromise> QuotaManager::InitializeTemporaryStorage() {
   // the promise and return from the function because the clear and shutdown
   // storage operation uninitializes storage.
   if (mTemporaryStorageInitialized &&
-      !IsDirectoryLockBlockedByUninitStorageOperation(prepareInfo)) {
+      !prepareInfo.IsBlockedBy(kUninitStorageOnlyCategory)) {
     return BoolPromise::CreateAndResolve(true, __func__);
   }
 
@@ -6887,6 +6974,7 @@ RefPtr<BoolPromise> QuotaManager::ClearStoragesForOrigin(
       clearOriginOp->OnResults(),
       [self = RefPtr(this)](
           OriginMetadataArrayPromise::ResolveOrRejectValue&& aValue) {
+        self->NoteUninitializedClients(aValue.ResolveValue());
         self->NoteUninitializedOrigins(aValue.ResolveValue());
 
         return true;
@@ -6906,7 +6994,13 @@ RefPtr<BoolPromise> QuotaManager::ClearStoragesForClient(
 
   clearClientOp->RunImmediately();
 
-  return clearClientOp->OnResults();
+  return Map<BoolPromise>(
+      clearClientOp->OnResults(),
+      [self = RefPtr(this)](
+          ClientMetadataArrayPromise::ResolveOrRejectValue&& aValue) {
+        self->NoteUninitializedClients(aValue.ResolveValue());
+        return true;
+      });
 }
 
 RefPtr<BoolPromise> QuotaManager::ClearStoragesForOriginPrefix(
@@ -6925,6 +7019,7 @@ RefPtr<BoolPromise> QuotaManager::ClearStoragesForOriginPrefix(
       clearStoragesForOriginPrefixOp->OnResults(),
       [self = RefPtr(this)](
           OriginMetadataArrayPromise::ResolveOrRejectValue&& aValue) {
+        self->NoteUninitializedClients(aValue.ResolveValue());
         self->NoteUninitializedOrigins(aValue.ResolveValue());
 
         return true;
@@ -6946,6 +7041,7 @@ RefPtr<BoolPromise> QuotaManager::ClearStoragesForOriginAttributesPattern(
       clearDataOp->OnResults(),
       [self = RefPtr(this)](
           OriginMetadataArrayPromise::ResolveOrRejectValue&& aValue) {
+        self->NoteUninitializedClients(aValue.ResolveValue());
         self->NoteUninitializedOrigins(aValue.ResolveValue());
 
         return true;
@@ -6965,6 +7061,7 @@ RefPtr<BoolPromise> QuotaManager::ClearPrivateRepository() {
   return Map<BoolPromise>(
       clearPrivateRepositoryOp->OnResults(),
       [self = RefPtr(this)](const BoolPromise::ResolveOrRejectValue& aValue) {
+        self->NoteUninitializedClients(PERSISTENCE_TYPE_PRIVATE);
         self->NoteUninitializedRepository(PERSISTENCE_TYPE_PRIVATE);
 
         return aValue.ResolveValue();
@@ -6987,6 +7084,7 @@ RefPtr<BoolPromise> QuotaManager::ClearStorage() {
           return BoolPromise::CreateAndReject(aValue.RejectValue(), __func__);
         }
 
+        self->mInitializedClients.Clear();
         self->mInitializedOrigins.Clear();
         self->mBackgroundThreadAccessible.Access()->mInitializedGroups.Clear();
         self->mAllTemporaryOriginsInitialized = false;
@@ -7013,6 +7111,7 @@ RefPtr<BoolPromise> QuotaManager::ShutdownStoragesForOrigin(
       shutdownOriginOp->OnResults(),
       [self = RefPtr(this)](
           OriginMetadataArrayPromise::ResolveOrRejectValue&& aValue) {
+        self->NoteUninitializedClients(aValue.ResolveValue());
         self->NoteUninitializedOrigins(aValue.ResolveValue());
 
         return true;
@@ -7032,7 +7131,14 @@ RefPtr<BoolPromise> QuotaManager::ShutdownStoragesForClient(
 
   shutdownClientOp->RunImmediately();
 
-  return shutdownClientOp->OnResults();
+  return Map<BoolPromise>(
+      shutdownClientOp->OnResults(),
+      [self = RefPtr(this)](
+          ClientMetadataArrayPromise::ResolveOrRejectValue&& aValue) {
+        self->NoteUninitializedClients(aValue.ResolveValue());
+
+        return true;
+      });
 }
 
 RefPtr<BoolPromise> QuotaManager::ShutdownStorage(
@@ -7058,6 +7164,7 @@ RefPtr<BoolPromise> QuotaManager::ShutdownStorage(
           return BoolPromise::CreateAndReject(aValue.RejectValue(), __func__);
         }
 
+        self->mInitializedClients.Clear();
         self->mInitializedOrigins.Clear();
         self->mBackgroundThreadAccessible.Access()->mInitializedGroups.Clear();
         self->mAllTemporaryOriginsInitialized = false;
@@ -8099,6 +8206,91 @@ bool QuotaManager::IsOriginInitialized(PersistenceType aPersistenceType,
   const auto entry = mInitializedOrigins.Lookup(aOrigin);
 
   return entry && (*entry)[aPersistenceType];
+}
+
+void QuotaManager::NoteInitializedClient(PersistenceType aPersistenceType,
+                                         const nsACString& aOrigin,
+                                         Client::Type aClientType) {
+  AssertIsOnOwningThread();
+
+  auto& bitSetArray = mInitializedClients.LookupOrInsertWith(aOrigin, []() {
+    BitSetArray bitSetArray;
+    bitSetArray.AppendElements(PERSISTENCE_TYPE_INVALID);
+    return bitSetArray;
+  });
+
+  bitSetArray[aPersistenceType][aClientType] = true;
+}
+
+void QuotaManager::NoteUninitializedClients(
+    const ClientMetadataArray& aClientMetadataArray) {
+  AssertIsOnOwningThread();
+
+  for (const auto& clientMetadata : aClientMetadataArray) {
+    auto entry = mInitializedClients.Lookup(clientMetadata.mOrigin);
+    if (!entry) {
+      return;
+    }
+
+    auto& bitSetArray = *entry;
+
+    if (bitSetArray[clientMetadata.mPersistenceType]
+                   [clientMetadata.mClientType]) {
+      bitSetArray[clientMetadata.mPersistenceType][clientMetadata.mClientType] =
+          false;
+
+      if (std::all_of(bitSetArray.begin(), bitSetArray.end(),
+                      [](const auto& entry) { return entry.IsEmpty(); })) {
+        entry.Remove();
+      }
+    }
+  }
+}
+
+void QuotaManager::NoteUninitializedClients(
+    const OriginMetadataArray& aOriginMetadataArray) {
+  AssertIsOnOwningThread();
+
+  for (const auto& originMetadata : aOriginMetadataArray) {
+    auto entry = mInitializedClients.Lookup(originMetadata.mOrigin);
+    if (!entry) {
+      return;
+    }
+
+    auto& bitSetArray = *entry;
+
+    bitSetArray[originMetadata.mPersistenceType].ResetAll();
+
+    if (std::all_of(bitSetArray.begin(), bitSetArray.end(),
+                    [](const auto& entry) { return entry.IsEmpty(); })) {
+      entry.Remove();
+    }
+  }
+}
+
+void QuotaManager::NoteUninitializedClients(PersistenceType aPersistenceType) {
+  AssertIsOnOwningThread();
+
+  for (auto iter = mInitializedClients.Iter(); !iter.Done(); iter.Next()) {
+    auto& bitSetArray = iter.Data();
+
+    bitSetArray[aPersistenceType].ResetAll();
+
+    if (std::all_of(bitSetArray.begin(), bitSetArray.end(),
+                    [](const auto& entry) { return entry.IsEmpty(); })) {
+      iter.Remove();
+    }
+  }
+}
+
+bool QuotaManager::IsClientInitialized(PersistenceType aPersistenceType,
+                                       const nsACString& aOrigin,
+                                       Client::Type aClientType) const {
+  AssertIsOnOwningThread();
+
+  const auto entry = mInitializedClients.Lookup(aOrigin);
+
+  return entry && (*entry)[aPersistenceType][aClientType];
 }
 
 Result<nsCString, nsresult> QuotaManager::EnsureStorageOriginFromOrigin(

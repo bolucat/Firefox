@@ -1492,6 +1492,22 @@ export var UrlbarUtils = {
       return "experimental_addon";
     }
 
+    // Appends subtype to certain result types.
+    function checkForSubType(type, res) {
+      if (res.providerName == "SemanticHistorySearch") {
+        type += "_semantic";
+      }
+      if (
+        lazy.UrlbarSearchUtils.resultIsSERP(res, [
+          UrlbarUtils.RESULT_SOURCE.HISTORY,
+          UrlbarUtils.RESULT_SOURCE.TABS,
+        ])
+      ) {
+        type += "_serp";
+      }
+      return type;
+    }
+
     switch (result.type) {
       case this.RESULT_TYPE.DYNAMIC:
         switch (result.providerName) {
@@ -1536,7 +1552,7 @@ export var UrlbarUtils = {
         }
         return "search_engine";
       case this.RESULT_TYPE.TAB_SWITCH:
-        return "tab";
+        return checkForSubType("tab", result);
       case this.RESULT_TYPE.TIP:
         if (result.providerName === "UrlbarProviderInterventions") {
           switch (result.payload.type) {
@@ -1584,9 +1600,10 @@ export var UrlbarUtils = {
         if (result.providerName === "UrlbarProviderClipboard") {
           return "clipboard";
         }
-        return result.source === this.RESULT_SOURCE.BOOKMARKS
-          ? "bookmark"
-          : "history";
+        if (result.source === this.RESULT_SOURCE.BOOKMARKS) {
+          return "bookmark";
+        }
+        return checkForSubType("history", result);
       case this.RESULT_TYPE.RESTRICT:
         if (result.payload.keyword === lazy.UrlbarTokenizer.RESTRICT.BOOKMARK) {
           return "restrict_keyword_bookmarks";
@@ -1742,6 +1759,47 @@ export var UrlbarUtils = {
       }
       index = highlightIndex + highlightLength;
     }
+  },
+
+  /**
+   * Formats the numerical portion of unit conversion results.
+   *
+   * @param {number} result
+   *  The raw unformatted unit conversion result.
+   */
+  formatUnitConversionResult(result) {
+    const DECIMAL_PRECISION = 10;
+    const MAX_SIG_FIGURES = 10;
+    const FULL_NUMBER_MAX_THRESHOLD = 1 * 10 ** 10;
+    const FULL_NUMBER_MIN_THRESHOLD = 10 ** -5;
+
+    let locale = Services.locale.appLocaleAsBCP47;
+
+    if (
+      Math.abs(result) >= FULL_NUMBER_MAX_THRESHOLD ||
+      (Math.abs(result) <= FULL_NUMBER_MIN_THRESHOLD && result !== 0)
+    ) {
+      return new Intl.NumberFormat(locale, {
+        style: "decimal",
+        notation: "scientific",
+        minimumFractionDigits: 1,
+        maximumFractionDigits: DECIMAL_PRECISION,
+        numberingSystem: "latn",
+      })
+        .format(result)
+        .toLowerCase();
+    } else if (Math.abs(result) >= 1) {
+      return new Intl.NumberFormat(locale, {
+        style: "decimal",
+        maximumFractionDigits: DECIMAL_PRECISION,
+        numberingSystem: "latn",
+      }).format(result);
+    }
+    return new Intl.NumberFormat(locale, {
+      style: "decimal",
+      maximumSignificantDigits: MAX_SIG_FIGURES,
+      numberingSystem: "latn",
+    }).format(result);
   },
 };
 

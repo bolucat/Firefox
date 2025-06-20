@@ -589,20 +589,6 @@ export const PREFS_CONFIG = new Map([
     },
   ],
   [
-    "newtabLayouts.variant-a",
-    {
-      title: "Boolean flag to turn layout variant A on and off",
-      value: false,
-    },
-  ],
-  [
-    "newtabLayouts.variant-b",
-    {
-      title: "Boolean flag to turn layout variant B on and off",
-      value: false,
-    },
-  ],
-  [
     "newtabShortcuts.refresh",
     {
       title: "Boolean flag to change sizes and spacing of new tab shortcuts",
@@ -815,7 +801,7 @@ export const PREFS_CONFIG = new Map([
     "trendingSearch.enabled",
     {
       title: "Enables the trending search widget",
-      value: false,
+      value: true,
     },
   ],
   [
@@ -1558,7 +1544,13 @@ export class ActivityStream {
     }
   }
 
-  observe(subject, topic) {
+  observe(subject, topic, data) {
+    // Custom logic for BROWSER_URLBAR_PLACEHOLDERNAME
+    if (topic === "nsPref:changed" && data === BROWSER_URLBAR_PLACEHOLDERNAME) {
+      this._updateDynamicPrefs();
+      return;
+    }
+
     switch (topic) {
       case "browser-search-engine-modified":
       case "intl:app-locales-changed":

@@ -381,7 +381,7 @@ class GeckoEngine(
                         NativePermissionPromptResponse(
                             data.isPermissionsGranted,
                             data.isPrivateModeGranted,
-                            false, // isTechnicalAndInteractionDataGranted
+                            data.isTechnicalAndInteractionDataGranted,
                         ),
                     )
                 }
@@ -538,11 +538,16 @@ class GeckoEngine(
         extensionId: String,
         permissions: List<String>,
         origins: List<String>,
+        dataCollectionPermissions: List<String>,
         onSuccess: (WebExtension) -> Unit,
         onError: (Throwable) -> Unit,
     ) {
-        if (permissions.isEmpty() && origins.isEmpty()) {
-            onError(IllegalStateException("Either permissions or origins must not be empty"))
+        if (permissions.isEmpty() && origins.isEmpty() && dataCollectionPermissions.isEmpty()) {
+            onError(
+                IllegalStateException(
+                    "At least one of permissions, origins or dataCollectionPermissions must not be empty",
+                ),
+            )
             return
         }
 
@@ -550,6 +555,7 @@ class GeckoEngine(
             extensionId,
             permissions.toTypedArray(),
             origins.toTypedArray(),
+            dataCollectionPermissions.toTypedArray(),
         ).then(
             {
                 val enabledExtension = GeckoWebExtension(it!!, runtime)
@@ -570,11 +576,16 @@ class GeckoEngine(
         extensionId: String,
         permissions: List<String>,
         origins: List<String>,
+        dataCollectionPermissions: List<String>,
         onSuccess: (WebExtension) -> Unit,
         onError: (Throwable) -> Unit,
     ) {
-        if (permissions.isEmpty() && origins.isEmpty()) {
-            onError(IllegalStateException("Either permissions or origins must not be empty"))
+        if (permissions.isEmpty() && origins.isEmpty() && dataCollectionPermissions.isEmpty()) {
+            onError(
+                IllegalStateException(
+                    "At least one of permissions, origins or dataCollectionPermissions must not be empty",
+                ),
+            )
             return
         }
 
@@ -582,6 +593,7 @@ class GeckoEngine(
             extensionId,
             permissions.toTypedArray(),
             origins.toTypedArray(),
+            dataCollectionPermissions.toTypedArray(),
         ).then(
             {
                 val enabledExtension = GeckoWebExtension(it!!, runtime)

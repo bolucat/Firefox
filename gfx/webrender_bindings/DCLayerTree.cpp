@@ -547,8 +547,13 @@ bool DCLayerTree::UseNativeCompositor() const {
 }
 
 bool DCLayerTree::UseLayerCompositor() const {
+// Only allow the layer compositor in nightly builds, for now.
+#ifdef NIGHTLY_BUILD
   return UseNativeCompositor() &&
          StaticPrefs::gfx_webrender_layer_compositor_AtStartup();
+#else
+  return false;
+#endif
 }
 
 void DCLayerTree::DisableNativeCompositor() {
@@ -642,7 +647,6 @@ void DCLayerTree::CompositorEndFrame() {
     // Ensure surface is trimmed to updated tile valid rects
     surface->UpdateAllocatedRect();
     if (!same) {
-      // Add surfaces in z-order they were added to the scene.
       const auto visual = surface->GetRootVisual();
       if (UseLayerCompositor()) {
         // Layer compositor expects front to back.
@@ -820,7 +824,6 @@ void DCLayerTree::CreateSwapChainSurface(wr::NativeSurfaceId aId,
       gfxCriticalNote << "Failed to initialize DCLayerSurface: "
                       << wr::AsUint64(aId);
       RenderThread::Get()->HandleWebRenderError(WebRenderError::NEW_SURFACE);
-      return;
     }
   } else {
     surface = MakeUnique<DCSwapChain>(aSize, aIsOpaque, this);
@@ -828,7 +831,6 @@ void DCLayerTree::CreateSwapChainSurface(wr::NativeSurfaceId aId,
       gfxCriticalNote << "Failed to initialize DCSwapChain: "
                       << wr::AsUint64(aId);
       RenderThread::Get()->HandleWebRenderError(WebRenderError::NEW_SURFACE);
-      return;
     }
   }
 
@@ -843,7 +845,9 @@ void DCLayerTree::ResizeSwapChainSurface(wr::NativeSurfaceId aId,
   MOZ_RELEASE_ASSERT(it != mDCSurfaces.end());
   auto surface = it->second.get();
 
-  surface->AsDCLayerSurface()->Resize(aSize);
+  if (!surface->AsDCLayerSurface()->Resize(aSize)) {
+    RenderThread::Get()->HandleWebRenderError(WebRenderError::NEW_SURFACE);
+  }
 }
 
 void DCLayerTree::CreateExternalSurface(wr::NativeSurfaceId aId,
@@ -1830,6 +1834,10 @@ void DCLayerCompositionSurface::Present(const wr::DeviceIntRect* aDirtyRects,
                                         size_t aNumDirtyRects) {
   MOZ_ASSERT(mEGLSurface);
   MOZ_ASSERT(mCompositionSurface);
+
+  if (!mCompositionSurface) {
+    return;
+  }
 
   mCompositionSurface->EndDraw();
 

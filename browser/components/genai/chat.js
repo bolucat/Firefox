@@ -7,8 +7,6 @@ const { topChromeWindow } = window.browsingContext;
 const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
   GenAI: "resource:///modules/GenAI.sys.mjs",
-  LightweightThemeConsumer:
-    "resource://gre/modules/LightweightThemeConsumer.sys.mjs",
   SpecialMessageActions:
     "resource://messaging-system/lib/SpecialMessageActions.sys.mjs",
 });
@@ -335,7 +333,6 @@ addEventListener("change", handleChange);
 // Expose a promise for loading and rendering the chat browser element
 var browserPromise = new Promise((resolve, reject) => {
   addEventListener("load", async () => {
-    new lazy.LightweightThemeConsumer(document);
     try {
       node.chat = renderChat();
       node.provider = await renderProviders();
@@ -591,26 +588,18 @@ function showOnboarding(length) {
 }
 
 async function summarizeCurrentPage() {
-  Services.prefs.setCharPref(
-    "browser.ml.chat.prompt.prefix",
-    'I\'m on page "%tabTitle%" from "%url%". Use this "%selection|8000%" as my selection.'
-  );
-
   let browser = topChromeWindow.gBrowser.selectedBrowser;
   let actor = browser.browsingContext.currentWindowContext.getActor("GenAI");
   let articleTextContent = await actor.sendQuery("GetReadableText");
 
   await lazy.GenAI.addAskChatItems(
     browser,
-    { selection: articleTextContent },
+    { contentType: "page", selection: articleTextContent },
     (promptObj, context) => {
       if (promptObj.id === "summarize") {
         lazy.GenAI.handleAskChat(promptObj, context);
       }
     },
-    "page"
+    "footer"
   );
-
-  // reset prefix to default
-  Services.prefs.clearUserPref("browser.ml.chat.prompt.prefix");
 }

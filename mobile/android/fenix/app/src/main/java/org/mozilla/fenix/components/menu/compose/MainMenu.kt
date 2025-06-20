@@ -53,6 +53,8 @@ import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewLightDark
+import androidx.compose.ui.tooling.preview.PreviewParameter
+import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import mozilla.components.feature.addons.Addon
 import mozilla.components.feature.addons.ui.displayName
@@ -80,6 +82,7 @@ import org.mozilla.fenix.utils.DURATION_MS_MAIN_MENU
  * @param accountState The [AccountState] of a Mozilla account.
  * @param showQuitMenu Whether or not the button to delete browsing data and quit
  * should be visible.
+ * @param isSiteLoading Whether or not the tab is loading.
  * @param isExtensionsExpanded Whether or not the extensions menu is expanded.
  * @param isMoreMenuExpanded Whether or not the more menu is expanded.
  * @param isBookmarked Whether or not the current tab is bookmarked.
@@ -88,6 +91,8 @@ import org.mozilla.fenix.utils.DURATION_MS_MAIN_MENU
  * @param isReaderViewActive Whether or not Reader View is active or not.
  * @param isExtensionsProcessDisabled Whether or not the extensions process is disabled due to extension errors.
  * @param allWebExtensionsDisabled Whether or not all web extensions are disabled.
+ * @param canGoBack Whether or not the back button is enabled.
+ * @param canGoForward Whether or not the forward button is enabled.
  * @param extensionsMenuItemDescription The label of extensions menu item description.
  * @param scrollState The [ScrollState] used for vertical scrolling.
  * @param showBanner Whether or not the default browser banner should be shown.
@@ -115,6 +120,7 @@ import org.mozilla.fenix.utils.DURATION_MS_MAIN_MENU
  * @param onBackButtonClick Invoked when the user clicks on the back button.
  * @param onForwardButtonClick Invoked when the user clicks on the forward button.
  * @param onRefreshButtonClick Invoked when the user clicks on the refresh button.
+ * @param onStopButtonClick Invoked when the user clicks on the stop button.
  * @param onShareButtonClick Invoked when the user clicks on the share button.
  * @param moreSettingsSubmenu The content of more menu item.
  * @param extensionSubmenu The content of extensions menu item to avoid configuration during animation.
@@ -126,6 +132,7 @@ fun MainMenu(
     account: Account?,
     accountState: AccountState,
     showQuitMenu: Boolean,
+    isSiteLoading: Boolean,
     isExtensionsExpanded: Boolean,
     isMoreMenuExpanded: Boolean,
     isBookmarked: Boolean,
@@ -134,6 +141,8 @@ fun MainMenu(
     isReaderViewActive: Boolean,
     isExtensionsProcessDisabled: Boolean,
     allWebExtensionsDisabled: Boolean,
+    canGoBack: Boolean,
+    canGoForward: Boolean,
     extensionsMenuItemDescription: String,
     scrollState: ScrollState,
     showBanner: Boolean,
@@ -159,6 +168,7 @@ fun MainMenu(
     onBackButtonClick: (longPress: Boolean) -> Unit,
     onForwardButtonClick: (longPress: Boolean) -> Unit,
     onRefreshButtonClick: (longPress: Boolean) -> Unit,
+    onStopButtonClick: () -> Unit,
     onShareButtonClick: () -> Unit,
     moreSettingsSubmenu: @Composable ColumnScope.() -> Unit,
     extensionSubmenu: @Composable ColumnScope.() -> Unit,
@@ -171,9 +181,21 @@ fun MainMenu(
                 } else {
                     MenuItemState.ENABLED
                 },
+                goBackState = if (canGoBack && accessPoint != MenuAccessPoint.Home) {
+                    MenuItemState.ENABLED
+                } else {
+                    MenuItemState.DISABLED
+                },
+                goForwardState = if (canGoForward && accessPoint != MenuAccessPoint.Home) {
+                    MenuItemState.ENABLED
+                } else {
+                    MenuItemState.DISABLED
+                },
+                isSiteLoading = accessPoint != MenuAccessPoint.Home && isSiteLoading,
                 onBackButtonClick = onBackButtonClick,
                 onForwardButtonClick = onForwardButtonClick,
                 onRefreshButtonClick = onRefreshButtonClick,
+                onStopButtonClick = onStopButtonClick,
                 onShareButtonClick = onShareButtonClick,
                 isExtensionsExpanded = isExtensionsExpanded,
                 isMoreMenuExpanded = isMoreMenuExpanded,
@@ -426,19 +448,16 @@ private fun ToolsAndActionsMenuGroup(
     MenuGroup {
         val labelId = R.string.browser_menu_desktop_site
         val badgeText: String
-        val iconId: Int
         val menuItemState: MenuItemState
         val badgeBackgroundColor: Color
 
         if (isDesktopMode) {
             badgeText = stringResource(id = R.string.browser_feature_desktop_site_on)
             badgeBackgroundColor = FirefoxTheme.colors.badgeActive
-            iconId = R.drawable.mozac_ic_device_mobile_24
             menuItemState = MenuItemState.ACTIVE
         } else {
             badgeText = stringResource(id = R.string.browser_feature_desktop_site_off)
             badgeBackgroundColor = FirefoxTheme.colors.layerSearch
-            iconId = R.drawable.mozac_ic_device_desktop_24
             menuItemState = if (isPdf) MenuItemState.DISABLED else MenuItemState.ENABLED
         }
 
@@ -459,7 +478,7 @@ private fun ToolsAndActionsMenuGroup(
 
             MenuItem(
                 label = stringResource(id = labelId),
-                beforeIconPainter = painterResource(id = iconId),
+                beforeIconPainter = painterResource(id = R.drawable.mozac_ic_device_mobile_24),
                 state = menuItemState,
                 onClick = onSwitchToDesktopSiteMenuClick,
             ) {
@@ -640,7 +659,7 @@ private fun HomepageMenuGroup(
 
         MenuItem(
             label = stringResource(id = R.string.browser_menu_customize_home_1),
-            beforeIconPainter = painterResource(id = R.drawable.mozac_ic_grid_add_24),
+            beforeIconPainter = painterResource(id = R.drawable.mozac_ic_tool_24),
             onClick = onCustomizeHomepageMenuClick,
         )
 
@@ -668,7 +687,7 @@ internal fun MozillaAccountMenuItem(
     when (accountState) {
         NotAuthenticated -> {
             label = stringResource(id = R.string.browser_menu_sign_in)
-            description = stringResource(id = R.string.browser_menu_sign_in_caption_2)
+            description = stringResource(id = R.string.browser_menu_sign_in_caption_3)
         }
 
         AuthenticationProblem -> {
@@ -874,19 +893,23 @@ private fun MenuDialogPreview() {
                 accessPoint = MenuAccessPoint.Browser,
                 account = null,
                 accountState = NotAuthenticated,
+                showQuitMenu = true,
+                isSiteLoading = false,
+                isExtensionsExpanded = false,
+                isMoreMenuExpanded = true,
                 isBookmarked = false,
                 isDesktopMode = false,
                 isPdf = false,
-                showQuitMenu = true,
-                isExtensionsExpanded = false,
-                isMoreMenuExpanded = true,
                 isReaderViewActive = false,
                 isExtensionsProcessDisabled = true,
                 allWebExtensionsDisabled = false,
+                canGoBack = true,
+                canGoForward = true,
                 extensionsMenuItemDescription = "No extensions enabled",
                 scrollState = ScrollState(0),
                 showBanner = true,
                 webExtensionMenuCount = 1,
+                onMoreMenuClick = {},
                 onCustomizeReaderViewMenuClick = {},
                 onMozillaAccountButtonClick = {},
                 onSettingsButtonClick = {},
@@ -907,8 +930,8 @@ private fun MenuDialogPreview() {
                 onBackButtonClick = {},
                 onForwardButtonClick = {},
                 onRefreshButtonClick = {},
+                onStopButtonClick = {},
                 onShareButtonClick = {},
-                onMoreMenuClick = {},
                 moreSettingsSubmenu = {},
                 extensionSubmenu = {},
             )
@@ -919,7 +942,9 @@ private fun MenuDialogPreview() {
 @Suppress("LongMethod")
 @Preview
 @Composable
-private fun MenuDialogPrivatePreview() {
+private fun MenuDialogPrivatePreview(
+    @PreviewParameter(SiteLoadingPreviewParameterProvider::class) isSiteLoading: Boolean,
+) {
     FirefoxTheme(theme = Theme.Private) {
         Column(
             modifier = Modifier
@@ -929,19 +954,23 @@ private fun MenuDialogPrivatePreview() {
                 accessPoint = MenuAccessPoint.Home,
                 account = null,
                 accountState = NotAuthenticated,
+                showQuitMenu = true,
+                isSiteLoading = isSiteLoading,
+                isExtensionsExpanded = true,
+                isMoreMenuExpanded = true,
                 isBookmarked = false,
                 isDesktopMode = false,
                 isPdf = false,
-                showQuitMenu = true,
-                isExtensionsExpanded = true,
-                isMoreMenuExpanded = true,
                 isReaderViewActive = false,
                 isExtensionsProcessDisabled = false,
+                canGoBack = true,
+                canGoForward = true,
+                allWebExtensionsDisabled = false,
                 extensionsMenuItemDescription = "No extensions enabled",
                 scrollState = ScrollState(0),
                 showBanner = true,
                 webExtensionMenuCount = 0,
-                allWebExtensionsDisabled = false,
+                onMoreMenuClick = {},
                 onCustomizeReaderViewMenuClick = {},
                 onMozillaAccountButtonClick = {},
                 onSettingsButtonClick = {},
@@ -962,8 +991,8 @@ private fun MenuDialogPrivatePreview() {
                 onBackButtonClick = {},
                 onForwardButtonClick = {},
                 onRefreshButtonClick = {},
+                onStopButtonClick = {},
                 onShareButtonClick = {},
-                onMoreMenuClick = {},
                 moreSettingsSubmenu = {},
                 extensionSubmenu = {
                     Addons(
@@ -994,4 +1023,12 @@ private fun MenuDialogPrivatePreview() {
             )
         }
     }
+}
+
+/**
+ * A [PreviewParameterProvider] implementation that provides boolean values
+ * representing the loading state of a site.
+ */
+class SiteLoadingPreviewParameterProvider : PreviewParameterProvider<Boolean> {
+    override val values = sequenceOf(true, false)
 }

@@ -543,6 +543,11 @@ urlbar-search-mode-indicator-close =
 urlbar-placeholder =
   .placeholder = Search or enter address
 
+# This placeholder is used when not in search mode and searching in the urlbar
+# is disabled via the keyword.enabled pref.
+urlbar-placeholder-keyword-disabled =
+  .placeholder = Enter address
+
 # This placeholder is used in search mode with search engines that search the
 # entire web.
 # Variables
@@ -1282,5 +1287,6 @@ file-picker-crashed-show-in-folder =
 
 ## Onboarding Finish Setup checklist
 
-onboarding-finish-setup-button-label =
+onboarding-aw-finish-setup-button =
     .label = Finish setup
+    .tooltiptext = Finish setting up { -brand-short-name }

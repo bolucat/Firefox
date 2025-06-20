@@ -37,6 +37,7 @@
 #include "imgLoader.h"
 #include "imgRequestProxy.h"
 #include "js/Value.h"
+#include "js/TelemetryTimers.h"
 #include "jsapi.h"
 #include "mozAutoDocUpdate.h"
 #include "mozIDOMWindow.h"
@@ -277,6 +278,7 @@
 #include "mozilla/gfx/ScaleFactor.h"
 #include "mozilla/glean/DomMetrics.h"
 #include "mozilla/glean/DomUseCounterMetrics.h"
+#include "mozilla/intl/EncodingToLang.h"
 #include "mozilla/intl/LocaleService.h"
 #include "mozilla/ipc/IdleSchedulerChild.h"
 #include "mozilla/ipc/MessageChannel.h"
@@ -341,6 +343,7 @@
 #include "nsICSSLoaderObserver.h"
 #include "nsICategoryManager.h"
 #include "nsICertOverrideService.h"
+#include "nsIClassifiedChannel.h"
 #include "nsIContent.h"
 #include "nsIContentInlines.h"
 #include "nsIContentPolicy.h"
@@ -418,7 +421,6 @@
 #include "nsIXULRuntime.h"
 #include "nsImageLoadingContent.h"
 #include "nsImportModule.h"
-#include "nsLanguageAtomService.h"
 #include "nsLayoutUtils.h"
 #include "nsMimeTypes.h"
 #include "nsNetCID.h"
@@ -1501,10 +1503,12 @@ Document::Document(const char* aContentType)
       mInteractiveWidgetMode(
           InteractiveWidgetUtils::DefaultInteractiveWidgetMode()),
       mHeaderData(nullptr),
+      mLanguageFromCharset(nullptr),
       mServoRestyleRootDirtyBits(0),
       mThrowOnDynamicMarkupInsertionCounter(0),
       mIgnoreOpensDuringUnloadCounter(0),
       mSavedResolution(1.0f),
+      mClassificationFlags({0, 0}),
       mGeneration(0),
       mCachedTabSizeGeneration(0),
       mNextFormNumber(0),
@@ -2041,10 +2045,6 @@ void Document::LoadEventFired() {
   // twice.
   glean::perf::PageLoadExtra pageLoadEventData;
 
-  // Accumulate timing data located in each document's realm and report to
-  // telemetry.
-  AccumulateJSTelemetry(pageLoadEventData);
-
   // Collect page load timings
   AccumulatePageLoadTelemetry(pageLoadEventData);
 
@@ -2133,6 +2133,24 @@ void Document::RecordPageLoadEventTelemetry(
   }
 
   aEventTelemetryData.loadType = mozilla::Some(loadTypeStr);
+
+  // Collect any JS timers that were measured during pageload.
+  if (GetScopeObject() && GetScopeObject()->GetGlobalJSObject()) {
+    AutoJSContext cx;
+    JSObject* globalObject = GetScopeObject()->GetGlobalJSObject();
+    JSAutoRealm ar(cx, globalObject);
+    JS::JSTimers timers = JS::GetJSTimers(cx);
+
+    if (!timers.executionTime.IsZero()) {
+      aEventTelemetryData.jsExecTime = mozilla::Some(
+          static_cast<uint32_t>(timers.executionTime.ToMilliseconds()));
+    }
+
+    if (!timers.delazificationTime.IsZero()) {
+      aEventTelemetryData.delazifyTime = mozilla::Some(
+          static_cast<uint32_t>(timers.delazificationTime.ToMilliseconds()));
+    }
+  }
 
   // Sending a glean ping must be done on the parent process.
   if (ContentChild* cc = ContentChild::GetSingleton()) {
@@ -2402,60 +2420,6 @@ void Document::AccumulatePageLoadTelemetry(
 #endif
 
   aEventTelemetryDataOut.features = mozilla::Some(mPageloadEventFeatures);
-}
-
-void Document::AccumulateJSTelemetry(
-    glean::perf::PageLoadExtra& aEventTelemetryDataOut) {
-  if (!IsTopLevelContentDocument() || !ShouldIncludeInTelemetry()) {
-    return;
-  }
-
-  if (!GetScopeObject() || !GetScopeObject()->GetGlobalJSObject()) {
-    return;
-  }
-
-  AutoJSContext cx;
-  JSObject* globalObject = GetScopeObject()->GetGlobalJSObject();
-  JSAutoRealm ar(cx, globalObject);
-  JS::JSTimers timers = JS::GetJSTimers(cx);
-
-  if (!timers.executionTime.IsZero()) {
-    glean::javascript_pageload::execution_time.AccumulateRawDuration(
-        timers.executionTime);
-    aEventTelemetryDataOut.jsExecTime = mozilla::Some(
-        static_cast<uint32_t>(timers.executionTime.ToMilliseconds()));
-  }
-
-  if (!timers.delazificationTime.IsZero()) {
-    glean::javascript_pageload::delazification_time.AccumulateRawDuration(
-        timers.delazificationTime);
-  }
-
-  if (!timers.xdrEncodingTime.IsZero()) {
-    glean::javascript_pageload::xdr_encode_time.AccumulateRawDuration(
-        timers.xdrEncodingTime);
-  }
-
-  if (!timers.baselineCompileTime.IsZero()) {
-    glean::javascript_pageload::baseline_compile_time.AccumulateRawDuration(
-        timers.baselineCompileTime);
-  }
-
-  if (!timers.gcTime.IsZero()) {
-    glean::javascript_pageload::gc_time.AccumulateRawDuration(timers.gcTime);
-  }
-
-  if (!timers.protectTime.IsZero()) {
-    glean::javascript_pageload::protect_time.AccumulateRawDuration(
-        timers.protectTime);
-    // GLAM EXPERIMENT
-    // This metric is temporary, disabled by default, and will be enabled only
-    // for the purpose of experimenting with client-side sampling of data for
-    // GLAM use. See Bug 1947604 for more information.
-    glean::glam_experiment::protect_time.AccumulateRawDuration(
-        timers.protectTime);
-    // END GLAM EXPERIMENT
-  }
 }
 
 Document::~Document() {
@@ -3668,6 +3632,15 @@ nsresult Document::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
     WarnIfSandboxIneffective(docShell, mSandboxFlags, GetChannel());
   }
 
+  nsCOMPtr<nsIClassifiedChannel> classifiedChannel =
+      do_QueryInterface(aChannel);
+
+  if (classifiedChannel) {
+    mClassificationFlags = {
+        classifiedChannel->GetFirstPartyClassificationFlags(),
+        classifiedChannel->GetThirdPartyClassificationFlags()};
+  }
+
   // Set the opener policy for the top level content document.
   nsCOMPtr<nsIHttpChannelInternal> httpChan = do_QueryInterface(mChannel);
   nsILoadInfo::CrossOriginOpenerPolicy policy =
@@ -4526,9 +4499,10 @@ nsresult Document::Dispatch(already_AddRefed<nsIRunnable>&& aRunnable) const {
 }
 
 void Document::NoteScriptTrackingStatus(const nsACString& aURL,
-                                        bool aIsTracking) {
-  if (aIsTracking) {
-    mTrackingScripts.Insert(aURL);
+                                        net::ClassificationFlags& aFlags) {
+  // If the script is not tracking, we don't need to do anything.
+  if (aFlags.firstPartyFlags || aFlags.thirdPartyFlags) {
+    mTrackingScripts.InsertOrUpdate(aURL, aFlags);
   }
   // Ideally, whether a given script is tracking or not should be consistent,
   // but there is a race so that it is not, when loading real sites in debug
@@ -4541,7 +4515,27 @@ bool Document::IsScriptTracking(JSContext* aCx) const {
   if (!JS::DescribeScriptedCaller(&filename, aCx)) {
     return false;
   }
-  return mTrackingScripts.Contains(nsDependentCString(filename.get()));
+
+  auto entry = mTrackingScripts.Lookup(nsDependentCString(filename.get()));
+  if (!entry) {
+    return false;
+  }
+
+  return net::UrlClassifierCommon::IsTrackingClassificationFlag(
+      entry.Data().thirdPartyFlags, IsInPrivateBrowsing());
+}
+
+net::ClassificationFlags Document::GetScriptTrackingFlags() const {
+  if (auto loc = JSCallingLocation::Get()) {
+    if (auto entry = mTrackingScripts.Lookup(loc.FileName())) {
+      return entry.Data();
+    }
+  }
+
+  // If the currently executing script is not a tracker, return the
+  // classification flags of the document.
+
+  return mClassificationFlags;
 }
 
 void Document::GetContentType(nsAString& aContentType) {
@@ -12451,7 +12445,11 @@ void Document::OnPageHide(bool aPersisted, EventTarget* aDispatchStartTarget,
     mAnimationController->OnPageHide();
   }
 
-  if (!inFrameLoaderSwap) {
+  if (inFrameLoaderSwap) {
+    if (RefPtr transition = mActiveViewTransition) {
+      transition->SkipTransition(SkipTransitionReason::PageSwap);
+    }
+  } else {
     if (aPersisted) {
       // We do not stop the animations (bug 1024343) when the page is refreshing
       // while being dragged out.
@@ -19777,7 +19775,7 @@ nsAtom* Document::GetLanguageForStyle() const {
   if (nsAtom* lang = GetContentLanguageAsAtomForStyle()) {
     return lang;
   }
-  return mLanguageFromCharset.get();
+  return mLanguageFromCharset;
 }
 
 void Document::GetContentLanguageForBindings(DOMString& aString) const {
@@ -19786,7 +19784,7 @@ void Document::GetContentLanguageForBindings(DOMString& aString) const {
 
 const LangGroupFontPrefs* Document::GetFontPrefsForLang(
     nsAtom* aLanguage, bool* aNeedsToCache) const {
-  nsAtom* lang = aLanguage ? aLanguage : mLanguageFromCharset.get();
+  nsAtom* lang = aLanguage ? aLanguage : mLanguageFromCharset;
   return StaticPresData::Get()->GetFontPrefsForLang(lang, aNeedsToCache);
 }
 
@@ -19794,7 +19792,7 @@ void Document::DoCacheAllKnownLangPrefs() {
   MOZ_ASSERT(mMayNeedFontPrefsUpdate);
   RefPtr<nsAtom> lang = GetLanguageForStyle();
   StaticPresData* data = StaticPresData::Get();
-  data->GetFontPrefsForLang(lang ? lang.get() : mLanguageFromCharset.get());
+  data->GetFontPrefsForLang(lang ? lang.get() : mLanguageFromCharset);
   data->GetFontPrefsForLang(nsGkAtoms::x_math);
   // https://bugzilla.mozilla.org/show_bug.cgi?id=1362599#c12
   data->GetFontPrefsForLang(nsGkAtoms::Unicode);
@@ -19805,29 +19803,14 @@ void Document::DoCacheAllKnownLangPrefs() {
 }
 
 void Document::RecomputeLanguageFromCharset() {
-  RefPtr<nsAtom> language;
-  // Optimize the default character sets.
-  if (mCharacterSet == WINDOWS_1252_ENCODING) {
-    language = nsGkAtoms::x_western;
-  } else {
-    nsLanguageAtomService* service = nsLanguageAtomService::GetService();
-    if (mCharacterSet == UTF_8_ENCODING) {
-      language = nsGkAtoms::Unicode;
-    } else {
-      language = service->LookupCharSet(mCharacterSet);
-    }
-
-    if (language == nsGkAtoms::Unicode) {
-      language = service->GetLocaleLanguage();
-    }
-  }
+  nsAtom* language = mozilla::intl::EncodingToLang::Lookup(mCharacterSet);
 
   if (language == mLanguageFromCharset) {
     return;
   }
 
   mMayNeedFontPrefsUpdate = true;
-  mLanguageFromCharset = std::move(language);
+  mLanguageFromCharset = language;
 }
 
 nsICookieJarSettings* Document::CookieJarSettings() {
@@ -20083,8 +20066,21 @@ void Document::SetIsInitialDocument(bool aIsInitialDocument) {
 // static
 void Document::AddToplevelLoadingDocument(Document* aDoc) {
   MOZ_ASSERT(aDoc && aDoc->IsTopLevelContentDocument());
+
+  if (!XRE_IsContentProcess()) {
+    return;
+  }
+
+  // Start the JS execution timer.
+  {
+    AutoJSContext cx;
+    if (static_cast<JSContext*>(cx)) {
+      JS::SetMeasuringExecutionTimeEnabled(cx, true);
+    }
+  }
+
   // Currently we're interested in foreground documents only, so bail out early.
-  if (aDoc->IsInBackgroundWindow() || !XRE_IsContentProcess()) {
+  if (aDoc->IsInBackgroundWindow()) {
     return;
   }
 
@@ -20115,6 +20111,14 @@ void Document::RemoveToplevelLoadingDocument(Document* aDoc) {
       if (idleScheduler) {
         idleScheduler->SendPrioritizedOperationDone();
       }
+    }
+  }
+
+  // Stop the JS execution timer once the page is loaded.
+  {
+    AutoJSContext cx;
+    if (static_cast<JSContext*>(cx)) {
+      JS::SetMeasuringExecutionTimeEnabled(cx, false);
     }
   }
 }

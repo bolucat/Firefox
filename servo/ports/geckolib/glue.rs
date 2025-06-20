@@ -67,7 +67,7 @@ use style::gecko_bindings::structs::nsCSSPropertyID;
 use style::gecko_bindings::structs::nsChangeHint;
 use style::gecko_bindings::structs::nsCompatibility;
 use style::gecko_bindings::structs::nsresult;
-use style::gecko_bindings::structs::AnchorPosResolutionParams;
+use style::gecko_bindings::structs::AnchorPosOffsetResolutionParams;
 use style::gecko_bindings::structs::CallerType;
 use style::gecko_bindings::structs::CompositeOperation;
 use style::gecko_bindings::structs::DeclarationBlockMutationClosure;
@@ -4449,11 +4449,29 @@ pub extern "C" fn Servo_ComputedValues_SpecifiesAnimationsOrTransitions(
     ui.specifies_animations() || ui.specifies_transitions()
 }
 
+#[repr(u8)]
+pub enum MatchingDeclarationBlockOrigin {
+    UserAgent,
+    User,
+    Author,
+    PresHints,
+    Animations,
+    Transitions,
+    SMIL,
+}
+
+#[repr(C)]
+pub struct MatchingDeclarationBlock {
+    block: *const LockedDeclarationBlock,
+    origin: MatchingDeclarationBlockOrigin,
+}
+
 #[no_mangle]
 pub extern "C" fn Servo_ComputedValues_GetMatchingDeclarations(
     values: &ComputedValues,
-    rules: &mut nsTArray<*const LockedDeclarationBlock>,
+    rules: &mut nsTArray<MatchingDeclarationBlock>,
 ) {
+    use style::rule_tree::CascadeLevel;
     let rule_node = match values.rules {
         Some(ref r) => r,
         None => return,
@@ -4470,7 +4488,20 @@ pub extern "C" fn Servo_ComputedValues_GetMatchingDeclarations(
 
         let Some(source) = node.style_source() else { continue };
 
-        rules.push(&**source.get());
+        let origin = match node.cascade_level() {
+            CascadeLevel::UANormal | CascadeLevel::UAImportant => MatchingDeclarationBlockOrigin::UserAgent,
+            CascadeLevel::UserNormal | CascadeLevel::UserImportant => MatchingDeclarationBlockOrigin::User,
+            CascadeLevel::AuthorNormal { .. } | CascadeLevel::AuthorImportant { .. }=> MatchingDeclarationBlockOrigin::Author,
+            CascadeLevel::PresHints => MatchingDeclarationBlockOrigin::PresHints,
+            CascadeLevel::Animations => MatchingDeclarationBlockOrigin::Animations,
+            CascadeLevel::Transitions => MatchingDeclarationBlockOrigin::Transitions,
+            CascadeLevel::SMILOverride => MatchingDeclarationBlockOrigin::SMIL,
+        };
+
+        rules.push(MatchingDeclarationBlock {
+            block: &**source.get(),
+            origin,
+        });
     }
 }
 
@@ -8493,7 +8524,7 @@ pub enum CalcAnchorPositioningFunctionResolution {
 pub extern "C" fn Servo_ResolveAnchorFunctionsInCalcPercentage(
     calc: &computed::length_percentage::CalcLengthPercentage,
     prop_side: Option<&PhysicalSide>,
-    params: &AnchorPosResolutionParams,
+    params: &AnchorPosOffsetResolutionParams,
     out: &mut CalcAnchorPositioningFunctionResolution,
 ) {
     let resolved = calc.resolve_anchor(prop_side.copied(), params);
@@ -9918,11 +9949,11 @@ fn resolve_anchor_fallback(
 #[no_mangle]
 pub extern "C" fn Servo_ResolveAnchorFunction(
     func: &AnchorFunction,
-    params: &AnchorPosResolutionParams,
+    params: &AnchorPosOffsetResolutionParams,
     prop_side: PhysicalSide,
     out: &mut AnchorPositioningFunctionResolution,
 ) {
-    if !func.valid_for(prop_side, params.mPosition) {
+    if !func.valid_for(prop_side, params.mBaseParams.mPosition) {
         *out = resolve_anchor_fallback(&func.fallback);
         return;
     }

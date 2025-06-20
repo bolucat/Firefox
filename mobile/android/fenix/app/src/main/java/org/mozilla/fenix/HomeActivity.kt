@@ -442,7 +442,10 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
             // Unless the activity is recreated, navigate to home first (without rendering it)
             // to add it to the back stack.
             if (savedInstanceState == null) {
-                navigateToHome(navHost.navController)
+                val intent = intent.toSafeIntent()
+                val focusOnAddressBar = intent.getStringExtra(OPEN_TO_SEARCH) != null
+
+                navigateToHome(navHost.navController, focusOnAddressBar)
             }
 
             if (shouldNavigateToBrowserOnColdStart(savedInstanceState)) {
@@ -1101,7 +1104,7 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
     /**
      * External sources such as 3rd party links and shortcuts use this function to enter
      * private mode directly before the content view is created. Returns the mode set by the intent
-     * otherwise falls back to the last known mode.
+     * otherwise falls back to normal browsing mode.
      */
     @VisibleForTesting
     internal fun getModeFromIntentOrLastKnown(intent: Intent?): BrowsingMode {
@@ -1111,7 +1114,7 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
                 return BrowsingMode.fromBoolean(isPrivate = startPrivateMode)
             }
         }
-        return settings().lastKnownMode
+        return BrowsingMode.Normal
     }
 
     /**
@@ -1254,12 +1257,12 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
     }
 
     @VisibleForTesting
-    internal fun navigateToHome(navController: NavController) {
+    internal fun navigateToHome(navController: NavController, focusOnAddressBar: Boolean) {
         if (this is ExternalAppBrowserActivity) {
             return
         }
 
-        navController.navigate(NavGraphDirections.actionStartupHome())
+        navController.navigate(NavGraphDirections.actionStartupHome(focusOnAddressBar = focusOnAddressBar))
     }
 
     final override fun attachBaseContext(base: Context) {

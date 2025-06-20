@@ -479,6 +479,9 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                 val accountState by syncStore.observeAsState(initialValue = NotAuthenticated) { state ->
                                     state.accountState
                                 }
+                                val isSiteLoading by browserStore.observeAsState(initialValue = false) { state ->
+                                    state.selectedTab?.content?.loading == true
+                                }
 
                                 val appLinksRedirect = if (selectedTab?.content?.url != null) {
                                     appLinksUseCases.appLinkRedirect(selectedTab.content.url)
@@ -491,6 +494,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                     account = account,
                                     accountState = accountState,
                                     showQuitMenu = settings.shouldDeleteBrowsingDataOnQuit,
+                                    isSiteLoading = isSiteLoading,
                                     isExtensionsProcessDisabled = isExtensionsProcessDisabled,
                                     isExtensionsExpanded = isExtensionsExpanded,
                                     isMoreMenuExpanded = isMoreMenuExpanded,
@@ -498,6 +502,8 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                     isDesktopMode = isDesktopMode,
                                     isPdf = isPdf,
                                     isReaderViewActive = isReaderViewActive,
+                                    canGoBack = selectedTab?.content?.canGoBack ?: true,
+                                    canGoForward = selectedTab?.content?.canGoForward ?: true,
                                     extensionsMenuItemDescription = getExtensionsMenuItemDescription(
                                         isExtensionsProcessDisabled = isExtensionsProcessDisabled,
                                         allWebExtensionsDisabled = allWebExtensionsDisabled,
@@ -599,6 +605,9 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                     onRefreshButtonClick = { bypassCache: Boolean ->
                                         store.dispatch(MenuAction.Navigate.Reload(bypassCache))
                                     },
+                                    onStopButtonClick = {
+                                        store.dispatch(MenuAction.Navigate.Stop)
+                                    },
                                     onShareButtonClick = {
                                         selectedTab?.let {
                                             store.dispatch(MenuAction.Navigate.Share)
@@ -699,10 +708,15 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                             }
 
                             Route.CustomTabMenu -> {
+                                val isSiteLoading by browserStore.observeAsState(false) { state ->
+                                    args.customTabSessionId?.let { state.findCustomTab(it)?.content?.loading } ?: false
+                                }
                                 handlebarContentDescription =
                                     context.getString(R.string.browser_custom_tab_menu_handlebar_content_description)
 
                                 CustomTabMenu(
+                                    isSiteLoading = isSiteLoading,
+                                    scrollState = scrollState,
                                     isPdf = customTab?.content?.isPdf == true,
                                     isDesktopMode = isDesktopMode,
                                     isSandboxCustomTab = args.isSandboxCustomTab,
@@ -728,7 +742,19 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                     onOpenInFirefoxMenuClick = {
                                         store.dispatch(MenuAction.OpenInFirefox)
                                     },
-                                    onShareMenuClick = {
+                                    onBackButtonClick = { viewHistory: Boolean ->
+                                        store.dispatch(MenuAction.Navigate.Back(viewHistory))
+                                    },
+                                    onForwardButtonClick = { viewHistory: Boolean ->
+                                        store.dispatch(MenuAction.Navigate.Forward(viewHistory))
+                                    },
+                                    onRefreshButtonClick = { bypassCache: Boolean ->
+                                        store.dispatch(MenuAction.Navigate.Reload(bypassCache))
+                                    },
+                                    onStopButtonClick = {
+                                        store.dispatch(MenuAction.Navigate.Stop)
+                                    },
+                                    onShareButtonClick = {
                                         store.dispatch(MenuAction.Navigate.Share)
                                     },
                                 )

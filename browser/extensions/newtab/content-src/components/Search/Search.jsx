@@ -149,9 +149,13 @@ export class _Search extends React.PureComponent {
     ]
       .filter(v => v)
       .join(" ");
+    const prefs = this.props.Prefs.values;
 
     const trendingSearchEnabled =
-      this.props.Prefs.values["trendingSearch.enabled"];
+      prefs["trendingSearch.enabled"] &&
+      prefs["system.trendingSearch.enabled"] &&
+      prefs["trendingSearch.defaultSearchEngine"]?.toLowerCase() === "google";
+
     const trendingSearchVariant =
       this.props.Prefs.values["trendingSearch.variant"];
 
@@ -174,9 +178,9 @@ export class _Search extends React.PureComponent {
                 data-l10n-id="newtab-search-box-search-button"
                 onClick={this.onSearchClick}
               />
-              {trendingSearchEnabled && trendingSearchVariant === "a" && (
-                <TrendingSearches />
-              )}
+              {trendingSearchEnabled &&
+                (trendingSearchVariant === "a" ||
+                  trendingSearchVariant === "c") && <TrendingSearches />}
             </div>
           )}
           {this.props.handoffEnabled && (
@@ -204,9 +208,9 @@ export class _Search extends React.PureComponent {
                   }}
                 />
               </button>
-              {trendingSearchEnabled && trendingSearchVariant === "a" && (
-                <TrendingSearches />
-              )}
+              {trendingSearchEnabled &&
+                (trendingSearchVariant === "a" ||
+                  trendingSearchVariant === "c") && <TrendingSearches />}
             </div>
           )}
         </div>

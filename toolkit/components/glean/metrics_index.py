@@ -120,6 +120,7 @@ firefox_desktop_metrics = [
     "browser/components/extensions/metrics.yaml",
     "browser/components/firefoxview/metrics.yaml",
     "browser/components/genai/metrics.yaml",
+    "browser/components/ipprotection/metrics.yaml",
     "browser/components/metrics.yaml",
     "browser/components/migration/metrics.yaml",
     "browser/components/newtab/metrics.yaml",
@@ -197,7 +198,6 @@ metrics_yamls = sorted(
 # Order is lexicographical, enforced by t/c/glean/tests/pytest/test_yaml_indices.py
 gecko_pings = [
     "dom/pings.yaml",
-    "services/sync/pings.yaml",
     "toolkit/components/antitracking/bouncetrackingprotection/pings.yaml",
     "toolkit/components/backgroundhangmonitor/pings.yaml",
     "toolkit/components/captchadetection/pings.yaml",
@@ -215,6 +215,7 @@ firefox_desktop_pings = [
     "browser/components/urlbar/pings.yaml",
     "browser/modules/pings.yaml",
     "services/fxaccounts/pings.yaml",
+    "services/sync/pings.yaml",
     "toolkit/components/crashes/pings.yaml",
     "toolkit/components/nimbus/pings.yaml",
     "toolkit/components/reportbrokensite/pings.yaml",
