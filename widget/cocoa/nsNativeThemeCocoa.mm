@@ -382,15 +382,14 @@ static int GetBackingScaleFactorForRendering(CGContextRef cgContext) {
  * mirrorHorizontal - whether to mirror the cell horizontally
  */
 static void DrawCellWithScaling(NSCell* cell, CGContextRef cgContext,
-                                const HIRect& destRect,
+                                const NSRect& destRect,
                                 NSControlSize controlSize, NSSize naturalSize,
                                 NSSize minimumSize,
                                 const CellMarginArray& marginSet, NSView* view,
                                 BOOL mirrorHorizontal) {
   NS_OBJC_BEGIN_TRY_IGNORE_BLOCK;
 
-  NSRect drawRect = NSMakeRect(destRect.origin.x, destRect.origin.y,
-                               destRect.size.width, destRect.size.height);
+  NSRect drawRect = destRect;
 
   if (naturalSize.width != 0.0f) drawRect.size.width = naturalSize.width;
   if (naturalSize.height != 0.0f) drawRect.size.height = naturalSize.height;
@@ -579,21 +578,21 @@ static NSControlSize FindControlSize(CGFloat size,
  * controls look nicer.
  */
 static void DrawCellWithSnapping(NSCell* cell, CGContextRef cgContext,
-                                 const HIRect& destRect,
-                                 const CellRenderSettings settings,
+                                 const NSRect& destRect,
+                                 const CellRenderSettings& settings,
                                  float verticalAlignFactor, NSView* view,
                                  BOOL mirrorHorizontal,
                                  float snapTolerance = 2.0f) {
   NS_OBJC_BEGIN_TRY_IGNORE_BLOCK;
 
-  const float rectWidth = destRect.size.width,
-              rectHeight = destRect.size.height;
+  const float rectWidth = destRect.size.width;
+  const float rectHeight = destRect.size.height;
   const PerSizeArray<NSSize>& sizes = settings.naturalSizes;
   const NSSize miniSize = sizes[EnumSizeForCocoaSize(NSControlSizeMini)];
   const NSSize smallSize = sizes[EnumSizeForCocoaSize(NSControlSizeSmall)];
   const NSSize regularSize = sizes[EnumSizeForCocoaSize(NSControlSizeRegular)];
 
-  HIRect drawRect = destRect;
+  NSRect drawRect = destRect;
 
   PerSizeArray<CGFloat> controlWidths{miniSize.width, smallSize.width,
                                       regularSize.width};
@@ -699,7 +698,7 @@ constexpr static CellRenderSettings radioSettings = {
     {NSSize{}, NSSize{}, NSSize{}},
     {
         IntMargin{0, 0, 0, 0},  // mini
-        IntMargin{1, 1, 1, 2},  // small
+        IntMargin{1, 1, 2, 1},  // small
         IntMargin{0, 0, 0, 0},  // regular
     },
 };
@@ -712,9 +711,9 @@ constexpr static CellRenderSettings checkboxSettings = {
     },
     {NSSize{}, NSSize{}, NSSize{}},
     {
-        IntMargin{0, 1, 0, 0},  // mini
-        IntMargin{0, 1, 0, 1},  // small
-        IntMargin{0, 1, 0, 1}   // regular
+        IntMargin{1, 0, 0, 0},  // mini
+        IntMargin{1, 0, 1, 0},  // small
+        IntMargin{1, 0, 1, 0}   // regular
     }};
 
 static NSControlStateValue CellStateForCheckboxOrRadioState(
@@ -730,7 +729,7 @@ static NSControlStateValue CellStateForCheckboxOrRadioState(
 }
 
 void nsNativeThemeCocoa::DrawCheckboxOrRadio(
-    CGContextRef cgContext, bool inCheckbox, const HIRect& inBoxRect,
+    CGContextRef cgContext, bool inCheckbox, const NSRect& inBoxRect,
     const CheckboxOrRadioParams& aParams) {
   NS_OBJC_BEGIN_TRY_IGNORE_BLOCK;
 
@@ -744,7 +743,7 @@ void nsNativeThemeCocoa::DrawCheckboxOrRadio(
 
   // Ensure that the control is square.
   float length = std::min(inBoxRect.size.width, inBoxRect.size.height);
-  HIRect drawRect = CGRectMake(
+  NSRect drawRect = NSMakeRect(
       inBoxRect.origin.x + (int)((inBoxRect.size.width - length) / 2.0f),
       inBoxRect.origin.y + (int)((inBoxRect.size.height - length) / 2.0f),
       length, length);
@@ -813,7 +812,7 @@ nsNativeThemeCocoa::TextFieldParams nsNativeThemeCocoa::ComputeTextFieldParams(
 }
 
 void nsNativeThemeCocoa::DrawTextField(CGContextRef cgContext,
-                                       const HIRect& inBoxRect,
+                                       const NSRect& inBoxRect,
                                        const TextFieldParams& aParams) {
   NS_OBJC_BEGIN_TRY_IGNORE_BLOCK;
 
@@ -874,8 +873,8 @@ constexpr static CellRenderSettings pushButtonSettings = {
     },
     {
         IntMargin{0, 0, 0, 0},  // mini
-        IntMargin{4, 0, 4, 1},  // small
-        IntMargin{5, 0, 5, 2}   // regular
+        IntMargin{0, 4, 1, 4},  // small
+        IntMargin{0, 5, 2, 5}   // regular
     }};
 
 // The height at which we start doing square buttons instead of rounded buttons
@@ -884,7 +883,7 @@ constexpr static CellRenderSettings pushButtonSettings = {
 #define DO_SQUARE_BUTTON_HEIGHT 26
 
 void nsNativeThemeCocoa::DrawPushButton(CGContextRef cgContext,
-                                        const HIRect& inBoxRect,
+                                        const NSRect& inBoxRect,
                                         ButtonType aButtonType,
                                         ControlParams aControlParams) {
   NS_OBJC_BEGIN_TRY_IGNORE_BLOCK;
@@ -905,7 +904,7 @@ void nsNativeThemeCocoa::DrawPushButton(CGContextRef cgContext,
 }
 
 void nsNativeThemeCocoa::DrawSquareBezelPushButton(
-    CGContextRef cgContext, const HIRect& inBoxRect,
+    CGContextRef cgContext, const NSRect& inBoxRect,
     ControlParams aControlParams) {
   NS_OBJC_BEGIN_TRY_IGNORE_BLOCK;
 
@@ -923,7 +922,7 @@ void nsNativeThemeCocoa::DrawSquareBezelPushButton(
 }
 
 void nsNativeThemeCocoa::DrawHelpButton(CGContextRef cgContext,
-                                        const HIRect& inBoxRect,
+                                        const NSRect& inBoxRect,
                                         ControlParams aControlParams) {
   NS_OBJC_BEGIN_TRY_IGNORE_BLOCK;
 
@@ -941,7 +940,7 @@ void nsNativeThemeCocoa::DrawHelpButton(CGContextRef cgContext,
 }
 
 void nsNativeThemeCocoa::DrawDisclosureButton(CGContextRef cgContext,
-                                              const HIRect& inBoxRect,
+                                              const NSRect& inBoxRect,
                                               ControlParams aControlParams,
                                               NSControlStateValue aCellState) {
   NS_OBJC_BEGIN_TRY_IGNORE_BLOCK;
@@ -961,11 +960,11 @@ void nsNativeThemeCocoa::DrawDisclosureButton(CGContextRef cgContext,
 }
 
 typedef void (*RenderHIThemeControlFunction)(CGContextRef cgContext,
-                                             const HIRect& aRenderRect,
+                                             const NSRect& aRenderRect,
                                              void* aData);
 
 static void RenderTransformedHIThemeControl(CGContextRef aCGContext,
-                                            const HIRect& aRect,
+                                            const NSRect& aRect,
                                             RenderHIThemeControlFunction aFunc,
                                             void* aData,
                                             BOOL mirrorHorizontally = NO) {
@@ -973,7 +972,7 @@ static void RenderTransformedHIThemeControl(CGContextRef aCGContext,
   CGContextTranslateCTM(aCGContext, aRect.origin.x, aRect.origin.y);
 
   bool drawDirect;
-  HIRect drawRect = aRect;
+  NSRect drawRect = aRect;
   drawRect.origin = CGPointZero;
 
   if (!mirrorHorizontally && savedCTM.a == 1.0f && savedCTM.b == 0.0f &&
@@ -1029,7 +1028,7 @@ static void RenderTransformedHIThemeControl(CGContextRef aCGContext,
       CGContextScaleCTM(aCGContext, -1.0f, 1.0f);
     }
 
-    HIRect inflatedDrawRect =
+    NSRect inflatedDrawRect =
         CGRectMake(-kMaxFocusRingWidth, -kMaxFocusRingWidth, w, h);
     CGContextDrawImage(aCGContext, inflatedDrawRect, bitmap);
 
@@ -1042,7 +1041,7 @@ static void RenderTransformedHIThemeControl(CGContextRef aCGContext,
   CGContextSetCTM(aCGContext, savedCTM);
 }
 
-static void RenderButton(CGContextRef cgContext, const HIRect& aRenderRect,
+static void RenderButton(CGContextRef cgContext, const NSRect& aRenderRect,
                          void* aData) {
   HIThemeButtonDrawInfo* bdi = (HIThemeButtonDrawInfo*)aData;
   HIThemeDrawButton(&aRenderRect, bdi, cgContext, kHIThemeOrientationNormal,
@@ -1050,7 +1049,7 @@ static void RenderButton(CGContextRef cgContext, const HIRect& aRenderRect,
 }
 
 void nsNativeThemeCocoa::DrawHIThemeButton(
-    CGContextRef cgContext, const HIRect& aRect, ThemeButtonKind aKind,
+    CGContextRef cgContext, const NSRect& aRect, ThemeButtonKind aKind,
     ThemeButtonValue aValue, ThemeDrawState aState,
     ThemeButtonAdornment aAdornment, const ControlParams& aParams) {
   NS_OBJC_BEGIN_TRY_IGNORE_BLOCK;
@@ -1078,7 +1077,7 @@ void nsNativeThemeCocoa::DrawHIThemeButton(
 }
 
 void nsNativeThemeCocoa::DrawButton(CGContextRef cgContext,
-                                    const HIRect& inBoxRect,
+                                    const NSRect& inBoxRect,
                                     const ButtonParams& aParams) {
   ControlParams controlParams = aParams.controlParams;
 
@@ -1121,9 +1120,9 @@ constexpr static CellRenderSettings dropdownSettings = {
         NSSize{44, 0}   // regular
     },
     {
-        IntMargin{1, 1, 2, 1},  // mini
-        IntMargin{3, 0, 3, 1},  // small
-        IntMargin{3, 0, 3, 0}   // regular
+        IntMargin{1, 2, 1, 1},  // mini
+        IntMargin{0, 3, 1, 3},  // small
+        IntMargin{0, 3, 0, 3}   // regular
     },
 };
 
@@ -1139,13 +1138,13 @@ constexpr static CellRenderSettings editableMenulistSettings = {
         NSSize{44, 0}   // regular
     },
     {
-        IntMargin{0, 0, 2, 2},  // mini
-        IntMargin{0, 0, 3, 2},  // small
-        IntMargin{0, 1, 3, 3}   // regular
+        IntMargin{0, 2, 2, 0},  // mini
+        IntMargin{0, 3, 2, 0},  // small
+        IntMargin{1, 3, 3, 0}   // regular
     }};
 
 void nsNativeThemeCocoa::DrawDropdown(CGContextRef cgContext,
-                                      const HIRect& inBoxRect,
+                                      const NSRect& inBoxRect,
                                       const DropdownParams& aParams) {
   NS_OBJC_BEGIN_TRY_IGNORE_BLOCK;
 
@@ -1304,7 +1303,6 @@ Maybe<nsNativeThemeCocoa::WidgetInfo> nsNativeThemeCocoa::ComputeWidgetInfo(
       return Some(WidgetInfo::Button(ButtonParams{
           ComputeControlParams(aFrame, elementState), buttonType}));
     }
-
 
     case StyleAppearance::MozSidebar:
     case StyleAppearance::MozWindowTitlebar: {
