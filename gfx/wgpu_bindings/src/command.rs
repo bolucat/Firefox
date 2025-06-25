@@ -722,9 +722,10 @@ pub extern "C" fn wgpu_recorded_compute_pass_end_pipeline_statistics_query(
 
 pub fn replay_render_pass(
     global: &Global,
+    device_id: id::DeviceId,
     id: CommandEncoderId,
     src_pass: &RecordedRenderPass,
-    mut error_buf: crate::error::ErrorBuffer,
+    error_buf: &mut crate::error::OwnedErrorBuffer,
 ) {
     let (mut dst_pass, err) = global.command_encoder_begin_render_pass(
         id,
@@ -737,20 +738,20 @@ pub fn replay_render_pass(
         },
     );
     if let Some(err) = err {
-        error_buf.init(err);
+        error_buf.init(err, device_id);
         return;
     }
     match replay_render_pass_impl(global, src_pass, &mut dst_pass) {
         Ok(()) => (),
         Err(err) => {
-            error_buf.init(err);
+            error_buf.init(err, device_id);
             return;
         }
     };
 
     match global.render_pass_end(&mut dst_pass) {
         Ok(()) => (),
-        Err(err) => error_buf.init(err),
+        Err(err) => error_buf.init(err, device_id),
     }
 }
 
@@ -926,9 +927,10 @@ pub fn replay_render_pass_impl(
 
 pub fn replay_compute_pass(
     global: &Global,
+    device_id: id::DeviceId,
     id: CommandEncoderId,
     src_pass: &RecordedComputePass,
-    mut error_buf: crate::error::ErrorBuffer,
+    error_buf: &mut crate::error::OwnedErrorBuffer,
 ) {
     let (mut dst_pass, err) = global.command_encoder_begin_compute_pass(
         id,
@@ -938,11 +940,11 @@ pub fn replay_compute_pass(
         },
     );
     if let Some(err) = err {
-        error_buf.init(err);
+        error_buf.init(err, device_id);
         return;
     }
     if let Err(err) = replay_compute_pass_impl(global, src_pass, &mut dst_pass) {
-        error_buf.init(err);
+        error_buf.init(err, device_id);
     }
 }
 

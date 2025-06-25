@@ -16,6 +16,7 @@ import androidx.annotation.VisibleForTesting
 import androidx.annotation.VisibleForTesting.Companion.PRIVATE
 import androidx.core.content.edit
 import androidx.lifecycle.LifecycleOwner
+import androidx.preference.PreferenceManager
 import mozilla.components.concept.engine.Engine
 import mozilla.components.concept.engine.Engine.HttpsOnlyMode
 import mozilla.components.concept.engine.EngineSession.CookieBannerHandlingMode
@@ -629,6 +630,15 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         default = true,
     )
 
+    /**
+     * Indicates if the user denies to ever see again the Remote Settings crash
+     * pull UI.
+     */
+    var crashPullNeverShowAgain: Boolean by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_crash_pull_never_show_again),
+        default = false,
+    )
+
     @VisibleForTesting
     internal fun timeNowInMillis(): Long = System.currentTimeMillis()
 
@@ -1051,9 +1061,9 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         persistDefaultIfNotExists = true,
     )
 
-    var shouldUseExpandedToolbar by booleanPreference(
-        key = appContext.getPreferenceKey(R.string.pref_key_toolbar_expanded),
-        default = false,
+    var shouldUseSimpleToolbar by booleanPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_toolbar_simple),
+        default = true,
         persistDefaultIfNotExists = true,
     )
 
@@ -1857,10 +1867,9 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     )
 
     /**
-     * Indicates if the user have access to the toolbar redesign option in settings.
+     * Indicates if the user has access to the toolbar redesign option in settings.
      */
-    @VisibleForTesting
-    internal var toolbarRedesignEnabled by booleanPreference(
+    var toolbarRedesignEnabled by booleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_enable_toolbar_redesign),
         default = { FxNimbus.features.toolbarRedesignOption.value().showOptions },
     )
@@ -2309,6 +2318,15 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     )
 
     /**
+     * Do not show crash pull dialog before this date.
+     * cf browser.crashReports.dontShowBefore on desktop
+     */
+    var crashPullDontShowBefore by longPreference(
+        appContext.getPreferenceKey(R.string.pref_key_crash_pull_dont_show_before),
+        default = 0,
+    )
+
+    /**
      * Indicates whether or not we should use the new bookmarks UI.
      */
     var useNewBookmarks by lazyFeatureFlagPreference(
@@ -2463,4 +2481,13 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         key = appContext.getPreferenceKey(R.string.pref_key_distribution_id),
         default = "",
     )
+
+    /**
+     * Indicates whether the app should automatically clean up downloaded files.
+     */
+    fun shouldCleanUpDownloadsAutomatically(): Boolean {
+        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(appContext)
+        val cleanupPreferenceKey = appContext.getString(R.string.pref_key_downloads_clean_up_files_automatically)
+        return sharedPreferences.getBoolean(cleanupPreferenceKey, false)
+    }
 }

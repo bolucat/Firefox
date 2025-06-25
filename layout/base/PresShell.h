@@ -99,6 +99,7 @@ class ProfileChunkedBuffer;
 class ScrollContainerFrame;
 class StyleSheet;
 
+struct AutoConnectedAncestorTracker;
 struct PointerInfo;
 
 #ifdef ACCESSIBILITY
@@ -879,9 +880,12 @@ class PresShell final : public nsStubDocumentObserver,
 
   void AddAutoWeakFrame(AutoWeakFrame* aWeakFrame);
   void AddWeakFrame(WeakFrame* aWeakFrame);
+  void AddConnectedAncestorTracker(AutoConnectedAncestorTracker& aTracker);
 
   void RemoveAutoWeakFrame(AutoWeakFrame* aWeakFrame);
   void RemoveWeakFrame(WeakFrame* aWeakFrame);
+  void RemoveConnectedAncestorTracker(
+      const AutoConnectedAncestorTracker& aTracker);
 
   /**
    * Stop or restart non synthetic test mouse event handling on *all*
@@ -3181,7 +3185,9 @@ class PresShell final : public nsStubDocumentObserver,
 
   // A list of stack weak frames. This is a pointer to the last item in the
   // list.
-  AutoWeakFrame* mAutoWeakFrames;
+  AutoWeakFrame* mAutoWeakFrames = nullptr;
+
+  AutoConnectedAncestorTracker* mLastConnectedAncestorTracker = nullptr;
 
   // A hash table of heap allocated weak frames.
   nsTHashSet<WeakFrame*> mWeakFrames;
@@ -3211,11 +3217,6 @@ class PresShell final : public nsStubDocumentObserver,
   // or all frames are constructed, we won't paint anything but
   // our <body> background and scrollbars.
   nsCOMPtr<nsITimer> mPaintSuppressionTimer;
-
-  // Information about live content (which still stay in DOM tree).
-  // Used in case we need re-dispatch event after sending pointer event,
-  // when target of pointer event was deleted during executing user handlers.
-  nsCOMPtr<nsIContent> mPointerEventTarget;
 
   nsCOMPtr<nsIContent> mLastAnchorScrolledTo;
 

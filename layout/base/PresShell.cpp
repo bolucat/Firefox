@@ -25,6 +25,7 @@
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/CaretAssociationHint.h"
+#include "mozilla/ConnectedAncestorTracker.h"
 #include "mozilla/ContentIterator.h"
 #include "mozilla/css/ImageLoader.h"
 #include "mozilla/DisplayPortUtils.h"
@@ -565,8 +566,7 @@ class MOZ_RAII AutoPointerEventTargetUpdater final {
     // The frame may be a text frame, but the event target should be an element
     // node.  Therefore, refer aTargetContent first, then, if we have only a
     // frame, we should use inclusive ancestor of the content.
-    mOriginalPointerEventTarget =
-        aShell->mPointerEventTarget = [&]() -> nsIContent* {
+    mOriginalPointerEventTarget = [&]() -> nsIContent* {
       nsIContent* const target =
           aTargetContent ? aTargetContent
                          : (aFrame ? aFrame->GetContent() : nullptr);
@@ -579,6 +579,10 @@ class MOZ_RAII AutoPointerEventTargetUpdater final {
       }
       return target->GetInclusiveFlattenedTreeAncestorElement();
     }();
+    if (mOriginalPointerEventTarget &&
+        mOriginalPointerEventTarget->IsInComposedDoc()) {
+      mPointerEventTargetTracker.emplace(*mOriginalPointerEventTarget);
+    }
   }
 
   ~AutoPointerEventTargetUpdater() {
@@ -595,7 +599,14 @@ class MOZ_RAII AutoPointerEventTargetUpdater final {
       // this case), the event should be fired on the closest inclusive ancestor
       // of the pointer event target which is still connected.  The mutations
       // are tracked by PresShell::ContentRemoved.  Therefore, we should set it.
-      mShell->mPointerEventTarget.swap(*mOutTargetContent);
+      if (!mPointerEventTargetTracker ||
+          !mPointerEventTargetTracker->ContentWasRemoved()) {
+        mOriginalPointerEventTarget.swap(*mOutTargetContent);
+      } else {
+        nsCOMPtr<nsIContent> connectedAncestor =
+            mPointerEventTargetTracker->GetConnectedContent();
+        connectedAncestor.swap(*mOutTargetContent);
+      }
     }
   }
 
@@ -603,6 +614,7 @@ class MOZ_RAII AutoPointerEventTargetUpdater final {
   RefPtr<PresShell> mShell;
   nsCOMPtr<nsIContent> mOriginalPointerEventTarget;
   AutoWeakFrame mWeakFrame;
+  Maybe<AutoConnectedAncestorTracker> mPointerEventTargetTracker;
   nsIContent** mOutTargetContent;
   bool mFromTouch = false;
 };
@@ -703,6 +715,12 @@ void PresShell::AddWeakFrame(WeakFrame* aWeakFrame) {
   mWeakFrames.Insert(aWeakFrame);
 }
 
+void PresShell::AddConnectedAncestorTracker(
+    AutoConnectedAncestorTracker& aTracker) {
+  aTracker.mPreviousTracker = mLastConnectedAncestorTracker;
+  mLastConnectedAncestorTracker = &aTracker;
+}
+
 void PresShell::RemoveAutoWeakFrame(AutoWeakFrame* aWeakFrame) {
   if (mAutoWeakFrames == aWeakFrame) {
     mAutoWeakFrames = aWeakFrame->GetPreviousWeakFrame();
@@ -720,6 +738,21 @@ void PresShell::RemoveAutoWeakFrame(AutoWeakFrame* aWeakFrame) {
 void PresShell::RemoveWeakFrame(WeakFrame* aWeakFrame) {
   MOZ_ASSERT(mWeakFrames.Contains(aWeakFrame));
   mWeakFrames.Remove(aWeakFrame);
+}
+
+void PresShell::RemoveConnectedAncestorTracker(
+    const AutoConnectedAncestorTracker& aTracker) {
+  if (mLastConnectedAncestorTracker == &aTracker) {
+    mLastConnectedAncestorTracker = aTracker.mPreviousTracker;
+    return;
+  }
+  AutoConnectedAncestorTracker* nextTracker = mLastConnectedAncestorTracker;
+  while (nextTracker && nextTracker->mPreviousTracker != &aTracker) {
+    nextTracker = nextTracker->mPreviousTracker;
+  }
+  if (nextTracker) {
+    nextTracker->mPreviousTracker = aTracker.mPreviousTracker;
+  }
 }
 
 already_AddRefed<nsFrameSelection> PresShell::FrameSelection() {
@@ -751,7 +784,6 @@ PresShell::PresShell(Document* aDocument)
     : mDocument(aDocument),
       mViewManager(nullptr),
       mLastSelectionForToString(nullptr),
-      mAutoWeakFrames(nullptr),
 #ifdef ACCESSIBILITY
       mDocAccessible(nullptr),
 #endif  // ACCESSIBILITY
@@ -4810,11 +4842,11 @@ MOZ_CAN_RUN_SCRIPT_BOUNDARY void PresShell::ContentWillBeRemoved(
 
   nsAutoCauseReflowNotifier crNotifier(this);
 
-  // After removing aChild from tree we should save information about live
-  // ancestor
-  if (mPointerEventTarget &&
-      mPointerEventTarget->IsInclusiveDescendantOf(aChild)) {
-    mPointerEventTarget = aChild->GetParent();
+  for (AutoConnectedAncestorTracker* tracker = mLastConnectedAncestorTracker;
+       tracker; tracker = tracker->mPreviousTracker) {
+    if (tracker->ConnectedNode().IsInclusiveFlatTreeDescendantOf(aChild)) {
+      tracker->mConnectedAncestor = aChild->GetFlattenedTreeParentElement();
+    }
   }
 
   mFrameConstructor->ContentWillBeRemoved(
@@ -9591,9 +9623,9 @@ void PresShell::EventHandler::MaybeHandleKeyboardEventBeforeDispatch(
 
       if (shouldExitFullscreen) {
         // ESC key released while in DOM fullscreen mode.
-        // Fully exit all browser windows and documents from
-        // fullscreen mode.
-        Document::AsyncExitFullscreen(nullptr);
+        // Fully exit fullscreen mode for the browser window and documents that
+        // received the event.
+        Document::AsyncExitFullscreen(root);
       }
     }
   }

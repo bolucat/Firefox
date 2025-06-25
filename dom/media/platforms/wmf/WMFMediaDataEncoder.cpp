@@ -27,8 +27,7 @@ WMFMediaDataEncoder::WMFMediaDataEncoder(const EncoderConfig& aConfig,
     : mConfig(aConfig),
       mTaskQueue(aTaskQueue),
       mHardwareNotAllowed(aConfig.mHardwarePreference ==
-                              HardwarePreference::RequireSoftware ||
-                          IsWin32kLockedDown()) {
+                          HardwarePreference::RequireSoftware) {
   WMF_ENC_LOGE("WMFMediaDataEncoder ctor: %s, (hw not allowed: %s)",
                aConfig.ToString().get(), mHardwareNotAllowed ? "yes" : "no");
   MOZ_ASSERT(mTaskQueue);
@@ -108,7 +107,9 @@ RefPtr<InitPromise> WMFMediaDataEncoder::ProcessInit() {
         __func__);
   }
 
-  RefPtr<MFTEncoder> encoder = new MFTEncoder(mHardwareNotAllowed);
+  RefPtr<MFTEncoder> encoder = new MFTEncoder(
+      mHardwareNotAllowed ? MFTEncoder::HWPreference::SoftwareOnly
+                          : MFTEncoder::HWPreference::PreferHardware);
   HRESULT hr;
   mscom::EnsureMTA([&]() { hr = InitMFTEncoder(encoder); });
 
@@ -129,7 +130,8 @@ RefPtr<InitPromise> WMFMediaDataEncoder::ProcessInit() {
 }
 
 HRESULT WMFMediaDataEncoder::InitMFTEncoder(RefPtr<MFTEncoder>& aEncoder) {
-  HRESULT hr = aEncoder->Create(CodecToSubtype(mConfig.mCodec));
+  HRESULT hr = aEncoder->Create(CodecToSubtype(mConfig.mCodec), mConfig.mSize,
+                                mConfig.mCodecSpecific);
   if (FAILED(hr)) {
     _com_error error(hr);
     WMF_ENC_LOGE("MFTEncoder::Create: error = 0x%lX, %ls", hr,

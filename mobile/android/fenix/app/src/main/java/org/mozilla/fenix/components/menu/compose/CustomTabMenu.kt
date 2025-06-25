@@ -35,6 +35,8 @@ import org.mozilla.fenix.theme.Theme
 /**
  * Wrapper column containing the main menu items.
  *
+ * @param canGoBack Whether or not the back button is enabled.
+ * @param canGoForward Whether or not the forward button is enabled.
  * @param isSiteLoading Whether or not the custom tab is currently loading.
  * @param isPdf Whether or not the current custom tab is a PDF.
  * @param isDesktopMode Whether or not the current site is in desktop mode.
@@ -55,6 +57,8 @@ import org.mozilla.fenix.theme.Theme
 @Suppress("LongParameterList", "LongMethod")
 @Composable
 internal fun CustomTabMenu(
+    canGoBack: Boolean,
+    canGoForward: Boolean,
     isSiteLoading: Boolean,
     isPdf: Boolean,
     isDesktopMode: Boolean,
@@ -75,6 +79,16 @@ internal fun CustomTabMenu(
         header = {
             MenuNavHeader(
                 isSiteLoading = isSiteLoading,
+                goBackState = if (canGoBack) {
+                    MenuItemState.ENABLED
+                } else {
+                    MenuItemState.DISABLED
+                },
+                goForwardState = if (canGoForward) {
+                    MenuItemState.ENABLED
+                } else {
+                    MenuItemState.DISABLED
+                },
                 onBackButtonClick = onBackButtonClick,
                 onForwardButtonClick = onForwardButtonClick,
                 onRefreshButtonClick = onRefreshButtonClick,
@@ -94,7 +108,7 @@ internal fun CustomTabMenu(
             if (isDesktopMode) {
                 badgeText = stringResource(id = R.string.browser_feature_desktop_site_on)
                 badgeBackgroundColor = FirefoxTheme.colors.badgeActive
-                menuItemState = MenuItemState.ACTIVE
+                menuItemState = if (isPdf) MenuItemState.DISABLED else MenuItemState.ACTIVE
             } else {
                 badgeText = stringResource(id = R.string.browser_feature_desktop_site_off)
                 badgeBackgroundColor = FirefoxTheme.colors.layerSearch
@@ -195,6 +209,8 @@ private fun CustomTabMenuPreview() {
                 .background(color = FirefoxTheme.colors.layer3),
         ) {
             CustomTabMenu(
+                canGoBack = true,
+                canGoForward = true,
                 isSiteLoading = true,
                 isPdf = false,
                 isDesktopMode = false,
@@ -224,6 +240,8 @@ private fun CustomTabMenuPrivatePreview() {
                 .background(color = FirefoxTheme.colors.layer3),
         ) {
             CustomTabMenu(
+                canGoBack = false,
+                canGoForward = false,
                 isSiteLoading = false,
                 isPdf = true,
                 isDesktopMode = false,

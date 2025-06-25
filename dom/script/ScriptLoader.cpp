@@ -4047,29 +4047,20 @@ void ScriptLoader::ReportErrorToConsole(ScriptLoadRequest* aRequest,
   AutoTArray<nsString, 1> params;
   CopyUTF8toUTF16(aRequest->mURI->GetSpecOrDefault(), *params.AppendElement());
 
-  uint32_t lineNo = aRequest->GetScriptLoadContext()->GetScriptLineNumber();
-  JS::ColumnNumberOneOrigin columnNo =
-      aRequest->GetScriptLoadContext()->GetScriptColumnNumber();
-
-  SourceLocation loc{mDocument->GetDocumentURI(), lineNo,
-                     columnNo.oneOriginValue()};
-
-  // If this is a failed module load, and we know the parent module, then
-  // attribute the failure to the parent module, not the overall document.
-  if (aRequest->IsModuleRequest()) {
-    ModuleLoadRequest* modRequest = aRequest->AsModuleRequest();
-    if (!modRequest->IsTopLevel()) {
-      ModuleLoadRequest* parent = modRequest->mWaitingParentRequest;
-      if (parent) {
-        nsCString parentURL = parent->mURL;
-        loc = SourceLocation(std::move(parentURL));
-      }
-    }
+  Maybe<SourceLocation> loc;
+  if (!isScript && !aRequest->IsTopLevel()) {
+    MOZ_ASSERT(aRequest->mReferrer);
+    loc.emplace(aRequest->mReferrer.get());
+  } else {
+    uint32_t lineNo = aRequest->GetScriptLoadContext()->GetScriptLineNumber();
+    JS::ColumnNumberOneOrigin columnNo =
+        aRequest->GetScriptLoadContext()->GetScriptColumnNumber();
+    loc.emplace(mDocument->GetDocumentURI(), lineNo, columnNo.oneOriginValue());
   }
 
   nsContentUtils::ReportToConsole(
       nsIScriptError::warningFlag, "Script Loader"_ns, mDocument,
-      nsContentUtils::eDOM_PROPERTIES, message, params, loc);
+      nsContentUtils::eDOM_PROPERTIES, message, params, loc.ref());
 }
 
 void ScriptLoader::ReportWarningToConsole(
@@ -4090,13 +4081,13 @@ void ScriptLoader::ReportPreloadErrorsToConsole(ScriptLoadRequest* aRequest) {
     ReportErrorToConsole(
         aRequest, aRequest->GetScriptLoadContext()->mUnreportedPreloadError);
     aRequest->GetScriptLoadContext()->mUnreportedPreloadError = NS_OK;
+    MOZ_ASSERT_IF(aRequest->IsModuleRequest(),
+                  aRequest->AsModuleRequest()->mImports.IsEmpty());
   }
 
-  if (aRequest->IsModuleRequest()) {
-    for (const auto& childRequest : aRequest->AsModuleRequest()->mImports) {
-      ReportPreloadErrorsToConsole(childRequest);
-    }
-  }
+  // TODO:
+  // Bug 1973466, check the child request's error that happened during
+  // preload is reported.
 }
 
 void ScriptLoader::HandleLoadError(ScriptLoadRequest* aRequest,

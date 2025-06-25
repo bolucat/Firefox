@@ -10,6 +10,7 @@
 #include <utility>
 
 #include "mozilla/dom/quota/Client.h"
+#include "mozilla/dom/quota/ClientUsageArray.h"
 #include "mozilla/dom/quota/Constants.h"
 #include "mozilla/dom/quota/PersistenceType.h"
 #include "nsString.h"
@@ -43,6 +44,18 @@ struct PrincipalMetadata {
     MOZ_ASSERT_IF(!mIsPrivate, mOrigin == mStorageOrigin);
     MOZ_ASSERT_IF(mIsPrivate, mOrigin != mStorageOrigin);
   }
+
+  // Templated to restrict Equals() to exactly PrincipalMetadata. Prevents
+  // derived types from accidentally inheriting Equals() and comparing only
+  // base fields without their own fields.
+  template <typename T, typename = std::enable_if_t<
+                            std::is_same<T, PrincipalMetadata>::value>>
+  bool Equals(const T& aOther) const {
+    return mSuffix == aOther.mSuffix && mGroup == aOther.mGroup &&
+           mOrigin == aOther.mOrigin &&
+           mStorageOrigin == aOther.mStorageOrigin &&
+           mIsPrivate == aOther.mIsPrivate;
+  }
 };
 
 struct OriginMetadata : public PrincipalMetadata {
@@ -62,6 +75,17 @@ struct OriginMetadata : public PrincipalMetadata {
                  PersistenceType aPersistenceType)
       : PrincipalMetadata(std::move(aPrincipalMetadata)),
         mPersistenceType(aPersistenceType) {}
+
+  // Templated to restrict Equals() to exactly OriginMetadata. Prevents
+  // derived types from accidentally inheriting Equals() and comparing only
+  // base fields without their own fields.
+  template <typename T,
+            typename = std::enable_if_t<std::is_same<T, OriginMetadata>::value>>
+  bool Equals(const T& aOther) const {
+    return static_cast<const PrincipalMetadata&>(*this).Equals(
+               static_cast<const PrincipalMetadata&>(aOther)) &&
+           mPersistenceType == aOther.mPersistenceType;
+  }
 
   // Returns a composite string key in the form "<persistence>*<origin>".
   // Useful for flat hash maps keyed by both persistence type and origin,
@@ -89,15 +113,58 @@ struct OriginStateMetadata {
       : mLastAccessTime(aLastAccessTime),
         mAccessed(aAccessed),
         mPersisted(aPersisted) {}
+
+  // Templated to restrict Equals() to exactly OriginStateMetadata. Prevents
+  // derived types from accidentally inheriting Equals() and comparing only
+  // base fields without their own fields.
+  template <typename T, typename = std::enable_if_t<
+                            std::is_same<T, OriginStateMetadata>::value>>
+  bool Equals(const T& aOther) const {
+    return mLastAccessTime == aOther.mLastAccessTime &&
+           mAccessed == aOther.mAccessed && mPersisted == aOther.mPersisted;
+  }
 };
 
 struct FullOriginMetadata : OriginMetadata, OriginStateMetadata {
+  ClientUsageArray mClientUsages;
+  uint64_t mOriginUsage;
+  uint32_t mQuotaVersion;
+
   FullOriginMetadata() = default;
 
   FullOriginMetadata(OriginMetadata aOriginMetadata,
-                     OriginStateMetadata aOriginStateMetadata)
+                     OriginStateMetadata aOriginStateMetadata,
+                     const ClientUsageArray& aClientUsages, uint64_t aUsage,
+                     uint32_t aQuotaVersion)
       : OriginMetadata(std::move(aOriginMetadata)),
-        OriginStateMetadata(aOriginStateMetadata) {}
+        OriginStateMetadata(aOriginStateMetadata),
+        mClientUsages(aClientUsages),
+        mOriginUsage(aUsage),
+        mQuotaVersion(aQuotaVersion) {}
+
+  // Templated to restrict Equals() to exactly FullOriginMetadata. Prevents
+  // derived types from accidentally inheriting Equals() and comparing only
+  // base fields without their own fields.
+  template <typename T, typename = std::enable_if_t<
+                            std::is_same<T, FullOriginMetadata>::value>>
+  bool Equals(const T& aOther) const {
+    return static_cast<const OriginMetadata&>(*this).Equals(
+               static_cast<const OriginMetadata&>(aOther)) &&
+           static_cast<const OriginStateMetadata&>(*this).Equals(
+               static_cast<const OriginStateMetadata&>(aOther)) &&
+           mClientUsages == aOther.mClientUsages &&
+           mOriginUsage == aOther.mOriginUsage &&
+           mQuotaVersion == aOther.mQuotaVersion;
+  }
+
+  // Convenient method for duplicating a FullOriginMetadata instance. Creates
+  // a new object by copying both the OriginMetadata and OriginStateMetadata
+  // parts of this instance.
+  FullOriginMetadata Clone() const {
+    return {static_cast<const OriginMetadata&>(*this),
+            static_cast<const OriginStateMetadata&>(*this), mClientUsages,
+            mOriginUsage, mQuotaVersion};
+  }
 };
 
 struct OriginUsageMetadata : FullOriginMetadata {

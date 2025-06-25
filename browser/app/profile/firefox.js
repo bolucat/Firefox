@@ -1015,11 +1015,6 @@ pref("browser.tabs.firefox-view.logLevel", "Warn");
 
 pref("browser.tabs.groups.smart.userEnabled", true);
 
-// allow_eval_* is enabled on Firefox Desktop only at this
-// point in time
-pref("security.allow_eval_with_system_principal", false);
-pref("security.allow_eval_in_parent_process", false);
-
 pref("security.allow_parent_unrestricted_js_loads", false);
 
 // Unload tabs when available memory is running low
@@ -2658,6 +2653,10 @@ pref("signon.firefoxRelay.firstOfferVersionFallback", "control");
 pref("signon.management.page.breach-alerts.enabled", true);
 pref("signon.management.page.vulnerable-passwords.enabled", true);
 pref("signon.management.page.sort", "name");
+
+pref("signon.management.page.os-auth.locked.enabled", false);
+pref("extensions.formautofill.creditCards.os-auth.locked.enabled", false);
+
 // The utm_creative value is appended within the code (specific to the location on
 // where it is clicked). Be sure that if these two prefs are updated, that
 // the utm_creative param be last.

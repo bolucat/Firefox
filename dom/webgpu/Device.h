@@ -79,9 +79,6 @@ class SupportedLimits;
 class Texture;
 class WebGPUChild;
 
-using MappingPromise =
-    MozPromise<BufferMapResult, ipc::ResponseRejectReason, true>;
-
 class Device final : public DOMEventTargetHelper, public SupportsWeakPtr {
  public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -97,7 +94,8 @@ class Device final : public DOMEventTargetHelper, public SupportsWeakPtr {
       const gfx::IntSize& aSize, const gfx::SurfaceFormat& aFormat);
 
   explicit Device(Adapter* const aParent, RawId aDeviceId, RawId aQueueId,
-                  const ffi::WGPULimits&);
+                  RefPtr<SupportedFeatures> aFeatures,
+                  RefPtr<SupportedLimits> aLimits);
 
   RefPtr<WebGPUChild> GetBridge();
   already_AddRefed<Texture> InitSwapChain(
@@ -114,7 +112,6 @@ class Device final : public DOMEventTargetHelper, public SupportsWeakPtr {
   void UntrackBuffer(Buffer* aBuffer);
 
   bool IsLost() const;
-  bool IsBridgeAlive() const;
 
   RawId GetId() const { return mId; }
 
@@ -171,7 +168,7 @@ class Device final : public DOMEventTargetHelper, public SupportsWeakPtr {
   already_AddRefed<BindGroup> CreateBindGroup(
       const dom::GPUBindGroupDescriptor& aDesc);
 
-  MOZ_CAN_RUN_SCRIPT already_AddRefed<ShaderModule> CreateShaderModule(
+  already_AddRefed<ShaderModule> CreateShaderModule(
       const dom::GPUShaderModuleDescriptor& aDesc, ErrorResult& aRv);
   already_AddRefed<ComputePipeline> CreateComputePipeline(
       const dom::GPUComputePipelineDescriptor& aDesc);
@@ -189,6 +186,10 @@ class Device final : public DOMEventTargetHelper, public SupportsWeakPtr {
 
   IMPL_EVENT_HANDLER(uncapturederror)
 };
+
+MOZ_CAN_RUN_SCRIPT void reportCompilationMessagesToConsole(
+    const RefPtr<ShaderModule>& aShaderModule,
+    const nsTArray<WebGPUCompilationMessage>& aMessages);
 
 }  // namespace webgpu
 }  // namespace mozilla

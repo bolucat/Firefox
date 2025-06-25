@@ -289,11 +289,9 @@ static const char sColorPrefs[][41] = {
     "ui.IMESelectedConvertedTextUnderline",
     "ui.SpellCheckerUnderline",
     "ui.themedScrollbar",
-    "ui.themedScrollbarInactive",
     "ui.themedScrollbarThumb",
     "ui.themedScrollbarThumbHover",
     "ui.themedScrollbarThumbActive",
-    "ui.themedScrollbarThumbInactive",
 };
 
 static_assert(std::size(sColorPrefs) == size_t(LookAndFeel::ColorID::End),
@@ -545,6 +543,7 @@ static constexpr struct {
     {"browser.display.foreground_color.dark"_ns,
      widget::ThemeChangeKind::Style},
     {"browser.display.document_color_use"_ns, widget::ThemeChangeKind::Style},
+    {"browser.display.use_document_fonts"_ns, widget::ThemeChangeKind::Style},
     {"browser.display.permit_backplate"_ns, widget::ThemeChangeKind::Style},
     {"ui.use_standins_for_native_colors"_ns, widget::ThemeChangeKind::Style},
     {"privacy.resistFingerprinting"_ns, widget::ThemeChangeKind::Style},
@@ -1348,10 +1347,8 @@ static bool ColorIsCSSAccessible(LookAndFeel::ColorID aId) {
     case ColorID::TextHighlightBackground:
     case ColorID::TextHighlightForeground:
     case ColorID::ThemedScrollbar:
-    case ColorID::ThemedScrollbarInactive:
     case ColorID::ThemedScrollbarThumb:
     case ColorID::ThemedScrollbarThumbActive:
-    case ColorID::ThemedScrollbarThumbInactive:
     case ColorID::ThemedScrollbarThumbHover:
     case ColorID::IMERawInputBackground:
     case ColorID::IMERawInputForeground:

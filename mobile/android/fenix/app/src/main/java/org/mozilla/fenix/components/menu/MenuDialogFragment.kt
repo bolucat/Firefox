@@ -590,9 +590,6 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                     onCustomizeReaderViewMenuClick = {
                                         store.dispatch(MenuAction.CustomizeReaderView)
                                     },
-                                    onNewInFirefoxMenuClick = {
-                                        store.dispatch(MenuAction.Navigate.ReleaseNotes)
-                                    },
                                     onQuitMenuClick = {
                                         store.dispatch(MenuAction.DeleteBrowsingDataAndQuit)
                                     },
@@ -681,13 +678,9 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                                 )
                                             },
                                             onInstallAddonClick = { addon ->
-                                                view?.slideDown {
-                                                    store.dispatch(
-                                                        MenuAction.InstallAddon(
-                                                            addon = addon,
-                                                        ),
-                                                    )
-                                                }
+                                                store.dispatch(
+                                                    MenuAction.InstallAddon(addon = addon),
+                                                )
                                             },
                                             onManageExtensionsMenuClick = {
                                                 store.dispatch(MenuAction.Navigate.ManageExtensions)
@@ -715,6 +708,8 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                     context.getString(R.string.browser_custom_tab_menu_handlebar_content_description)
 
                                 CustomTabMenu(
+                                    canGoBack = customTab?.content?.canGoBack ?: true,
+                                    canGoForward = customTab?.content?.canGoForward ?: true,
                                     isSiteLoading = isSiteLoading,
                                     scrollState = scrollState,
                                     isPdf = customTab?.content?.isPdf == true,

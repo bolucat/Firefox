@@ -69,6 +69,12 @@ class SecretSettingsFragment : PreferenceFragmentCompat() {
             onPreferenceChangeListener = SharedPreferenceUpdater()
         }
 
+        requirePreference<SwitchPreference>(R.string.pref_key_enable_toolbar_redesign).apply {
+            isVisible = Config.channel.isDebug
+            isChecked = context.settings().toolbarRedesignEnabled
+            onPreferenceChangeListener = SharedPreferenceUpdater()
+        }
+
         requirePreference<SwitchPreference>(R.string.pref_key_use_new_bookmarks_ui).apply {
             isVisible = true
             isChecked = context.settings().useNewBookmarks
@@ -238,6 +244,12 @@ class SecretSettingsFragment : PreferenceFragmentCompat() {
                 context.getPreferenceKey(R.string.pref_key_persistent_debug_menu),
                 false,
             )
+            onPreferenceChangeListener = SharedPreferenceUpdater()
+        }
+
+        requirePreference<SwitchPreference>(R.string.pref_key_crash_pull_never_show_again).apply {
+            isVisible = true
+            isChecked = context.settings().crashPullNeverShowAgain
             onPreferenceChangeListener = SharedPreferenceUpdater()
         }
     }

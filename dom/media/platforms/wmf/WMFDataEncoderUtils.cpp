@@ -33,20 +33,24 @@ GUID CodecToSubtype(CodecType aCodec) {
   }
 }
 
-EncodeSupportSet CanCreateWMFEncoder(CodecType aCodec) {
+EncodeSupportSet CanCreateWMFEncoder(
+    CodecType aCodec, const gfx::IntSize& aFrameSize,
+    const EncoderConfig::CodecSpecific& aCodecSpecific) {
   EncodeSupportSet supports;
   mscom::EnsureMTA([&]() {
     if (!wmf::MediaFoundationInitializer::HasInitialized()) {
       return;
     }
     // Try HW encoder.
-    auto hwEnc = MakeRefPtr<MFTEncoder>(false /* HW not allowed */);
-    if (SUCCEEDED(hwEnc->Create(CodecToSubtype(aCodec)))) {
+    auto hwEnc = MakeRefPtr<MFTEncoder>(MFTEncoder::HWPreference::HardwareOnly);
+    if (SUCCEEDED(hwEnc->Create(CodecToSubtype(aCodec), aFrameSize,
+                                aCodecSpecific))) {
       supports += EncodeSupport::HardwareEncode;
     }
     // Try SW encoder.
-    auto swEnc = MakeRefPtr<MFTEncoder>(true /* HW not allowed */);
-    if (SUCCEEDED(swEnc->Create(CodecToSubtype(aCodec)))) {
+    auto swEnc = MakeRefPtr<MFTEncoder>(MFTEncoder::HWPreference::SoftwareOnly);
+    if (SUCCEEDED(swEnc->Create(CodecToSubtype(aCodec), aFrameSize,
+                                aCodecSpecific))) {
       supports += EncodeSupport::SoftwareEncode;
     }
   });

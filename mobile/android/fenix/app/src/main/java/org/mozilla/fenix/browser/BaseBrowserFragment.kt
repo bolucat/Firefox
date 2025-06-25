@@ -153,6 +153,7 @@ import org.mozilla.fenix.ReaderViewBinding
 import org.mozilla.fenix.bindings.FindInPageBinding
 import org.mozilla.fenix.biometricauthentication.AuthenticationStatus
 import org.mozilla.fenix.biometricauthentication.BiometricAuthenticationManager
+import org.mozilla.fenix.biometricauthentication.NavigationOrigin
 import org.mozilla.fenix.browser.browsingmode.BrowsingMode
 import org.mozilla.fenix.browser.readermode.DefaultReaderModeController
 import org.mozilla.fenix.browser.store.BrowserScreenMiddleware
@@ -435,7 +436,9 @@ abstract class BaseBrowserFragment :
             scope = viewLifecycleOwner.lifecycleScope,
             appStore = requireComponents.appStore,
             onPrivateModeLocked = {
-                findNavController().navigate(NavGraphDirections.actionGlobalUnlockPrivateTabsFragment())
+                findNavController().navigate(
+                    NavGraphDirections.actionGlobalUnlockPrivateTabsFragment(NavigationOrigin.TAB),
+                )
             },
         )
 
@@ -730,16 +733,21 @@ abstract class BaseBrowserFragment :
                             Breadcrumb("FirstPartyDownloadDialog created"),
                         )
 
-                        val contentSizeInBytes =
-                            requireComponents.core.fileSizeFormatter.formatSizeInBytes(contentSize.value)
+                        val title = if (contentSize.value > 0L) {
+                            val contentSizeInBytes =
+                                requireComponents.core.fileSizeFormatter.formatSizeInBytes(
+                                    contentSize.value,
+                                )
+                            getString(
+                                R.string.mozac_feature_downloads_dialog_title_3,
+                                contentSizeInBytes,
+                            )
+                        } else {
+                            getString(R.string.mozac_feature_downloads_dialog_title_with_unknown_size)
+                        }
 
                         downloadDialog = AlertDialog.Builder(requireContext())
-                            .setTitle(
-                                getString(
-                                    R.string.mozac_feature_downloads_dialog_title_3,
-                                    contentSizeInBytes,
-                                ),
-                            )
+                            .setTitle(title)
                             .setMessage(filename.value)
                             .setPositiveButton(R.string.mozac_feature_downloads_dialog_download) { dialog, _ ->
                                 positiveAction.value.invoke()
@@ -1286,13 +1294,14 @@ abstract class BaseBrowserFragment :
         }
 
         return BrowserToolbarComposable(
-            context = activity,
+            activity = activity,
             lifecycleOwner = this,
             container = binding.browserLayout,
             navController = findNavController(),
             appStore = activity.components.appStore,
             browserScreenStore = browserScreenStore,
             browserStore = store,
+            components = activity.components,
             browsingModeManager = activity.browsingModeManager,
             browserAnimator = browserAnimator,
             thumbnailsFeature = thumbnailsFeature.get(),

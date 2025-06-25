@@ -83,6 +83,8 @@
     <string name="pref_key_translations_offer" translatable="false">pref_key_translations_offer</string>
     <string name="pref_key_terms_accepted" translatable="false">pref_key_terms_accepted</string>
     <string name="pref_key_should_show_marketing_onboarding" translatable="false">pref_key_should_show_marketing_onboarding</string>
+    <string name="pref_key_crash_pull_never_show_again" translatable="false">pref_key_crash_pull_never_show_again</string>
+    <string name="pref_key_crash_pull_dont_show_before" translatable="false">pref_key_crash_pull_dont_show_before</string>
 
     <!-- Data Choices -->
     <string name="pref_key_telemetry" translatable="false">pref_key_telemetry</string>
@@ -160,7 +162,7 @@
     <string name="pref_key_toolbar_bottom" translatable="false">pref_key_toolbar_bottom</string>
     <string name="pref_key_toolbar_tab_swipe_cfr">pref_key_should_show_tab_swipe_cfr</string>
     <string name="pref_key_toolbar_has_shown_tab_swipe_cfr">pref_key_has_shown_tab_swipe_cfr</string>
-    <string name="pref_key_toolbar_expanded" translatable="false">pref_key_toolbar_expanded</string>
+    <string name="pref_key_toolbar_simple" translatable="false">pref_key_toolbar_simple</string>
 
     <!-- Menu -->
     <string name="pref_key_menu_cfr" translatable="false">pref_key_menu_cfr</string>
@@ -186,6 +188,7 @@
     <string name="pref_key_recent_tabs" translatable="false">pref_key_recent_tabs</string>
     <string name="pref_key_customization_bookmarks" translatable="false">pref_key_recent_bookmarks</string>
     <string name="pref_key_customization_category_toolbar" translatable="false">pref_key_customization_category_toolbar</string>
+    <string name="pref_key_customization_category_toolbar_layout" translatable="false">pref_key_customization_category_toolbar_layout</string>
 
     <!-- HTTPS Only Settings -->
     <string name="pref_key_https_only_settings" translatable="false">pref_key_https_only_settings</string>
@@ -255,7 +258,6 @@
     <string name="pref_key_open_links_in_apps_always" translatable="false">pref_key_open_links_in_apps_always</string>
     <string name="pref_key_open_links_in_apps_ask" translatable="false">pref_key_open_links_in_apps_ask</string>
     <string name="pref_key_open_links_in_apps_never" translatable="false">pref_key_open_links_in_apps_never</string>
-    <string name="pref_key_external_download_manager" translatable="false">pref_key_external_download_manager</string>
     <string name="pref_key_allow_screenshots_in_private_mode" translatable="false">pref_key_allow_screenshots_in_private_mode</string>
     <string name="pref_key_private_browsing_locked_enabled" translatable="false">pref_key_private_browsing_locked_enabled</string>
     <string name="pref_key_private_browsing_lock_device_feature_enabled" translatable="false">pref_key_private_browsing_lock_device_feature_enabled</string>
@@ -330,7 +332,7 @@
     <string name="pref_key_open_tabs_count" translatable="false">pref_key_open_tabs_count</string>
     <string name="pref_key_open_private_tabs_count" translatable="false">pref_key_open_private_tabs_count</string>
 
-    <string name="pref_key_tab_strip" translatable="false" moz:removedIn="139" tools:ignore="UnusedResources">pref_key_tab_strip</string>
+    
 
     <!-- Add-on Metrics Values -->
     <string name="pref_key_installed_addons_count" translatable="false">pref_key_installed_addons_count</string>
@@ -467,4 +469,10 @@
     <string name="pref_key_setup_step_extensions" translatable="false">pref_key_setup_step_extensions</string>
 
     <string name="pref_key_distribution_id" translatable="false">pref_key_distribution_id</string>
+
+    <!-- Downloads Settings-->
+    <string name="pref_key_downloads" translatable="false">pref_key_downloads</string>
+    <string name="pref_key_external_download_manager" translatable="false">pref_key_external_download_manager</string>
+    <string name="pref_key_downloads_clean_up_files_automatically" translatable="false">pref_key_downloads_clean_up_files_automatically</string>
+
 </resources>

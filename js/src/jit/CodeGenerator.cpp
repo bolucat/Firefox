@@ -12212,7 +12212,7 @@ void CodeGenerator::visitCompareSInline(LCompareSInline* lir) {
   Register input = ToRegister(lir->input());
   Register output = ToRegister(lir->output());
 
-  const JSLinearString* str = lir->constant();
+  const JSOffThreadAtom* str = lir->constant();
   MOZ_ASSERT(str->length() > 0);
 
   OutOfLineCode* ool = nullptr;
@@ -12304,7 +12304,7 @@ void CodeGenerator::visitCompareSSingle(LCompareSSingle* lir) {
   Register output = ToRegister(lir->output());
   Register temp = ToRegister(lir->temp0());
 
-  const JSLinearString* str = lir->constant();
+  const JSOffThreadAtom* str = lir->constant();
   MOZ_ASSERT(str->length() == 1);
 
   char16_t ch = str->latin1OrTwoByteChar(0);
@@ -14080,7 +14080,7 @@ static void CallStringMatch(MacroAssembler& masm, LIns* lir, OutOfLineCode* ool,
   Register tempChars = ToRegister(lir->temp1());
   Register maybeTempPat = ToTempRegisterOrInvalid(lir->temp2());
 
-  const JSLinearString* searchString = lir->searchString();
+  const JSOffThreadAtom* searchString = lir->searchString();
   size_t length = searchString->length();
   MOZ_ASSERT(length == 1 || length == 2);
 
@@ -14264,7 +14264,7 @@ static void CallStringMatch(MacroAssembler& masm, LIns* lir, OutOfLineCode* ool,
 void CodeGenerator::visitStringIncludesSIMD(LStringIncludesSIMD* lir) {
   Register string = ToRegister(lir->string());
   Register output = ToRegister(lir->output());
-  const JSLinearString* searchString = lir->searchString();
+  const JSOffThreadAtom* searchString = lir->searchString();
 
   using Fn = bool (*)(JSContext*, HandleString, HandleString, bool*);
   auto* ool = oolCallVM<Fn, js::StringIncludes>(
@@ -14284,7 +14284,7 @@ void CodeGenerator::visitStringIndexOf(LStringIndexOf* lir) {
 void CodeGenerator::visitStringIndexOfSIMD(LStringIndexOfSIMD* lir) {
   Register string = ToRegister(lir->string());
   Register output = ToRegister(lir->output());
-  const JSLinearString* searchString = lir->searchString();
+  const JSOffThreadAtom* searchString = lir->searchString();
 
   using Fn = bool (*)(JSContext*, HandleString, HandleString, int32_t*);
   auto* ool = oolCallVM<Fn, js::StringIndexOf>(
@@ -14314,7 +14314,7 @@ void CodeGenerator::visitStringStartsWithInline(LStringStartsWithInline* lir) {
   Register output = ToRegister(lir->output());
   Register temp = ToRegister(lir->temp0());
 
-  const JSLinearString* searchString = lir->searchString();
+  const JSOffThreadAtom* searchString = lir->searchString();
 
   size_t length = searchString->length();
   MOZ_ASSERT(length > 0);
@@ -14392,7 +14392,7 @@ void CodeGenerator::visitStringEndsWithInline(LStringEndsWithInline* lir) {
   Register output = ToRegister(lir->output());
   Register temp = ToRegister(lir->temp0());
 
-  const JSLinearString* searchString = lir->searchString();
+  const JSOffThreadAtom* searchString = lir->searchString();
 
   size_t length = searchString->length();
   MOZ_ASSERT(length > 0);
@@ -16583,7 +16583,7 @@ static bool AddInlinedCompilations(JSContext* cx, HandleScript script,
                                    const WarpSnapshot* snapshot,
                                    bool* isValid) {
   MOZ_ASSERT(!*isValid);
-  RecompileInfo recompileInfo(script, compilationId);
+  IonScriptKey ionScriptKey(script, compilationId);
 
   JitZone* jitZone = cx->zone()->jitZone();
 
@@ -16604,7 +16604,7 @@ static bool AddInlinedCompilations(JSContext* cx, HandleScript script,
       return true;
     }
 
-    if (!jitZone->addInlinedCompilation(recompileInfo, inlinedScript)) {
+    if (!jitZone->addInlinedCompilation(ionScriptKey, inlinedScript)) {
       return false;
     }
   }
@@ -16627,11 +16627,12 @@ struct EmulatesUndefinedDependency final : public CompilationDependency {
     return cx->runtime()->hasSeenObjectEmulateUndefinedFuse.ref().intact();
   }
 
-  virtual bool registerDependency(JSContext* cx, HandleScript script) override {
+  virtual bool registerDependency(JSContext* cx,
+                                  const IonScriptKey& ionScript) override {
     MOZ_ASSERT(checkDependency(cx));
     return cx->runtime()
         ->hasSeenObjectEmulateUndefinedFuse.ref()
-        .addFuseDependency(cx, script);
+        .addFuseDependency(cx, ionScript);
   }
 
   virtual UniquePtr<CompilationDependency> clone() const override {
@@ -16652,11 +16653,12 @@ struct ArrayExceedsInt32LengthDependency final : public CompilationDependency {
     return cx->runtime()->hasSeenArrayExceedsInt32LengthFuse.ref().intact();
   }
 
-  virtual bool registerDependency(JSContext* cx, HandleScript script) override {
+  virtual bool registerDependency(JSContext* cx,
+                                  const IonScriptKey& ionScript) override {
     MOZ_ASSERT(checkDependency(cx));
     return cx->runtime()
         ->hasSeenArrayExceedsInt32LengthFuse.ref()
-        .addFuseDependency(cx, script);
+        .addFuseDependency(cx, ionScript);
   }
 
   virtual UniquePtr<CompilationDependency> clone() const override {
@@ -16722,8 +16724,9 @@ bool CodeGenerator::link(JSContext* cx) {
     return true;
   }
 
+  IonScriptKey ionScriptKey(script, compilationId);
   for (auto& dep : tracker.dependencies) {
-    if (!dep->registerDependency(cx, script)) {
+    if (!dep->registerDependency(cx, ionScriptKey)) {
       return false;  // Should we make sure we only return false on OOM and then
                      // eat the OOM here?
     }
@@ -17461,17 +17464,21 @@ void CodeGenerator::visitGetNameCache(LGetNameCache* ins) {
   addIC(ins, allocateIC(ic));
 }
 
+static bool IsConstantNonIndexString(const ConstantOrRegister& id) {
+  if (!id.constant() || !id.value().isString()) {
+    return false;
+  }
+  return !id.value().toString()->asOffThreadAtom().isIndex();
+}
+
 void CodeGenerator::addGetPropertyCache(LInstruction* ins,
                                         LiveRegisterSet liveRegs,
                                         TypedOrValueRegister value,
                                         const ConstantOrRegister& id,
                                         ValueOperand output) {
   CacheKind kind = CacheKind::GetElem;
-  if (id.constant() && id.value().isString()) {
-    JSString* idString = id.value().toString();
-    if (idString->isAtom() && !idString->asAtom().isIndex()) {
-      kind = CacheKind::GetProp;
-    }
+  if (IsConstantNonIndexString(id)) {
+    kind = CacheKind::GetProp;
   }
   IonGetPropertyIC cache(kind, liveRegs, value, id, output);
   addIC(ins, allocateIC(cache));
@@ -17484,11 +17491,8 @@ void CodeGenerator::addSetPropertyCache(LInstruction* ins,
                                         const ConstantOrRegister& value,
                                         bool strict) {
   CacheKind kind = CacheKind::SetElem;
-  if (id.constant() && id.value().isString()) {
-    JSString* idString = id.value().toString();
-    if (idString->isAtom() && !idString->asAtom().isIndex()) {
-      kind = CacheKind::SetProp;
-    }
+  if (IsConstantNonIndexString(id)) {
+    kind = CacheKind::SetProp;
   }
   IonSetPropertyIC cache(kind, liveRegs, objReg, temp, id, value, strict);
   addIC(ins, allocateIC(cache));
@@ -17532,11 +17536,8 @@ void CodeGenerator::visitGetPropSuperCache(LGetPropSuperCache* ins) {
   ValueOperand output = ToOutValue(ins);
 
   CacheKind kind = CacheKind::GetElemSuper;
-  if (id.constant() && id.value().isString()) {
-    JSString* idString = id.value().toString();
-    if (idString->isAtom() && !idString->asAtom().isIndex()) {
-      kind = CacheKind::GetPropSuper;
-    }
+  if (IsConstantNonIndexString(id)) {
+    kind = CacheKind::GetPropSuper;
   }
 
   IonGetPropSuperIC cache(kind, liveRegs, obj, receiver, id, output);
@@ -18229,9 +18230,18 @@ void CodeGenerator::visitLoadElementV(LLoadElementV* load) {
                    out);
   }
 
-  Label testMagic;
-  masm.branchTestMagic(Assembler::Equal, out, &testMagic);
-  bailoutFrom(&testMagic, load->snapshot());
+  if (load->mir()->needsHoleCheck()) {
+    Label testMagic;
+    masm.branchTestMagic(Assembler::Equal, out, &testMagic);
+    bailoutFrom(&testMagic, load->snapshot());
+  } else {
+#ifdef DEBUG
+    Label ok;
+    masm.branchTestMagic(Assembler::NotEqual, out, &ok);
+    masm.assumeUnreachable("LoadElementV had incorrect needsHoleCheck");
+    masm.bind(&ok);
+#endif
+  }
 }
 
 void CodeGenerator::visitLoadElementHole(LLoadElementHole* lir) {
@@ -20887,6 +20897,16 @@ void CodeGenerator::visitGuardArrayIsPacked(LGuardArrayIsPacked* lir) {
 
   Label bail;
   masm.branchArrayIsNotPacked(array, temp0, temp1, &bail);
+  bailoutFrom(&bail, lir->snapshot());
+}
+
+void CodeGenerator::visitGuardElementsArePacked(LGuardElementsArePacked* lir) {
+  Register elements = ToRegister(lir->elements());
+
+  Label bail;
+  Address flags(elements, ObjectElements::offsetOfFlags());
+  masm.branchTest32(Assembler::NonZero, flags,
+                    Imm32(ObjectElements::NON_PACKED), &bail);
   bailoutFrom(&bail, lir->snapshot());
 }
 

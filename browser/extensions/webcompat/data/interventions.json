@@ -2602,6 +2602,21 @@
       }
     ]
   },
+  "1902464": {
+    "label": "workhub.transcribeme.com",
+    "bugs": {
+      "1902464": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://workhub.transcribeme.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
   "1902474": {
     "label": "lg.jio.com",
     "bugs": {
@@ -2655,6 +2670,26 @@
       }
     ]
   },
+  "1904952": {
+    "label": "idserver.servizicie.interno.gov.it",
+    "bugs": {
+      "1904952": {
+        "issue": "blocked-content",
+        "matches": ["*://*.idserver.servizicie.interno.gov.it/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "content_scripts": {
+          "js": [
+            "lib/ua_helpers.js",
+            "bug1904952-idserver.servizicie.interno.gov.it-spoof-as-chrome.js"
+          ]
+        }
+      }
+    ]
+  },
   "1905069": {
     "label": "one.geekie.com.br",
     "bugs": {
@@ -2699,6 +2734,21 @@
       {
         "platforms": ["desktop"],
         "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
+  "1907062": {
+    "label": "upload-images.jianshu.io",
+    "bugs": {
+      "1907062": {
+        "issue": "broken-images",
+        "matches": ["*://upload-images.jianshu.io/upload_images/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["Chrome_with_FxQuantum"]
       }
     ]
   },
@@ -2780,6 +2830,23 @@
       }
     ]
   },
+  "1918604": {
+    "label": "g1.globo.com Caça Palavras",
+    "bugs": {
+      "1918604": {
+        "issue": "broken-layout",
+        "matches": ["*://g1.globo.com/jogos/caca-palavras/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "css": ["bug1918604-g1.globo.com-fix-clipped-buttons.css"]
+        }
+      }
+    ]
+  },
   "1918609": {
     "label": "www.zara.com",
     "bugs": {
@@ -2793,6 +2860,23 @@
         "platforms": ["desktop"],
         "only_channels": ["nightly"],
         "ua_string": ["reduce_firefox_version_by_one"]
+      }
+    ]
+  },
+  "1918995": {
+    "label": "calculator.net",
+    "bugs": {
+      "1918995": {
+        "issue": "user-interface-frustration",
+        "matches": ["*://www.calculator.net/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "content_scripts": {
+          "css": ["bug1918995-calculator.net-hide-copypaste-ui-for-buttons.css"]
+        }
       }
     ]
   },
@@ -2874,6 +2958,24 @@
         "platforms": ["desktop"],
         "content_scripts": {
           "css": ["bug1925937-gazetasp.com.br-hide-extra-scrollbars.css"]
+        }
+      }
+    ]
+  },
+  "1927467": {
+    "label": "www.exploretock.com",
+    "bugs": {
+      "1927467": {
+        "issue": "broken-map",
+        "matches": ["*://www.exploretock.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "all_frames": true,
+          "js": ["bug1927467-www.exploretock.com-fix-broken-map.js"]
         }
       }
     ]
@@ -3001,6 +3103,21 @@
       }
     ]
   },
+  "1933910": {
+    "label": "www.tiktok.com/tiktokstudio",
+    "bugs": {
+      "1933910": {
+        "issue": "unsupported-warning",
+        "matches": ["*://www.tiktok.com/tiktokstudio*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["Chrome"]
+      }
+    ]
+  },
   "1934189": {
     "label": "fdj.fr",
     "bugs": {
@@ -3029,40 +3146,6 @@
         "platforms": ["android"],
         "content_scripts": {
           "css": ["bug1934567-www.port8.fi-scrolling-fix.css"]
-        }
-      }
-    ]
-  },
-  "1918604": {
-    "label": "g1.globo.com Caça Palavras",
-    "bugs": {
-      "1918604": {
-        "issue": "broken-layout",
-        "matches": ["*://g1.globo.com/jogos/caca-palavras/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "content_scripts": {
-          "css": ["bug1918604-g1.globo.com-fix-clipped-buttons.css"]
-        }
-      }
-    ]
-  },
-  "1918995": {
-    "label": "calculator.net",
-    "bugs": {
-      "1918995": {
-        "issue": "user-interface-frustration",
-        "matches": ["*://www.calculator.net/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["android"],
-        "content_scripts": {
-          "css": ["bug1918995-calculator.net-hide-copypaste-ui-for-buttons.css"]
         }
       }
     ]
@@ -3111,6 +3194,41 @@
         "content_scripts": {
           "js": ["bug1939248-rosasthai.com-load-event-helper.js"]
         }
+      }
+    ]
+  },
+  "1939466": {
+    "label": "www.vodafone.it",
+    "bugs": {
+      "1939466": {
+        "issue": "page-fails-to-load",
+        "matches": ["*://*.vodafone.it/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "all_frames": true,
+          "js": [
+            "bug1939466-vodafone.it-polyfill-ancestorOrigins-and-InstallTrigger.js"
+          ]
+        }
+      }
+    ]
+  },
+  "1939697": {
+    "label": "paypal.com",
+    "bugs": {
+      "1939697": {
+        "issue": "broken-captcha",
+        "matches": ["*://www.paypal.com/myaccount/security/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "ua_string": ["add_Chrome"]
       }
     ]
   },
@@ -3476,6 +3594,21 @@
       }
     ]
   },
+  "1951675": {
+    "label": "byod.airindia.com",
+    "bugs": {
+      "1951675": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://byod.airindia.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["Chrome"]
+      }
+    ]
+  },
   "1952832": {
     "label": "supermappex.it",
     "bugs": {
@@ -3593,6 +3726,21 @@
         "content_scripts": {
           "css": ["bug1955932-coopvoce.it-fix-broken-radiobuttons.css"]
         }
+      }
+    ]
+  },
+  "1956045": {
+    "label": "m.daum.net",
+    "bugs": {
+      "1956045": {
+        "issue": "user-interface-frustration",
+        "matches": ["*://m.daum.net/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "ua_string": ["add_Chrome"]
       }
     ]
   },
@@ -3790,6 +3938,23 @@
       }
     ]
   },
+  "1966377": {
+    "label": "nvidia.com",
+    "bugs": {
+      "1966377": {
+        "issue": "broken-layout",
+        "matches": ["*://*.nvidia.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "content_scripts": {
+          "css": ["bug1966377-nvidia.com-fix-overflowing-layout.css"]
+        }
+      }
+    ]
+  },
   "1966389": {
     "label": "boots.com",
     "bugs": {
@@ -3924,6 +4089,78 @@
         "platforms": ["all"],
         "content_scripts": {
           "css": ["bug1971504-wallapop.com-fix-range-sliders.css"]
+        }
+      }
+    ]
+  },
+  "1969245": {
+    "label": "www.wills-vegan-store.com",
+    "bugs": {
+      "1969245": {
+        "issue": "broken-images",
+        "matches": ["*://www.wills-vegan-store.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "css": [
+            "bug1969245-www.wills-vegan-store.com-unhide-product-images.css"
+          ]
+        }
+      }
+    ]
+  },
+  "1971690": {
+    "label": "bapenda.jabarprov.go.id",
+    "bugs": {
+      "1971690": {
+        "issue": "broken-layout",
+        "matches": [
+          "*://bapenda.jabarprov.go.id/infopkb*",
+          "*://sambara-v2.bapenda.jabarprov.go.id/*"
+        ]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "all_frames": true,
+          "css": ["bug1971690-bapenda.jabarprov.go.id-unhide-frame.css"]
+        }
+      }
+    ]
+  },
+  "1972511": {
+    "label": "cmyportal.tkc.co.jp",
+    "bugs": {
+      "1972511": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://cmyportal.tkc.co.jp/auth/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["change_Firefox_to_FireFox"]
+      }
+    ]
+  },
+  "1972859": {
+    "label": "login.primericaonline.com",
+    "bugs": {
+      "1972859": {
+        "issue": "page-fails-to-load",
+        "matches": ["*://*.primericaonline.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "js": ["bug1972859-primericaonline.com-polyfill-ancestorOrigins.js"]
         }
       }
     ]
