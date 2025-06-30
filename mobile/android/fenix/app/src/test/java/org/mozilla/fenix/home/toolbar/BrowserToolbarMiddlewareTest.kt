@@ -5,6 +5,8 @@
 package org.mozilla.fenix.home.toolbar
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -16,14 +18,18 @@ import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.android.asCoroutineDispatcher
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.setMain
 import mozilla.components.browser.state.action.TabListAction.AddTabAction
 import mozilla.components.browser.state.action.TabListAction.RemoveTabAction
+import mozilla.components.browser.state.search.SearchEngine
+import mozilla.components.browser.state.search.SearchEngine.Type.APPLICATION
 import mozilla.components.browser.state.state.BrowserState
 import mozilla.components.browser.state.state.createTab
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.compose.browser.toolbar.concept.Action.ActionButtonRes
+import mozilla.components.compose.browser.toolbar.concept.Action.SearchSelectorAction
 import mozilla.components.compose.browser.toolbar.concept.Action.TabCounterAction
 import mozilla.components.compose.browser.toolbar.concept.PageOrigin
 import mozilla.components.compose.browser.toolbar.concept.PageOrigin.Companion.ContextualMenuOption.LoadFromClipboard
@@ -35,14 +41,19 @@ import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteractio
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteraction.BrowserToolbarMenu
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteraction.CombinedEventAndMenu
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarMenuItem.BrowserToolbarMenuButton
+import mozilla.components.compose.browser.toolbar.store.BrowserToolbarMenuItem.BrowserToolbarMenuButton.ContentDescription.StringResContentDescription
+import mozilla.components.compose.browser.toolbar.store.BrowserToolbarMenuItem.BrowserToolbarMenuButton.Icon.DrawableResIcon
+import mozilla.components.compose.browser.toolbar.store.BrowserToolbarMenuItem.BrowserToolbarMenuButton.Text.StringResText
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarStore
 import mozilla.components.support.test.ext.joinBlocking
+import mozilla.components.support.test.mock
 import mozilla.components.support.test.robolectric.testContext
 import mozilla.components.support.test.rule.MainCoroutineRule
 import mozilla.components.support.test.rule.runTestOnMain
 import mozilla.components.support.utils.ClipboardHandler
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -55,6 +66,7 @@ import org.mozilla.fenix.browser.browsingmode.SimpleBrowsingModeManager
 import org.mozilla.fenix.components.AppStore
 import org.mozilla.fenix.components.UseCases
 import org.mozilla.fenix.components.appstate.AppAction
+import org.mozilla.fenix.components.appstate.AppAction.SearchEngineSelected
 import org.mozilla.fenix.components.appstate.AppState
 import org.mozilla.fenix.components.appstate.OrientationMode.Landscape
 import org.mozilla.fenix.components.appstate.OrientationMode.Portrait
@@ -69,7 +81,10 @@ import org.mozilla.fenix.home.toolbar.PageOriginInteractions.OriginClicked
 import org.mozilla.fenix.home.toolbar.TabCounterInteractions.AddNewPrivateTab
 import org.mozilla.fenix.home.toolbar.TabCounterInteractions.AddNewTab
 import org.mozilla.fenix.home.toolbar.TabCounterInteractions.TabCounterClicked
+import org.mozilla.fenix.search.fixtures.assertSearchSelectorEquals
+import org.mozilla.fenix.search.fixtures.buildExpectedSearchSelector
 import org.mozilla.fenix.tabstray.Page
+import org.robolectric.Shadows.shadowOf
 import mozilla.components.ui.icons.R as iconsR
 
 @RunWith(AndroidJUnit4::class)
@@ -466,28 +481,9 @@ class BrowserToolbarMiddlewareTest {
             middleware = listOf(middleware),
         )
 
-        mockkStatic(Context::settings) {
-            mockkStatic(NavController::nav) {
-                every { testContext.settings().toolbarPosition } returns ToolbarPosition.TOP
+        toolbarStore.dispatch(toolbarStore.state.displayState.pageOrigin.onClick as BrowserToolbarAction)
 
-                toolbarStore.dispatch(toolbarStore.state.displayState.pageOrigin.onClick as BrowserToolbarAction)
-
-                assertEquals(Normal, browsingModeManager.mode)
-                verify {
-                    navController.nav(
-                        R.id.homeFragment,
-                        NavGraphDirections.actionGlobalSearchDialog(
-                            sessionId = null,
-                            pastedText = null,
-                        ),
-                        NavOptions.Builder()
-                            .setEnterAnim(R.anim.fade_in)
-                            .setExitAnim(R.anim.fade_out)
-                            .build(),
-                    )
-                }
-            }
-        }
+        assertTrue(toolbarStore.state.isEditMode())
     }
 
     @Test
@@ -503,28 +499,9 @@ class BrowserToolbarMiddlewareTest {
             middleware = listOf(middleware),
         )
 
-        mockkStatic(Context::settings) {
-            mockkStatic(NavController::nav) {
-                every { testContext.settings().toolbarPosition } returns ToolbarPosition.TOP
+        toolbarStore.dispatch(toolbarStore.state.displayState.pageOrigin.onClick as BrowserToolbarAction)
 
-                toolbarStore.dispatch(toolbarStore.state.displayState.pageOrigin.onClick as BrowserToolbarAction)
-
-                assertEquals(Private, browsingModeManager.mode)
-                verify {
-                    navController.nav(
-                        R.id.homeFragment,
-                        NavGraphDirections.actionGlobalSearchDialog(
-                            sessionId = null,
-                            pastedText = null,
-                        ),
-                        NavOptions.Builder()
-                            .setEnterAnim(R.anim.fade_in)
-                            .setExitAnim(R.anim.fade_out)
-                            .build(),
-                    )
-                }
-            }
-        }
+        assertTrue(toolbarStore.state.isEditMode())
     }
 
     @Test
@@ -605,6 +582,38 @@ class BrowserToolbarMiddlewareTest {
         }
     }
 
+    @Test
+    fun `WHEN the selected search engine changes THEN update the search selector`() {
+        Dispatchers.setMain(Handler(Looper.getMainLooper()).asCoroutineDispatcher())
+
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk()).apply {
+            updateLifecycleDependencies(
+                LifecycleDependencies(testContext, lifecycleOwner, mockk(), browsingModeManager, mockk()),
+            )
+        }
+        val newSearchEngine = SearchEngine("test", "Test", mock(), type = APPLICATION)
+        val toolbarStore = BrowserToolbarStore(
+            middleware = listOf(middleware),
+        )
+
+        appStore.dispatch(SearchEngineSelected(newSearchEngine)).joinBlocking()
+        shadowOf(Looper.getMainLooper()).idle() // wait for observing and processing the search engine update
+
+        assertSearchSelectorEquals(
+            expectedSearchSelector(newSearchEngine),
+            toolbarStore.state.displayState.pageActionsStart[0] as SearchSelectorAction,
+        )
+    }
+
+    private fun expectedSearchSelector(
+        defaultOrSelectedSearchEngine: SearchEngine,
+        searchEngineShortcuts: List<SearchEngine> = emptyList(),
+    ) = buildExpectedSearchSelector(
+        defaultOrSelectedSearchEngine,
+        searchEngineShortcuts,
+        testContext.resources,
+    )
+
     private fun assertEqualsToolbarButton(expected: TabCounterAction, actual: TabCounterAction) {
         assertEquals(expected.count, actual.count)
         assertEquals(expected.contentDescription, actual.contentDescription)
@@ -642,18 +651,18 @@ class BrowserToolbarMiddlewareTest {
             when (isPrivate) {
                 true -> listOf(
                     BrowserToolbarMenuButton(
-                        iconResource = iconsR.drawable.mozac_ic_plus_24,
-                        text = R.string.mozac_browser_menu_new_tab,
-                        contentDescription = R.string.mozac_browser_menu_new_tab,
+                        icon = DrawableResIcon(iconsR.drawable.mozac_ic_plus_24),
+                        text = StringResText(R.string.mozac_browser_menu_new_tab),
+                        contentDescription = StringResContentDescription(R.string.mozac_browser_menu_new_tab),
                         onClick = AddNewTab,
                     ),
                 )
 
                 false -> listOf(
                     BrowserToolbarMenuButton(
-                        iconResource = iconsR.drawable.mozac_ic_private_mode_24,
-                        text = R.string.mozac_browser_menu_new_private_tab,
-                        contentDescription = R.string.mozac_browser_menu_new_private_tab,
+                        icon = DrawableResIcon(iconsR.drawable.mozac_ic_private_mode_24),
+                        text = StringResText(R.string.mozac_browser_menu_new_private_tab),
+                        contentDescription = StringResContentDescription(R.string.mozac_browser_menu_new_private_tab),
                         onClick = AddNewPrivateTab,
                     ),
                 )

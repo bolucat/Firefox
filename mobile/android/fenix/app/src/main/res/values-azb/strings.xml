@@ -11,9 +11,9 @@
   -->
   <string name="content_description_menu">داها چوخ سئچه‌نک</string>
   <!-- Content description (not visible, for screen readers etc.): "Private Browsing" menu button. -->
-  <string name="content_description_private_browsing_button">گیزلی مورورو گوجلندیر</string>
+  <string name="content_description_private_browsing_button" moz:removedIn="142" tools:ignore="UnusedResources">گیزلی مورورو گوجلندیر</string>
   <!-- Content description (not visible, for screen readers etc.): "Private Browsing" menu button. -->
-  <string name="content_description_disable_private_browsing_button">گیزلی مورورو گوجدن سال</string>
+  <string name="content_description_disable_private_browsing_button" moz:removedIn="142" tools:ignore="UnusedResources">گیزلی مورورو گوجدن سال</string>
   <!-- Placeholder text shown in the search bar before a user enters text for the default engine -->
   <string name="search_hint">آختارین یا آدرسی گیرین</string>
   <!-- Placeholder text shown in the search bar before a user enters text for a general engine -->
@@ -290,7 +290,7 @@
     Browser menu label that navigates to the SUMO page for the Firefox for Android release notes.
     %1$s is the name of the app (for example "Firefox").
   -->
-  <string name="browser_menu_new_in_firefox">%1$s-دا یئنی</string>
+  <string name="browser_menu_new_in_firefox" moz:removedIn="141" tools:ignore="UnusedResources">%1$s-دا یئنی</string>
   <!-- Browser menu label that toggles the request for the desktop site of the currently visited page -->
   <string name="browser_menu_switch_to_desktop_site" moz:removedIn="141" tools:ignore="UnusedResources">دسکتاپ سایتا گئچ</string>
   <!-- Browser menu label that toggles the request for the mobile site of the currently visited page -->
@@ -402,7 +402,7 @@
   <!-- Text for the button to skip the onboarding on the home onboarding dialog. -->
   <string name="onboarding_home_skip_button" moz:removedIn="141" tools:ignore="UnusedResources">گئچ</string>
   <!-- Onboarding home screen sync popup dialog message, shown on top of Recent Synced Tabs in the Jump back in section. -->
-  <string name="sync_cfr_message">تاغلارینیز دونگل‌لنیر! آیری جهازینیزدا قالدیغینیز یئردن دوام ائدین.</string>
+  <string name="sync_cfr_message" moz:removedIn="142" tools:ignore="UnusedResources">تاغلارینیز دونگل‌لنیر! آیری جهازینیزدا قالدیغینیز یئردن دوام ائدین.</string>
   <!-- Content description (not visible, for screen readers etc.): Close button for the home onboarding dialog -->
   <string name="onboarding_home_content_description_close_button">باغلا</string>
   <!--
@@ -670,7 +670,7 @@
   <!-- Preference for open links in third party apps never open in apps option -->
   <string name="preferences_open_links_in_apps_never">هئچ زامان</string>
   <!-- Preference for open download with an external download manager app -->
-  <string name="preferences_external_download_manager">خاریجی یئندیرمه موْدیری.</string>
+  <string name="preferences_external_download_manager" tools:ignore="UnusedResources" moz:removedIn="141">خاریجی یئندیرمه موْدیری.</string>
   <!-- Preference for enabling gecko engine logs -->
   <string name="preferences_enable_gecko_logs">Gecko قیدلرینی گوجلندیر</string>
   <!-- Message to indicate users that we are quitting the application to apply the changes -->
@@ -2328,4 +2328,5 @@
   <string name="microsurvey_prompt_printing_title" tools:ignore="BrandUsage,UnusedResources">فایرفاکس‌دا پرینتی یاخچیلاشدیرماغا کمک ائدین. یالنیز بیر ثانیه چکیر.</string>
   <!-- Text shown in the survey title for printing microsurvey. Note: The word "Firefox" should NOT be translated. -->
   <string name="microsurvey_survey_printing_title" tools:ignore="BrandUsage,UnusedResources">فایرفاکس‌دا پرینت‌دن نه قدر راضیسینیز؟</string>
+  <!-- TextField Design System Component -->
 </resources>

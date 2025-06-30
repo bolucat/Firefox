@@ -11,9 +11,9 @@
   -->
   <string name="content_description_menu">ရွေးချယ်စရာများ</string>
   <!-- Content description (not visible, for screen readers etc.): "Private Browsing" menu button. -->
-  <string name="content_description_private_browsing_button">သီးသန့်ရှာဖွေမှုကို ဖွင့်ပါ</string>
+  <string name="content_description_private_browsing_button" moz:removedIn="142" tools:ignore="UnusedResources">သီးသန့်ရှာဖွေမှုကို ဖွင့်ပါ</string>
   <!-- Content description (not visible, for screen readers etc.): "Private Browsing" menu button. -->
-  <string name="content_description_disable_private_browsing_button">သီးသန့်ရှာဖွေမှုကို ပိတ်ပါ</string>
+  <string name="content_description_disable_private_browsing_button" moz:removedIn="142" tools:ignore="UnusedResources">သီးသန့်ရှာဖွေမှုကို ပိတ်ပါ</string>
   <!-- Placeholder text shown in the search bar before a user enters text for the default engine -->
   <string name="search_hint">လိပ်စာရှာဖွေ သို့ ရိုက်ထည့်ပါ</string>
   <!-- Placeholder text shown in the search bar before a user enters text for a general engine -->
@@ -290,7 +290,7 @@
   <!-- Preference for open links in third party apps -->
   <string name="preferences_open_links_in_apps">အက်ပ်များမှလင့်များကိုဖွင့်ပါ</string>
   <!-- Preference for open download with an external download manager app -->
-  <string name="preferences_external_download_manager">ပြင်ပ ဒေါင်းလုတ် မန်နေဂျာ</string>
+  <string name="preferences_external_download_manager" tools:ignore="UnusedResources" moz:removedIn="141">ပြင်ပ ဒေါင်းလုတ် မန်နေဂျာ</string>
   <!-- Preference for notifications -->
   <string name="preferences_notifications">အသိပေးချက်များ</string>
   <!-- Button caption to confirm the add-on collection configuration -->
@@ -1262,4 +1262,6 @@
   <!-- Content description for privacy content close button -->
   <string name="privacy_content_close_button_content_description">ပိတ်ပါ</string>
   <!-- Translations feature -->
+
+  <!-- TextField Design System Component -->
 </resources>

@@ -62,6 +62,7 @@
     <string name="pref_key_remote_debugging" translatable="false">pref_key_remote_debugging</string>
     <string name="pref_key_studies_section" translatable="false">pref_key_studies_section</string>
     <string name="pref_key_experimentation_v2" translatable="false">pref_key_experimentation_v2</string>
+    <string name="pref_key_user_disabled_experimentation" translatable="false">pref_key_user_disabled_experimentation</string>
     <string name="pref_key_private_mode_opened" translatable="false">pref_key_private_mode_opened</string>
     <string name="pref_key_open_in_app_opened" translatable="false">pref_key_open_in_app_opened</string>
     <string name="pref_key_install_pwa_opened" translatable="false">pref_key_install_pwa_opened</string>
@@ -259,7 +260,9 @@
     <string name="pref_key_open_links_in_apps_ask" translatable="false">pref_key_open_links_in_apps_ask</string>
     <string name="pref_key_open_links_in_apps_never" translatable="false">pref_key_open_links_in_apps_never</string>
     <string name="pref_key_allow_screenshots_in_private_mode" translatable="false">pref_key_allow_screenshots_in_private_mode</string>
+    <!-- This preference controls behaviour that corresponds to the private browsing mode lock feature being enabled. -->
     <string name="pref_key_private_browsing_locked_enabled" translatable="false">pref_key_private_browsing_locked_enabled</string>
+    <string name="pref_key_private_browsing_locked" translatable="false">pref_key_private_browsing_locked</string>
     <string name="pref_key_private_browsing_lock_device_feature_enabled" translatable="false">pref_key_private_browsing_lock_device_feature_enabled</string>
     <string name="pref_key_privacy_enable_global_privacy_control" translatable="false">pref_key_privacy_enable_global_privacy_control</string>
     <string name="pref_key_pbm_lock_category_divider" translatable="false">pref_key_pbm_lock_category_divider</string>
@@ -319,8 +322,6 @@
     <string name="pref_key_should_show_inactive_tabs_popup" translatable="false">pref_key_should_show_inactive_tabs_popup</string>
     <!-- A value  of `true` means the Inactive tabs auto close dialog has been dismissed by the user -->
     <string name="pref_key_has_inactive_tabs_auto_close_dialog_dismissed" translatable="false">pref_key_has_inactive_tabs_auto_close_dialog_dismissed</string>
-    <!-- A value  of `true` means the onboarding sync CFR have not been shown yet -->
-    <string name="pref_key_should_show_sync_cfr" translatable="false">pref_key_should_show_sync_cfr</string>
     <!-- A value  of `true` means the cookie banners handling action popup has not been shown yet -->
     <string name="pref_key_should_show_cookie_banners_action_popup" translatable="false">pref_key_should_show_cookie_banners_action_popup</string>
 

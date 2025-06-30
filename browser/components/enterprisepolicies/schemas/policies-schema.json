@@ -640,6 +640,9 @@
         "EmailTracking": {
           "type": "boolean"
         },
+        "SuspectedFingerprinting": {
+          "type": "boolean"
+        },
         "Exceptions": {
           "type": "array",
           "strict": false,
@@ -811,7 +814,13 @@
         "Pocket": {
           "type": "boolean"
         },
+        "Stories": {
+          "type": "boolean"
+        },
         "SponsoredPocket": {
+          "type": "boolean"
+        },
+        "SponsoredStories": {
           "type": "boolean"
         },
         "Snippets": {

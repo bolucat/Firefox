@@ -5,6 +5,7 @@
 package mozilla.components.compose.browser.toolbar.store
 
 import mozilla.components.compose.browser.toolbar.concept.PageOrigin
+import mozilla.components.concept.toolbar.AutocompleteProvider
 import mozilla.components.lib.state.Action
 import mozilla.components.compose.browser.toolbar.concept.Action as ToolbarAction
 
@@ -100,21 +101,40 @@ sealed class BrowserEditToolbarAction : BrowserToolbarAction {
     /**
      * Updates the text of the toolbar that is currently being edited (in "edit" mode).
      *
-     * @property text The text in the toolbar that is being edited.
+     * @property query The text in the toolbar that is being edited.
      */
-    data class UpdateEditText(val text: String) : BrowserEditToolbarAction()
+    data class SearchQueryUpdated(
+        val query: String,
+        val showAsPreselected: Boolean = false,
+    ) : BrowserEditToolbarAction()
 
     /**
-     * Adds an [Action] to be displayed at the start of the URL in the browser edit toolbar.
-     *
-     * @property action The [Action] to be added.
+     * Indicates that a new url suggestion has been autocompleted in the search toolbar.
      */
-    data class AddEditActionStart(val action: ToolbarAction) : BrowserEditToolbarAction()
+    data class UrlSuggestionAutocompleted(val url: String) : BrowserEditToolbarAction()
 
     /**
-     * Adds an [Action] to be displayed at the end of the URL in the browser edit toolbar.
+     * Indicates that a new list of toolbar autocomplete providers is available.
      *
-     * @property action The [Action] to be added.
+     * @property autocompleteProviders The new list of [AutocompleteProvider]s.
      */
-    data class AddEditActionEnd(val action: ToolbarAction) : BrowserEditToolbarAction()
+    data class AutocompleteProvidersUpdated(
+        val autocompleteProviders: List<AutocompleteProvider>,
+    ) : BrowserEditToolbarAction()
+
+    /**
+     * Replaces the currently displayed list of start actions while searching with the provided list of actions.
+     * These are displayed to the start of the input query, in the same bounding box.
+     *
+     * @property actions The new list of [ToolbarAction]s.
+     */
+    data class SearchActionsStartUpdated(val actions: List<ToolbarAction>) : BrowserEditToolbarAction()
+
+    /**
+     * Replaces the currently displayed list of end actions while searching with the provided list of actions.
+     * These are displayed to the end of the input query, in the same bounding box.
+     *
+     * @property actions The new list of [ToolbarAction]s.
+     */
+    data class SearchActionsEndUpdated(val actions: List<ToolbarAction>) : BrowserEditToolbarAction()
 }

@@ -3672,6 +3672,12 @@
   value: true
   mirror: always
 
+# Whether the codebase attribute in an <object> is used as the base URI.
+- name: dom.object_embed.codebase.enabled
+  type: bool
+  value: false
+  mirror: always
+
 # Whether origin trials are enabled.
 - name: dom.origin-trials.enabled
   type: bool
@@ -3865,6 +3871,44 @@
   value: true
   mirror: always
 
+# Should we try to load origin information from the secondary cache?
+#
+# When enabled, quota information may be initialized from metadata files
+# instead of scanning origin directories, if the cached data is considered
+# valid.
+#
+# For the L2 quota info cache to work effectively, the following pref must also
+# be enabled:
+#   dom.quotaManager.originInitialization.updateOriginMetadata
+#
+# That pref ensures that cached metadata is written back to disk after full
+# origin initialization. Without it, usable cached info may become outdated or
+# missing, and this pref alone will have limited effect.
+#
+# Expected behavior for various combinations of the two prefs:
+#
+#   update: false, load: false
+#     -> No L2 cache write or read. Full scan is always used.
+#
+#   update: true, load: false
+#     -> Metadata is updated, but not used. Sets up infrastructure without
+#        activating the performance optimization.
+#
+#   update: false, load: true
+#     -> Cache read is enabled, but metadata files are not continuously
+#        updated, reducing cache effectiveness. Useful only for incremental
+#        rollout and testing purposes.
+#
+#   update: true, load: true
+#     -> Full L2 quota info cache functionality is active. Metadata is
+#        maintained and used for optimized quota initialization.
+#
+# See bug 1953860 for background and additional details.
+- name: dom.quotaManager.loadQuotaFromSecondaryCache
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 # Should we check build ID as part of the cache validation?
 # When enabled, the cache is invalidated on any upgrade (or downgrade),
 # ensuring that changes in how quota usage is calculated can't cause
@@ -3987,6 +4031,21 @@
 - name: dom.quotaManager.groupInitialization.pauseOnIOThreadMs
   type: RelaxedAtomicUint32
   value: 0
+  mirror: always
+
+# Should we update the origin metadata file after full origin initialization?
+# When enabled, the origin metadata file will be updated after origin
+# initialization to ensure it reflects the most recent state.
+# This feature is essential for the functionality of the L2 quota info cache.
+# The preference may be later removed after a successful full rollout of the
+# L2 cache to all users on all platforms in the release channel.
+- name: dom.quotaManager.originInitialization.updateOriginMetadata
+  type: RelaxedAtomicBool
+#if defined(NIGHTLY_BUILD) && defined(XP_LINUX) && !defined(ANDROID)
+  value: true
+#else
+  value: false
+#endif
   mirror: always
 
 # A pref that is used to slow down origin initialization for testing purposes.
@@ -5094,12 +5153,6 @@
   value: false
   mirror: always
 
-# Whether view transitions use webrender for old-capture
-- name: dom.viewTransitions.wr-old-capture
-  type: bool
-  value: true
-  mirror: always
-
 # Is support for WebVR APIs enabled?
 # Disabled everywhere, but not removed.
 - name: dom.vr.enabled
@@ -5580,6 +5633,12 @@
 #else
   value: 1000
 #endif
+  mirror: always
+
+# Always treat icon URLs as UTF8 instead of document charset
+- name: dom.webnotifications.icon_encoding_utf8.enabled
+  type: RelaxedAtomicBool
+  value: true
   mirror: always
 
 # Forcing all notification requests do storage cleanup.
@@ -7556,9 +7615,9 @@
 #endif
 
 #ifdef XP_WIN
-- name: gfx.webrender.layer-compositor-use-composition-surface
+- name: gfx.webrender.layer-compositor-force-composition-surface
   type: bool
-  value: true
+  value: false
   mirror: once
 #endif
 
@@ -11796,6 +11855,16 @@
   value: false
   mirror: once
 
+- name: media.hardware-video-encoding.enabled
+  type: bool
+  value: true
+  mirror: once
+
+- name: media.hardware-video-encoding.force-enabled
+  type: bool
+  value: false
+  mirror: once
+
 # Whether to check the decoder supports recycling.
 - name: media.decoder.recycle.enabled
   type: RelaxedAtomicBool
@@ -12246,6 +12315,14 @@
   type: bool
   value: true
   mirror: once
+
+# When true enables capability enumeration and capture of a fake video capture
+# backend. Platform independent. Note, does not come into effect when the pref
+# `media.navigator.streams.fake` or the `fake` constraint is true.
+- name: media.getusermedia.camera.fake.force
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
 
 # Tell the audio backend to prefer a stream adapted for voice when processing is
 # enabled through constraints (possibly defaults). Whether it has any effect
@@ -16897,11 +16974,7 @@
 #    fetch OCSP to confirm CRLite "Revoked" responses.
 - name: security.pki.crlite_mode
   type: RelaxedAtomicUint32
-#if defined(EARLY_BETA_OR_EARLIER)
   value: 2
-#else
-  value: 3
-#endif
   mirror: always
 
 # The CRLite filter channel to which the user is subscribed.
@@ -18559,12 +18632,6 @@
   value: false
   mirror: always
   rust: true
-
-# Whether non-native titlebar buttons are enabled for lightweight themes.
-- name: widget.gtk.non-native-titlebar-buttons.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
 
 # Whether selection colors for the non-system theme get passed from the system
 # GTK theme.

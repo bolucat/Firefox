@@ -6,10 +6,15 @@
  * Manages updates for a IP Protection panelView in a given browser window.
  */
 export class IPProtectionPanel {
-  static TAGNAME = "ipprotection-panel";
-  static CONTENT_ELEMENT = "#PanelUI-ipprotection-content";
+  static HEADER_TAGNAME = "ipprotection-header";
+  static CONTENT_TAGNAME = "ipprotection-content";
+  static HEADER_ROOT_ELEMENT = "#PanelUI-ipprotection-header";
+  static CONTENT_ROOT_ELEMENT = "#PanelUI-ipprotection-content";
   static CUSTOM_ELEMENTS_SCRIPT =
     "chrome://browser/content/ipprotection/ipprotection-customelements.js";
+
+  static PANEL_ID = "PanelUI-ipprotection";
+  static TITLE_L10N_ID = "ipprotection-title";
   /**
    * Loads the ipprotection custom element script
    * into a given window.
@@ -61,13 +66,19 @@ export class IPProtectionPanel {
    * Updates the current panel component state,
    * if the panel is currently active (showing or not hiding).
    *
+   * @example
+   * panel.setState({
+   *  isSomething: true,
+   * });
+   *
    * @param {object} state
    *    The state object from IPProtectionPanel.
    */
   setState(state) {
-    this.state = state;
+    Object.assign(this.state, state);
+
     if (this.active) {
-      this.updateState(state);
+      this.updateState();
     }
   }
 
@@ -84,7 +95,7 @@ export class IPProtectionPanel {
       return;
     }
 
-    Object.assign(panelEl.state, state);
+    panelEl.state = state;
   }
 
   /**
@@ -101,7 +112,8 @@ export class IPProtectionPanel {
     if (this.panel) {
       this.updateState();
     } else {
-      this.createPanel(panelView);
+      this.#createPanel(panelView);
+      this.#createHeader(panelView);
     }
   }
 
@@ -117,16 +129,39 @@ export class IPProtectionPanel {
    *
    * @param {XULBrowserElement} panelView
    */
-  createPanel(panelView) {
+  #createPanel(panelView) {
     let { ownerDocument } = panelView;
-    let contentEl = panelView.querySelector(IPProtectionPanel.CONTENT_ELEMENT);
-    let panelEl = ownerDocument.createElement(IPProtectionPanel.TAGNAME);
+    let contentRootEl = panelView.querySelector(
+      IPProtectionPanel.CONTENT_ROOT_ELEMENT
+    );
 
-    this.panel = panelEl;
+    let contentEl = ownerDocument.createElement(
+      IPProtectionPanel.CONTENT_TAGNAME
+    );
+    this.panel = contentEl;
 
     this.#addPanelListeners(ownerDocument);
 
-    contentEl.appendChild(panelEl);
+    contentRootEl.appendChild(contentEl);
+  }
+
+  /**
+   * Creates the header for the panel component in the panelView.
+   *
+   * @param {XULBrowserElement} panelView
+   *  The panelView element that the panel header is in.
+   */
+  #createHeader(panelView) {
+    let headerRootEl = panelView.querySelector(
+      IPProtectionPanel.HEADER_ROOT_ELEMENT
+    );
+
+    let headerEl = panelView.ownerDocument.createElement(
+      IPProtectionPanel.HEADER_TAGNAME
+    );
+    headerEl.titleId = IPProtectionPanel.TITLE_L10N_ID;
+
+    headerRootEl.appendChild(headerEl);
   }
 
   /**

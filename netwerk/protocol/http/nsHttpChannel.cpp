@@ -3553,8 +3553,15 @@ nsresult nsHttpChannel::RedirectToNewChannelForAuthRetry() {
 
   return rv;
 }
+
 nsresult nsHttpChannel::StartRedirectChannelToURI(nsIURI* upgradedURI,
                                                   uint32_t flags) {
+  return StartRedirectChannelToURI(upgradedURI, flags, [](nsIChannel*) {});
+}
+
+nsresult nsHttpChannel::StartRedirectChannelToURI(
+    nsIURI* upgradedURI, uint32_t flags,
+    std::function<void(nsIChannel*)>&& aCallback) {
   nsresult rv = NS_OK;
   LOG(("nsHttpChannel::StartRedirectChannelToURI()\n"));
 
@@ -3587,6 +3594,8 @@ nsresult nsHttpChannel::StartRedirectChannelToURI(nsIURI* upgradedURI,
 
   // Inform consumers about this fake redirect
   mRedirectChannel = newChannel;
+
+  aCallback(newChannel);
 
   PushRedirectAsyncFunc(&nsHttpChannel::ContinueAsyncRedirectChannelToURI);
   rv = gHttpHandler->AsyncOnChannelRedirect(this, newChannel, flags);
@@ -7930,6 +7939,27 @@ static already_AddRefed<nsIURI> GetFallbackURI(nsIURI* aURI) {
   return backupURI.forget();
 }
 
+// static
+nsHttpChannel::EssentialDomainCategory
+nsHttpChannel::GetEssentialDomainCategory(nsCString& domain) {
+  if (StringEndsWith(domain, ".addons.mozilla.org"_ns)) {
+    return EssentialDomainCategory::SubAddonsMozillaOrg;
+  }
+  if (domain == "addons.mozilla.org"_ns) {
+    return EssentialDomainCategory::AddonsMozillaOrg;
+  }
+  if (domain == "aus5.mozilla.org"_ns) {
+    return EssentialDomainCategory::Aus5MozillaOrg;
+  }
+  if (domain == "firefox.settings.services.mozilla.com"_ns) {
+    return EssentialDomainCategory::RemoteSettings;
+  }
+  if (domain == "incoming.telemetry.mozilla.com"_ns) {
+    return EssentialDomainCategory::Telemetry;
+  }
+  return EssentialDomainCategory::Other;
+}
+
 NS_IMETHODIMP
 nsHttpChannel::OnStartRequest(nsIRequest* request) {
   nsresult rv;
@@ -8102,6 +8132,13 @@ nsHttpChannel::OnStartRequest(nsIRequest* request) {
     StoreEchConfigUsed(echConfigUsed);
   }
 
+  if (!mCanceled && mTransaction &&
+      mLoadInfo->TriggeringPrincipal()->IsSystemPrincipal()) {
+    // We have to report telemetry before we actually attempt to redirect to
+    // the fallback domain because doing so will change mStatus
+    ReportSystemChannelTelemetry(mStatus);
+  }
+
   // don't enter this block if we're reading from the cache...
   if (NS_SUCCEEDED(mStatus) && !mCachePump && mTransaction) {
     // mTransactionPump doesn't hit OnInputStreamReady and call this until
@@ -8133,20 +8170,34 @@ nsHttpChannel::OnStartRequest(nsIRequest* request) {
   // If this is a system principal request to an essential domain and we
   // currently have connectivity, then check if there's a fallback domain we can
   // use to retry. If so we redirect to the fallback domain.
-  if (StaticPrefs::network_essential_domains_fallback() && NS_FAILED(mStatus) &&
-      !mCanceled && mLoadInfo->TriggeringPrincipal()->IsSystemPrincipal() &&
-      hasConnectivity()) {
-    if (nsCOMPtr<nsIURI> fallbackURI = GetFallbackURI(mURI)) {
-      rv = StartRedirectChannelToURI(
-          fallbackURI, nsIChannelEventSink::REDIRECT_INTERNAL |
-                           nsIChannelEventSink::REDIRECT_TRANSPARENT);
-      if (NS_SUCCEEDED(rv)) {
-        nsCOMPtr<nsIObserverService> obsService =
-            services::GetObserverService();
-        if (obsService)
-          obsService->NotifyObservers(static_cast<nsIHttpChannel*>(this),
-                                      "httpchannel-fallback", nullptr);
-        return NS_OK;
+  if (NS_FAILED(mStatus) && !mCanceled &&
+      mLoadInfo->TriggeringPrincipal()->IsSystemPrincipal()) {
+    if (StaticPrefs::network_essential_domains_fallback() &&
+        hasConnectivity()) {
+      auto passDomainCategory = [&](nsIChannel* aRedirectedChannel) {
+        RefPtr<nsHttpChannel> httpChan = do_QueryObject(aRedirectedChannel);
+        if (httpChan) {
+          nsAutoCString host;
+          mURI->GetHost(host);
+          httpChan->mEssentialDomainCategory =
+              Some(GetEssentialDomainCategory(host));
+        }
+      };
+
+      if (nsCOMPtr<nsIURI> fallbackURI = GetFallbackURI(mURI)) {
+        rv = StartRedirectChannelToURI(
+            fallbackURI,
+            nsIChannelEventSink::REDIRECT_INTERNAL |
+                nsIChannelEventSink::REDIRECT_TRANSPARENT,
+            passDomainCategory);
+        if (NS_SUCCEEDED(rv)) {
+          nsCOMPtr<nsIObserverService> obsService =
+              services::GetObserverService();
+          if (obsService)
+            obsService->NotifyObservers(static_cast<nsIHttpChannel*>(this),
+                                        "httpchannel-fallback", nullptr);
+          return NS_OK;
+        }
       }
     }
   }
@@ -8664,10 +8715,6 @@ nsHttpChannel::OnStopRequest(nsIRequest* request, nsresult status) {
   // completed.
   if (mCanceled || NS_FAILED(mStatus)) status = mStatus;
 
-  if (mLoadInfo->TriggeringPrincipal()->IsSystemPrincipal()) {
-    ReportSystemChannelTelemetry(status);
-  }
-
   if (LoadCachedContentIsPartial()) {
     if (NS_SUCCEEDED(status)) {
       // mTransactionPump should be suspended
@@ -8768,6 +8815,15 @@ nsHttpChannel::OnStopRequest(nsIRequest* request, nsresult status) {
     RecordIPAddressSpaceTelemetry(NS_SUCCEEDED(mStatus), mURI, mLoadInfo,
                                   mPeerAddr);
     RecordLNATelemetry(NS_SUCCEEDED(mStatus), mURI, mLoadInfo, mPeerAddr);
+
+    uint32_t flags;
+    if (mStatus == NS_ERROR_LOCAL_NETWORK_ACCESS_DENIED &&
+        StaticPrefs::network_lna_block_trackers() &&
+        NS_SUCCEEDED(
+            mLoadInfo->GetTriggeringThirdPartyClassificationFlags(&flags)) &&
+        flags != 0) {
+      mozilla::glean::networking::local_network_blocked_tracker.Add(1);
+    }
 
     // If we are using the transaction to serve content, we also save the
     // time since async open in the cache entry so we can compare telemetry
@@ -10588,7 +10644,8 @@ void nsHttpChannel::ReportSystemChannelTelemetry(nsresult status) {
   }
 
   if (!StringEndsWith(domain, ".mozilla.org"_ns) &&
-      !StringEndsWith(domain, ".mozilla.com"_ns)) {
+      !StringEndsWith(domain, ".mozilla.com"_ns) &&
+      mEssentialDomainCategory.isNothing()) {
     return;
   }
 
@@ -10627,35 +10684,79 @@ void nsHttpChannel::ReportSystemChannelTelemetry(nsresult status) {
     label = "http_status";
   }
 
-  if (StringEndsWith(domain, ".addons.mozilla.org"_ns)) {
-    mozilla::glean::network::system_channel_addonversion_status.Get(label).Add(
-        1);
-    return;
+  // This is the first time failure channel
+  if (mEssentialDomainCategory.isNothing()) {
+    auto category = GetEssentialDomainCategory(domain);
+    switch (category) {
+      case EssentialDomainCategory::SubAddonsMozillaOrg: {
+        mozilla::glean::network::system_channel_addonversion_status.Get(label)
+            .Add(1);
+        return;
+      }
+      case EssentialDomainCategory::AddonsMozillaOrg: {
+        mozilla::glean::network::system_channel_addon_status.Get(label).Add(1);
+        return;
+      }
+      case EssentialDomainCategory::Aus5MozillaOrg: {
+        mozilla::glean::network::system_channel_update_status.Get(label).Add(1);
+        return;
+      }
+      case EssentialDomainCategory::RemoteSettings: {
+        mozilla::glean::network::system_channel_remote_settings_status
+            .Get(label)
+            .Add(1);
+        return;
+      }
+      case EssentialDomainCategory::Telemetry: {
+        mozilla::glean::network::system_channel_telemetry_status.Get(label).Add(
+            1);
+        return;
+      }
+      default: {
+        // Not one of the probes we recorded earlier.
+        mozilla::glean::network::system_channel_other_status.Get(label).Add(1);
+        return;
+      }
+    }
   }
 
-  if (domain == "addons.mozilla.org") {
-    mozilla::glean::network::system_channel_addon_status.Get(label).Add(1);
-    return;
+  // This is a retry.
+  switch (mEssentialDomainCategory.ref()) {
+    case EssentialDomainCategory::SubAddonsMozillaOrg: {
+      mozilla::glean::network::retried_system_channel_addonversion_status
+          .Get(label)
+          .Add(1);
+      return;
+    }
+    case EssentialDomainCategory::AddonsMozillaOrg: {
+      mozilla::glean::network::retried_system_channel_addon_status.Get(label)
+          .Add(1);
+      return;
+    }
+    case EssentialDomainCategory::Aus5MozillaOrg: {
+      mozilla::glean::network::retried_system_channel_update_status.Get(label)
+          .Add(1);
+      return;
+    }
+    case EssentialDomainCategory::RemoteSettings: {
+      mozilla::glean::network::retried_system_channel_remote_settings_status
+          .Get(label)
+          .Add(1);
+      return;
+    }
+    case EssentialDomainCategory::Telemetry: {
+      mozilla::glean::network::retried_system_channel_telemetry_status
+          .Get(label)
+          .Add(1);
+      return;
+    }
+    default: {
+      // Not one of the probes we recorded earlier.
+      mozilla::glean::network::retried_system_channel_other_status.Get(label)
+          .Add(1);
+      return;
+    }
   }
-
-  if (domain == "aus5.mozilla.org"_ns) {
-    mozilla::glean::network::system_channel_update_status.Get(label).Add(1);
-    return;
-  }
-
-  if (domain == "firefox.settings.services.mozilla.com"_ns) {
-    mozilla::glean::network::system_channel_remote_settings_status.Get(label)
-        .Add(1);
-    return;
-  }
-
-  if (domain == "incoming.telemetry.mozilla.com"_ns) {
-    mozilla::glean::network::system_channel_telemetry_status.Get(label).Add(1);
-    return;
-  }
-
-  // Not one of the probes we recorded earlier.
-  mozilla::glean::network::system_channel_other_status.Get(label).Add(1);
 }
 
 NS_IMETHODIMP

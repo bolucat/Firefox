@@ -11318,7 +11318,9 @@ const PersonalizedCard = ({
   }, /*#__PURE__*/external_React_default().createElement("img", {
     src: wavingFox,
     alt: ""
-  }), /*#__PURE__*/external_React_default().createElement("h2", null, messageData.content.cardTitle), /*#__PURE__*/external_React_default().createElement("p", null, messageData.content.cardMessage), /*#__PURE__*/external_React_default().createElement("moz-button", {
+  }), /*#__PURE__*/external_React_default().createElement("h2", null, messageData.content.cardTitle), /*#__PURE__*/external_React_default().createElement("p", null, messageData.content.cardMessage), /*#__PURE__*/external_React_default().createElement("div", {
+    className: "personalized-card-cta-wrapper"
+  }, /*#__PURE__*/external_React_default().createElement("moz-button", {
     type: "primary",
     class: "personalized-card-cta",
     onClick: () => onToggleClick("open-personalization-panel")
@@ -11329,7 +11331,7 @@ const PersonalizedCard = ({
     onLinkClick: () => {
       handleClick("link-click");
     }
-  }, messageData.content.linkText)));
+  }, messageData.content.linkText))));
 };
 ;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/FeatureHighlight/FollowSectionButtonHighlight.jsx
 /* This Source Code Form is subject to the terms of the Mozilla Public
@@ -11537,6 +11539,7 @@ function MessageWrapper({
 
 
 
+
 // Prefs
 const CardSections_PREF_SECTIONS_CARDS_ENABLED = "discoverystream.sections.cards.enabled";
 const PREF_SECTIONS_CARDS_THUMBS_UP_DOWN_ENABLED = "discoverystream.sections.cards.thumbsUpDown.enabled";
@@ -11553,7 +11556,11 @@ const CardSections_PREF_LEADERBOARD_POSITION = "newtabAdSize.leaderboard.positio
 const CardSections_PREF_BILLBOARD_POSITION = "newtabAdSize.billboard.position";
 const PREF_REFINED_CARDS_ENABLED = "discoverystream.refinedCardsLayout.enabled";
 const PREF_INFERRED_PERSONALIZATION_USER = "discoverystream.sections.personalization.inferred.user.enabled";
-function getLayoutData(responsiveLayouts, index, refinedCardsLayout) {
+const CardSections_PREF_TRENDING_SEARCH = "trendingSearch.enabled";
+const CardSections_PREF_TRENDING_SEARCH_SYSTEM = "system.trendingSearch.enabled";
+const CardSections_PREF_SEARCH_ENGINE = "trendingSearch.defaultSearchEngine";
+const CardSections_PREF_TRENDING_SEARCH_VARIANT = "trendingSearch.variant";
+function getLayoutData(responsiveLayouts, index, refinedCardsLayout, sectionKey) {
   let layoutData = {
     classNames: [],
     imageSizes: {}
@@ -11561,9 +11568,19 @@ function getLayoutData(responsiveLayouts, index, refinedCardsLayout) {
   responsiveLayouts.forEach(layout => {
     layout.tiles.forEach((tile, tileIndex) => {
       if (tile.position === index) {
-        layoutData.classNames.push(`col-${layout.columnCount}-${tile.size}`);
-        layoutData.classNames.push(`col-${layout.columnCount}-position-${tileIndex}`);
-        layoutData.imageSizes[layout.columnCount] = tile.size;
+        // When trending searches should be placed in the `top_stories_section`,
+        // we update the layout so that the first item is always a medium card to make
+        // room for the trending search widget
+        if (sectionKey === "top_stories_section" && tileIndex === 0) {
+          //do something
+          layoutData.classNames.push(`col-${layout.columnCount}-medium`);
+          layoutData.classNames.push(`col-${layout.columnCount}-position-${tileIndex}`);
+          layoutData.imageSizes[layout.columnCount] = "medium";
+        } else {
+          layoutData.classNames.push(`col-${layout.columnCount}-${tile.size}`);
+          layoutData.classNames.push(`col-${layout.columnCount}-position-${tileIndex}`);
+          layoutData.imageSizes[layout.columnCount] = tile.size;
+        }
 
         // The API tells us whether the tile should show the excerpt or not.
         // Apply extra styles accordingly.
@@ -11638,6 +11655,9 @@ function CardSection({
   const selectedTopics = prefs[CardSections_PREF_TOPICS_SELECTED];
   const availableTopics = prefs[CardSections_PREF_TOPICS_AVAILABLE];
   const refinedCardsLayout = prefs[PREF_REFINED_CARDS_ENABLED];
+  const trendingEnabled = prefs[CardSections_PREF_TRENDING_SEARCH] && prefs[CardSections_PREF_TRENDING_SEARCH_SYSTEM] && prefs[CardSections_PREF_SEARCH_ENGINE]?.toLowerCase() === "google";
+  const trendingVariant = prefs[CardSections_PREF_TRENDING_SEARCH_VARIANT];
+  const shouldShowTrendingSearch = trendingEnabled && trendingVariant === "b";
   const {
     saveToPocketCard
   } = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.DiscoveryStream);
@@ -11769,16 +11789,17 @@ function CardSection({
   }, subtitle)), mayHaveSectionsPersonalization ? sectionContextWrapper : null), /*#__PURE__*/external_React_default().createElement("div", {
     className: `ds-section-grid ds-card-grid`
   }, section.data.slice(0, maxTile).map((rec, index) => {
+    const layoutData = getLayoutData(responsiveLayouts, index, refinedCardsLayout, shouldShowTrendingSearch && sectionKey);
     const {
       classNames,
       imageSizes
-    } = getLayoutData(responsiveLayouts, index, refinedCardsLayout);
+    } = layoutData;
     if (!rec || rec.placeholder) {
       return /*#__PURE__*/external_React_default().createElement(PlaceholderDSCard, {
         key: `dscard-${index}`
       });
     }
-    return /*#__PURE__*/external_React_default().createElement(DSCard, {
+    const card = /*#__PURE__*/external_React_default().createElement(DSCard, {
       key: `dscard-${rec.id}`,
       pos: rec.pos,
       flightId: rec.flight_id,
@@ -11830,6 +11851,9 @@ function CardSection({
       sectionFollowed: following,
       isTimeSensitive: rec.isTimeSensitive
     });
+    return index === 0 && shouldShowTrendingSearch && sectionKey === "top_stories_section" ? [card, /*#__PURE__*/external_React_default().createElement(TrendingSearches, {
+      key: "trending"
+    })] : [card];
   })));
 }
 function CardSections({
@@ -14469,7 +14493,9 @@ function DownloadMobilePromoHighlight({
     dispatch(actionCreators.DiscoveryStreamUserEvent({
       event: "FEATURE_HIGHLIGHT_DISMISS",
       source: "FEATURE_HIGHLIGHT",
-      value: DownloadMobilePromoHighlight_FEATURE_ID
+      value: {
+        feature: DownloadMobilePromoHighlight_FEATURE_ID
+      }
     }));
     handleDismiss();
     handleBlock();
@@ -14481,7 +14507,9 @@ function DownloadMobilePromoHighlight({
       dispatch(actionCreators.DiscoveryStreamUserEvent({
         event: "FEATURE_HIGHLIGHT_IMPRESSION",
         source: "FEATURE_HIGHLIGHT",
-        value: DownloadMobilePromoHighlight_FEATURE_ID
+        value: {
+          feature: DownloadMobilePromoHighlight_FEATURE_ID
+        }
       }));
     }
   }, [dispatch, isIntersecting]);
@@ -15027,7 +15055,9 @@ class BaseContent extends (external_React_default()).PureComponent {
         this.props.dispatch(actionCreators.DiscoveryStreamUserEvent({
           event: "FEATURE_HIGHLIGHT_OPEN",
           source: "FEATURE_HIGHLIGHT",
-          value: "FEATURE_DOWNLOAD_MOBILE_PROMO"
+          value: {
+            feature: "FEATURE_DOWNLOAD_MOBILE_PROMO"
+          }
         }));
       }
       return {

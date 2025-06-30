@@ -18,13 +18,13 @@ import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.verify
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.setMain
 import mozilla.components.browser.state.action.ContentAction.UpdateLoadingStateAction
 import mozilla.components.browser.state.action.ContentAction.UpdateProgressAction
 import mozilla.components.browser.state.action.ContentAction.UpdateSecurityInfoAction
+import mozilla.components.browser.state.action.ContentAction.UpdateUrlAction
 import mozilla.components.browser.state.action.TabListAction.AddTabAction
 import mozilla.components.browser.state.action.TabListAction.RemoveTabAction
 import mozilla.components.browser.state.ext.getUrl
@@ -48,6 +48,9 @@ import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteractio
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteraction.BrowserToolbarMenu
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteraction.CombinedEventAndMenu
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarMenuItem.BrowserToolbarMenuButton
+import mozilla.components.compose.browser.toolbar.store.BrowserToolbarMenuItem.BrowserToolbarMenuButton.ContentDescription.StringResContentDescription
+import mozilla.components.compose.browser.toolbar.store.BrowserToolbarMenuItem.BrowserToolbarMenuButton.Icon.DrawableResIcon
+import mozilla.components.compose.browser.toolbar.store.BrowserToolbarMenuItem.BrowserToolbarMenuButton.Text.StringResText
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarMenuItem.BrowserToolbarMenuDivider
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarStore
 import mozilla.components.compose.browser.toolbar.store.ProgressBarConfig
@@ -60,15 +63,14 @@ import mozilla.components.feature.session.SessionUseCases
 import mozilla.components.feature.session.TrackingProtectionUseCases
 import mozilla.components.feature.tabs.TabsUseCases
 import mozilla.components.lib.publicsuffixlist.PublicSuffixList
+import mozilla.components.support.ktx.util.URLStringUtils
 import mozilla.components.support.test.ext.joinBlocking
 import mozilla.components.support.test.robolectric.testContext
 import mozilla.components.support.test.rule.MainCoroutineRule
 import mozilla.components.support.test.rule.runTestOnMain
 import mozilla.components.support.utils.ClipboardHandler
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -94,6 +96,7 @@ import org.mozilla.fenix.components.appstate.AppAction
 import org.mozilla.fenix.components.appstate.AppAction.CurrentTabClosed
 import org.mozilla.fenix.components.appstate.AppAction.SnackbarAction.SnackbarDismissed
 import org.mozilla.fenix.components.appstate.AppAction.URLCopiedToClipboard
+import org.mozilla.fenix.components.appstate.AppAction.UpdateSearchBeingActiveState
 import org.mozilla.fenix.components.appstate.AppState
 import org.mozilla.fenix.components.appstate.OrientationMode.Landscape
 import org.mozilla.fenix.components.appstate.OrientationMode.Portrait
@@ -113,6 +116,7 @@ import org.mozilla.fenix.components.toolbar.TabCounterInteractions.AddNewPrivate
 import org.mozilla.fenix.components.toolbar.TabCounterInteractions.AddNewTab
 import org.mozilla.fenix.components.toolbar.TabCounterInteractions.CloseCurrentTab
 import org.mozilla.fenix.components.usecases.FenixBrowserUseCases
+import org.mozilla.fenix.components.usecases.FenixBrowserUseCases.Companion.ABOUT_HOME
 import org.mozilla.fenix.ext.isLargeWindow
 import org.mozilla.fenix.ext.nav
 import org.mozilla.fenix.ext.settings
@@ -137,7 +141,7 @@ class BrowserToolbarMiddlewareTest {
     private val thumbnailsFeature: BrowserThumbnails = mockk()
     private val readerModeController: ReaderModeController = mockk()
     private val useCases: UseCases = mockk()
-    private val settings: Settings = mockk {
+    private val settings: Settings = mockk(relaxed = true) {
         every { shouldUseBottomToolbar } returns true
     }
     private val tabId = "test"
@@ -147,8 +151,18 @@ class BrowserToolbarMiddlewareTest {
     private val permissionsStorage: SitePermissionsStorage = mockk()
     private val cookieBannersStorage: CookieBannersStorage = mockk()
     private val trackingProtectionUseCases: TrackingProtectionUseCases = mockk()
-    private val publicSuffixList: PublicSuffixList = mockk {
-        every { getPublicSuffixPlusOne(any()) } returns CompletableDeferred(null)
+    private val publicSuffixList = PublicSuffixList(testContext)
+
+    @Test
+    fun `WHEN initializing the toolbar THEN update state to display mode`() = runTestOnMain {
+        val appStore: AppStore = mockk(relaxed = true)
+        val middleware = buildMiddleware(appStore = appStore).updateDependencies()
+
+        val toolbarStore = BrowserToolbarStore(
+            middleware = listOf(middleware),
+        )
+
+        verify { appStore.dispatch(UpdateSearchBeingActiveState(false)) }
     }
 
     @Test
@@ -225,7 +239,7 @@ class BrowserToolbarMiddlewareTest {
     }
 
     @Test
-    fun `GIVEN WHEN initializing the toolbar THEN setup showing the website origin`() {
+    fun `WHEN initializing the toolbar THEN setup showing the website origin`() {
         val initialTab = createTab("test.com")
         val browserStore = BrowserStore(
             BrowserState(
@@ -248,6 +262,45 @@ class BrowserToolbarMiddlewareTest {
 
         val originConfiguration = toolbarStore.state.displayState.pageOrigin
         assertEquals(expectedConfiguration, originConfiguration)
+    }
+
+    @Test
+    fun `GIVEN ABOUT_HOME URL WHEN the page origin is modified THEN update the page origin`() = runTestOnMain {
+        Dispatchers.setMain(StandardTestDispatcher())
+
+        val tab = createTab("https://mozilla.com/")
+        val browserStore = BrowserStore(
+            BrowserState(
+                tabs = listOf(tab),
+                selectedTabId = tab.id,
+            ),
+        )
+        val middleware = buildMiddleware(browserStore = browserStore).updateDependencies()
+        val toolbarStore = BrowserToolbarStore(
+            middleware = listOf(middleware),
+        )
+        testScheduler.advanceUntilIdle()
+
+        val pageOrigin = PageOrigin(
+            hint = R.string.search_hint,
+            title = null,
+            url = URLStringUtils.toDisplayUrl(tab.getUrl()!!).toString(),
+            registrableDomainIndexRange = 0 to 11,
+            contextualMenuOptions = ContextualMenuOption.entries,
+            onClick = OriginClicked,
+        )
+        assertEquals(pageOrigin, toolbarStore.state.displayState.pageOrigin)
+
+        browserStore.dispatch(UpdateUrlAction(sessionId = tab.id, url = ABOUT_HOME)).joinBlocking()
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(
+            pageOrigin.copy(
+                url = "",
+                registrableDomainIndexRange = null,
+            ),
+            toolbarStore.state.displayState.pageOrigin,
+        )
     }
 
     @Test
@@ -506,9 +559,16 @@ class BrowserToolbarMiddlewareTest {
     }
 
     @Test
-    fun ` WHEN the page origin is clicked THEN enter is edit mode`() {
+    fun `GIVEN no search terms for the current tab WHEN the page origin is clicked THEN start search in the home screen`() {
         val navController: NavController = mockk(relaxed = true)
         val browsingModeManager = SimpleBrowsingModeManager(Normal)
+        val currentTab = createTab("test.com")
+        val browserStore = BrowserStore(
+            BrowserState(
+                tabs = listOf(currentTab),
+                selectedTabId = currentTab.id,
+            ),
+        )
         val middleware = buildMiddleware(browserStore = browserStore).updateDependencies(
             navController = navController,
             browsingModeManager = browsingModeManager,
@@ -516,11 +576,17 @@ class BrowserToolbarMiddlewareTest {
         val toolbarStore = BrowserToolbarStore(
             middleware = listOf(middleware),
         )
-        assertFalse(toolbarStore.state.isEditMode())
 
         toolbarStore.dispatch(toolbarStore.state.displayState.pageOrigin.onClick as BrowserToolbarAction)
 
-        assertTrue(toolbarStore.state.isEditMode())
+        verify {
+            navController.navigate(
+                BrowserFragmentDirections.actionGlobalHome(
+                    focusOnAddressBar = true,
+                    sessionToStartSearchFor = browserStore.state.selectedTabId,
+                ),
+            )
+        }
     }
 
     @Test
@@ -807,7 +873,8 @@ class BrowserToolbarMiddlewareTest {
         assertEquals(Normal, browsingModeManager.mode)
         verify(exactly = 0) {
             tabsUseCases.removeTab(any(), any())
-            appStore.dispatch(any())
+            appStore.dispatch(CurrentTabClosed(true))
+            appStore.dispatch(CurrentTabClosed(false))
         }
         verify {
             navController.navigate(
@@ -851,7 +918,8 @@ class BrowserToolbarMiddlewareTest {
         assertEquals(Private, browsingModeManager.mode)
         verify(exactly = 0) {
             tabsUseCases.removeTab(any(), any())
-            appStore.dispatch(any())
+            appStore.dispatch(CurrentTabClosed(true))
+            appStore.dispatch(CurrentTabClosed(false))
         }
         verify {
             navController.navigate(
@@ -899,7 +967,8 @@ class BrowserToolbarMiddlewareTest {
         assertEquals(Private, browsingModeManager.mode)
         verify(exactly = 0) {
             tabsUseCases.removeTab(any(), any())
-            appStore.dispatch(any())
+            appStore.dispatch(CurrentTabClosed(true))
+            appStore.dispatch(CurrentTabClosed(false))
             navController.navigate(
                 BrowserFragmentDirections.actionGlobalHome(
                     sessionToDelete = currentTab.id,
@@ -953,7 +1022,8 @@ class BrowserToolbarMiddlewareTest {
         assertEquals(Private, browsingModeManager.mode)
         verify(exactly = 0) {
             tabsUseCases.removeTab(any(), any())
-            appStore.dispatch(any())
+            appStore.dispatch(CurrentTabClosed(true))
+            appStore.dispatch(CurrentTabClosed(false))
             browserScreenStore.dispatch(any())
         }
         verify {
@@ -1122,11 +1192,11 @@ class BrowserToolbarMiddlewareTest {
             browserStore = browserStore,
             useCases = useCases,
             clipboard = mockk(),
+            publicSuffixList = publicSuffixList,
             settings = settings,
             permissionsStorage = permissionsStorage,
             cookieBannersStorage = cookieBannersStorage,
             trackingProtectionUseCases = trackingProtectionUseCases,
-            publicSuffixList = publicSuffixList,
         ).apply {
             updateLifecycleDependencies(
                 LifecycleDependencies(
@@ -1177,11 +1247,11 @@ class BrowserToolbarMiddlewareTest {
             browserStore = browserStore,
             useCases = useCases,
             clipboard = mockk(),
+            publicSuffixList = publicSuffixList,
             settings = settings,
             permissionsStorage = permissionsStorage,
             cookieBannersStorage = cookieBannersStorage,
             trackingProtectionUseCases = trackingProtectionUseCases,
-            publicSuffixList = publicSuffixList,
         ).apply {
             updateLifecycleDependencies(
                 LifecycleDependencies(
@@ -1251,11 +1321,11 @@ class BrowserToolbarMiddlewareTest {
             browserStore = browserStore,
             useCases = useCases,
             clipboard = mockk(),
+            publicSuffixList = publicSuffixList,
             settings = settings,
             permissionsStorage = permissionsStorage,
             cookieBannersStorage = cookieBannersStorage,
             trackingProtectionUseCases = trackingProtectionUseCases,
-            publicSuffixList = publicSuffixList,
         ).apply {
             updateLifecycleDependencies(
                 LifecycleDependencies(
@@ -1316,11 +1386,11 @@ class BrowserToolbarMiddlewareTest {
                 browserStore = browserStore,
                 useCases = useCases,
                 clipboard = mockk(),
+                publicSuffixList = publicSuffixList,
                 settings = settings,
                 permissionsStorage = permissionsStorage,
                 cookieBannersStorage = cookieBannersStorage,
                 trackingProtectionUseCases = trackingProtectionUseCases,
-                publicSuffixList = publicSuffixList,
             ).apply {
                 updateLifecycleDependencies(
                     LifecycleDependencies(
@@ -1381,10 +1451,10 @@ class BrowserToolbarMiddlewareTest {
                 useCases = useCases,
                 clipboard = mockk(),
                 settings = settings,
+                publicSuffixList = publicSuffixList,
                 permissionsStorage = permissionsStorage,
                 cookieBannersStorage = cookieBannersStorage,
                 trackingProtectionUseCases = trackingProtectionUseCases,
-                publicSuffixList = publicSuffixList,
             ).apply {
                 updateLifecycleDependencies(
                     LifecycleDependencies(
@@ -1458,12 +1528,12 @@ class BrowserToolbarMiddlewareTest {
                 browserStore = browserStore,
                 useCases = useCases,
                 clipboard = mockk(),
+                publicSuffixList = publicSuffixList,
                 settings = settings,
                 sessionUseCases = sessionUseCases,
                 permissionsStorage = permissionsStorage,
                 cookieBannersStorage = cookieBannersStorage,
                 trackingProtectionUseCases = trackingProtectionUseCases,
-                publicSuffixList = publicSuffixList,
             ).apply {
                 updateLifecycleDependencies(
                     LifecycleDependencies(
@@ -1530,12 +1600,12 @@ class BrowserToolbarMiddlewareTest {
                 browserStore = browserStore,
                 useCases = useCases,
                 clipboard = mockk(),
+                publicSuffixList = publicSuffixList,
                 settings = settings,
                 sessionUseCases = sessionUseCases,
                 permissionsStorage = permissionsStorage,
                 cookieBannersStorage = cookieBannersStorage,
                 trackingProtectionUseCases = trackingProtectionUseCases,
-                publicSuffixList = publicSuffixList,
             ).apply {
                 updateLifecycleDependencies(
                     LifecycleDependencies(
@@ -1621,7 +1691,7 @@ class BrowserToolbarMiddlewareTest {
         ).updateDependencies()
         every { tab.content.securityInfo.secure } returns true
         val expectedSecurityIndicator = ActionButtonRes(
-            drawableResId = R.drawable.mozac_ic_lock_24,
+            drawableResId = R.drawable.mozac_ic_shield_checkmark_24,
             contentDescription = R.string.mozac_browser_toolbar_content_description_site_info,
             onClick = StartPageActions.SiteInfoClicked,
         )
@@ -1644,7 +1714,7 @@ class BrowserToolbarMiddlewareTest {
         ).updateDependencies()
         every { tab.content.securityInfo.secure } returns false
         val expectedSecurityIndicator = ActionButtonRes(
-            drawableResId = R.drawable.mozac_ic_broken_lock,
+            drawableResId = R.drawable.mozac_ic_shield_slash_24,
             contentDescription = R.string.mozac_browser_toolbar_content_description_site_info,
             onClick = StartPageActions.SiteInfoClicked,
         )
@@ -1675,12 +1745,12 @@ class BrowserToolbarMiddlewareTest {
                 useCases = useCases,
             ).updateDependencies()
             val expectedSecureIndicator = ActionButtonRes(
-                drawableResId = R.drawable.mozac_ic_lock_24,
+                drawableResId = R.drawable.mozac_ic_shield_checkmark_24,
                 contentDescription = R.string.mozac_browser_toolbar_content_description_site_info,
                 onClick = StartPageActions.SiteInfoClicked,
             )
             val expectedInsecureIndicator = ActionButtonRes(
-                drawableResId = R.drawable.mozac_ic_broken_lock,
+                drawableResId = R.drawable.mozac_ic_shield_slash_24,
                 contentDescription = R.string.mozac_browser_toolbar_content_description_site_info,
                 onClick = StartPageActions.SiteInfoClicked,
             )
@@ -1789,24 +1859,25 @@ class BrowserToolbarMiddlewareTest {
         onLongClick = BrowserToolbarMenu {
             listOf(
                 BrowserToolbarMenuButton(
-                    iconResource = iconsR.drawable.mozac_ic_plus_24,
-                    text = R.string.mozac_browser_menu_new_tab,
-                    contentDescription = R.string.mozac_browser_menu_new_tab,
+                    icon = DrawableResIcon(iconsR.drawable.mozac_ic_plus_24),
+                    text = StringResText(R.string.mozac_browser_menu_new_tab),
+                    contentDescription = StringResContentDescription(R.string.mozac_browser_menu_new_tab),
                     onClick = AddNewTab,
                 ),
+
                 BrowserToolbarMenuButton(
-                    iconResource = iconsR.drawable.mozac_ic_private_mode_24,
-                    text = R.string.mozac_browser_menu_new_private_tab,
-                    contentDescription = R.string.mozac_browser_menu_new_private_tab,
+                    icon = DrawableResIcon(iconsR.drawable.mozac_ic_private_mode_24),
+                    text = StringResText(R.string.mozac_browser_menu_new_private_tab),
+                    contentDescription = StringResContentDescription(R.string.mozac_browser_menu_new_private_tab),
                     onClick = AddNewPrivateTab,
                 ),
 
                 BrowserToolbarMenuDivider,
 
                 BrowserToolbarMenuButton(
-                    iconResource = iconsR.drawable.mozac_ic_cross_24,
-                    text = R.string.mozac_close_tab,
-                    contentDescription = R.string.mozac_close_tab,
+                    icon = DrawableResIcon(iconsR.drawable.mozac_ic_cross_24),
+                    text = StringResText(R.string.mozac_close_tab),
+                    contentDescription = StringResContentDescription(R.string.mozac_close_tab),
                     onClick = CloseCurrentTab,
                 ),
             ).apply {
@@ -1835,22 +1906,22 @@ class BrowserToolbarMiddlewareTest {
         browserStore: BrowserStore = this.browserStore,
         useCases: UseCases = this.useCases,
         clipboard: ClipboardHandler = this.clipboard,
+        publicSuffixList: PublicSuffixList = this.publicSuffixList,
         settings: Settings = this.settings,
         permissionsStorage: SitePermissionsStorage = this.permissionsStorage,
         cookieBannersStorage: CookieBannersStorage = this.cookieBannersStorage,
         trackingProtectionUseCases: TrackingProtectionUseCases = this.trackingProtectionUseCases,
-        publicSuffixList: PublicSuffixList = this.publicSuffixList,
     ) = BrowserToolbarMiddleware(
         appStore = appStore,
         browserScreenStore = browserScreenStore,
         browserStore = browserStore,
         useCases = useCases,
         clipboard = clipboard,
+        publicSuffixList = publicSuffixList,
         settings = settings,
         permissionsStorage = permissionsStorage,
         cookieBannersStorage = cookieBannersStorage,
         trackingProtectionUseCases = trackingProtectionUseCases,
-        publicSuffixList = publicSuffixList,
     )
 
     private fun BrowserToolbarMiddleware.updateDependencies(

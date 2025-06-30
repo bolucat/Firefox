@@ -259,6 +259,7 @@
 #include "mozilla/dom/ViewTransition.h"
 #include "mozilla/dom/WakeLockJS.h"
 #include "mozilla/dom/WakeLockSentinel.h"
+#include "mozilla/dom/WebIdentityHandler.h"
 #include "mozilla/dom/WindowBinding.h"
 #include "mozilla/dom/WindowContext.h"
 #include "mozilla/dom/WindowGlobalChild.h"
@@ -3008,7 +3009,7 @@ void Document::DisconnectNodeTree() {
 
     while (nsCOMPtr<nsIContent> content = GetLastChild()) {
       nsMutationGuard::DidMutate();
-      MutationObservers::NotifyContentWillBeRemoved(this, content, nullptr);
+      MutationObservers::NotifyContentWillBeRemoved(this, content, {});
       DisconnectChild(content);
       if (content == mCachedRootElement) {
         // Immediately clear mCachedRootElement, now that it's been removed
@@ -7749,7 +7750,7 @@ void Document::RemoveChildNode(nsIContent* aKid, bool aNotify,
     // Notify early so that we can clear the cached element after notifying,
     // without having to slow down nsINode::RemoveChildNode.
     if (aNotify) {
-      MutationObservers::NotifyContentWillBeRemoved(this, aKid, aState);
+      MutationObservers::NotifyContentWillBeRemoved(this, aKid, {aState});
       aNotify = false;
     }
 
@@ -8740,7 +8741,7 @@ void Document::RemoveCustomContentContainer() {
     container->QueueDevtoolsAnonymousEvent(/* aIsRemove = */ true);
   }
   if (PresShell* ps = GetPresShell()) {
-    ps->ContentWillBeRemoved(container, nullptr);
+    ps->ContentWillBeRemoved(container, {});
   }
   container->UnbindFromTree();
 }
@@ -8787,7 +8788,7 @@ void Document::CreateCustomContentContainerIfNeeded() {
     container->QueueDevtoolsAnonymousEvent(/* aIsRemove = */ false);
   }
   if (PresShell* ps = GetPresShell()) {
-    ps->ContentAppended(container);
+    ps->ContentAppended(container, {});
   }
   for (auto& anonContent : mAnonymousContents) {
     BindAnonymousContent(*anonContent, *container);
@@ -14764,13 +14765,15 @@ void DevToolsMutationObserver::AttributeChanged(Element* aElement,
   FireEvent(aElement, u"devtoolsattrmodified"_ns);
 }
 
-void DevToolsMutationObserver::ContentAppended(nsIContent* aFirstNewContent) {
+void DevToolsMutationObserver::ContentAppended(nsIContent* aFirstNewContent,
+                                               const ContentAppendInfo& aInfo) {
   for (nsIContent* c = aFirstNewContent; c; c = c->GetNextSibling()) {
-    ContentInserted(c);
+    ContentInserted(c, aInfo);
   }
 }
 
-void DevToolsMutationObserver::ContentInserted(nsIContent* aChild) {
+void DevToolsMutationObserver::ContentInserted(nsIContent* aChild,
+                                               const ContentInsertInfo&) {
   FireEvent(aChild, u"devtoolschildinserted"_ns);
 }
 
@@ -17798,6 +17801,8 @@ void Document::SetUserHasInteracted() {
           ("Document %p has been interacted by user.", this));
 
   // We maybe need to update the user-interaction permission.
+  bool alreadyHadUserInteractionPermission =
+      ContentBlockingUserInteraction::Exists(NodePrincipal());
   MaybeStoreUserInteractionAsPermission();
 
   // For purposes of reducing irrelevant session history entries on
@@ -17836,7 +17841,9 @@ void Document::SetUserHasInteracted() {
     wgc->SendUpdateDocumentHasUserInteracted(true);
   }
 
-  MaybeAllowStorageForOpenerAfterUserInteraction();
+  if (alreadyHadUserInteractionPermission) {
+    MaybeAllowStorageForOpenerAfterUserInteraction();
+  }
 }
 
 BrowsingContext* Document::GetBrowsingContext() const {
@@ -18034,17 +18041,25 @@ void Document::MaybeAllowStorageForOpenerAfterUserInteraction() {
     }
   }
 
-  // We don't care when the asynchronous work finishes here.
-  // Without e10s or fission enabled this is run in the parent process.
-  if (XRE_IsParentProcess()) {
-    Unused << StorageAccessAPIHelper::AllowAccessForOnParentProcess(
-        NodePrincipal(), openerBC,
-        ContentBlockingNotifier::eOpenerAfterUserInteraction);
-  } else {
-    Unused << StorageAccessAPIHelper::AllowAccessForOnChildProcess(
-        NodePrincipal(), openerBC,
-        ContentBlockingNotifier::eOpenerAfterUserInteraction);
-  }
+  RefPtr<Document> self(this);
+  WebIdentityHandler* identityHandler = inner->GetOrCreateWebIdentityHandler();
+  MOZ_ASSERT(identityHandler);
+  identityHandler->IsContinuationWindow()->Then(
+      GetCurrentSerialEventTarget(), __func__,
+      [self, openerBC](const MozPromise<bool, nsresult,
+                                        true>::ResolveOrRejectValue& result) {
+        if (!result.IsResolve() || !result.ResolveValue()) {
+          if (XRE_IsParentProcess()) {
+            Unused << StorageAccessAPIHelper::AllowAccessForOnParentProcess(
+                self->NodePrincipal(), openerBC,
+                ContentBlockingNotifier::eOpenerAfterUserInteraction);
+          } else {
+            Unused << StorageAccessAPIHelper::AllowAccessForOnChildProcess(
+                self->NodePrincipal(), openerBC,
+                ContentBlockingNotifier::eOpenerAfterUserInteraction);
+          }
+        }
+      });
 }
 
 namespace {

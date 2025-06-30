@@ -133,6 +133,9 @@ class WebrtcVideoConduit : public VideoSessionConduit,
 
   RefPtr<GenericPromise> Shutdown() override;
 
+  // Call thread only.
+  bool IsShutdown() const override;
+
   bool Denoising() const { return mDenoising; }
 
   uint8_t SpatialLayers() const { return mSpatialLayers; }
@@ -255,10 +258,17 @@ class WebrtcVideoConduit : public VideoSessionConduit,
   // Video Latency Test averaging filter
   void VideoLatencyUpdate(uint64_t aNewSample);
 
+  // Call thread only, called before DeleteSendStream if streams need recreation
+  void MemoSendStreamStats();
+
   void CreateSendStream();
   void DeleteSendStream();
   void CreateRecvStream();
   void DeleteRecvStream();
+
+  // Call thread only.
+  // Should only be called from Shutdown()
+  void SetIsShutdown();
 
   void DeliverPacket(rtc::CopyOnWriteBuffer packet, PacketType type) override;
 
@@ -497,6 +507,16 @@ class WebrtcVideoConduit : public VideoSessionConduit,
   // reads on the main thread.
   std::vector<webrtc::RtpSource> mRtpSources;
 
+  // Cache of stats that holds the send stream stats during the stream
+  // recreation process. After DeleteSendStream() then CreateSendStream() and
+  // before the codecs are initialized there is a gap where the send stream
+  // stats have no substreams. This holds onto the stats until the codecs are
+  // initialized and the send stream is recreated.
+  // It is mutable because we want to be able to invalidate the cache when a
+  // GetStats call is made.
+  // Call thread only.
+  mutable Maybe<webrtc::VideoSendStream::Stats> mTransitionalSendStreamStats;
+
   // Thread safe
   Atomic<bool> mTransportActive = Atomic<bool>(false);
   MediaEventProducer<void> mRtcpByeEvent;
@@ -510,6 +530,10 @@ class WebrtcVideoConduit : public VideoSessionConduit,
   MediaEventListener mReceiverRtpEventListener;   // Rtp-receiving pipeline
   MediaEventListener mReceiverRtcpEventListener;  // Rctp-receiving pipeline
   MediaEventListener mSenderRtcpEventListener;    // Rctp-sending pipeline
+
+  // Whether the conduit is shutdown or not.
+  // Call thread only.
+  bool mIsShutdown = false;
 };
 }  // namespace mozilla
 

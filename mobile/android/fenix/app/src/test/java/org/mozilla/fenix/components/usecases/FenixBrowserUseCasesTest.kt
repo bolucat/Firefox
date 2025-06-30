@@ -27,6 +27,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mozilla.fenix.R
+import org.mozilla.fenix.components.usecases.FenixBrowserUseCases.Companion.ABOUT_HOME
 
 @RunWith(AndroidJUnit4::class)
 class FenixBrowserUseCasesTest {
@@ -313,8 +314,7 @@ class FenixBrowserUseCasesTest {
 
         verify {
             addNewTabUseCase.invoke(
-                url = "about:home",
-                startLoading = false,
+                url = ABOUT_HOME,
                 title = testContext.getString(R.string.tab_tray_homepage_tab),
                 private = true,
             )
@@ -324,10 +324,21 @@ class FenixBrowserUseCasesTest {
 
         verify {
             addNewTabUseCase.invoke(
-                url = "about:home",
-                startLoading = false,
+                url = ABOUT_HOME,
                 title = testContext.getString(R.string.tab_tray_homepage_tab),
                 private = false,
+            )
+        }
+    }
+
+    @Test
+    fun `WHEN navigate to homepage use case is invoked THEN load the ABOUT_HOME URL`() {
+        useCases.navigateToHomepage()
+
+        verify {
+            loadUrlUseCase.invoke(
+                url = ABOUT_HOME,
+                flags = EngineSession.LoadUrlFlags.none(),
             )
         }
     }

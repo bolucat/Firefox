@@ -1255,8 +1255,8 @@ BufferOffset MacroAssemblerARM::ma_dataTransferN(LoadStore ls, int size,
   }
 }
 
-void MacroAssemblerARM::ma_pop(Register r) {
-  as_dtr(IsLoad, 32, PostIndex, r, DTRAddr(sp, DtrOffImm(4)));
+BufferOffset MacroAssemblerARM::ma_pop(Register r) {
+  return as_dtr(IsLoad, 32, PostIndex, r, DTRAddr(sp, DtrOffImm(4)));
 }
 
 void MacroAssemblerARM::ma_popn_pc(Imm32 n, AutoRegisterScope& scratch,
@@ -1698,7 +1698,7 @@ BufferOffset MacroAssemblerARM::ma_vstr(VFPRegister src, Register base,
 }
 
 bool MacroAssemblerARMCompat::buildOOLFakeExitFrame(void* fakeReturnAddr) {
-  asMasm().PushFrameDescriptor(FrameType::IonJS);  // descriptor_
+  asMasm().Push(FrameDescriptor(FrameType::IonJS));  // descriptor_
   asMasm().Push(ImmPtr(fakeReturnAddr));
   asMasm().Push(FramePointer);
   return true;

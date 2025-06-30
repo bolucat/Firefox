@@ -22,6 +22,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
 class ProfilesDatastoreServiceClass {
   #connection = null;
   #asyncShutdownBlocker = null;
+  #asyncShutdownBarrier = null;
   #initialized = false;
   #storeID = null;
   #initPromise = null;
@@ -45,6 +46,16 @@ class ProfilesDatastoreServiceClass {
   }
 
   /**
+   * Return the AsyncShutdown client for the ProfilesDatastoreService.
+   *
+   * Consumers can register blockers with this barrier that will block the
+   * ProfilesDatastoreService from closing its connection.
+   */
+  get shutdown() {
+    return this.#asyncShutdownBarrier?.client;
+  }
+
+  /**
    * Create or update tables in this shared cross-profile database.
    *
    * Includes simple forward-only migration support which applies any new
@@ -61,7 +72,7 @@ class ProfilesDatastoreServiceClass {
   async createTables() {
     // TODO: (Bug 1902320) Handle exceptions on connection opening
     let currentVersion = await this.#connection.getSchemaVersion();
-    if (currentVersion == 5) {
+    if (currentVersion == 6) {
       return;
     }
 
@@ -152,6 +163,30 @@ class ProfilesDatastoreServiceClass {
       });
 
       await this.#connection.setSchemaVersion(5);
+    }
+
+    if (currentVersion < 6) {
+      await this.#connection.executeTransaction(async () => {
+        const createMessageImpressionsTable = `
+          CREATE TABLE IF NOT EXISTS "MessagingSystemMessageImpressions" (
+            id                  INTEGER PRIMARY KEY,
+            messageId           TEXT UNIQUE NOT NULL,
+            impressions         JSONB
+          );
+        `;
+
+        const createMessageBlocklistTable = `
+          CREATE TABLE IF NOT EXISTS "MessagingSystemMessageBlocklist" (
+            id                  INTEGER PRIMARY KEY,
+            messageId           TEXT UNIQUE NOT NULL
+          );
+        `;
+
+        await this.#connection.execute(createMessageImpressionsTable);
+        await this.#connection.execute(createMessageBlocklistTable);
+      });
+
+      await this.#connection.setSchemaVersion(6);
     }
   }
 
@@ -256,6 +291,9 @@ class ProfilesDatastoreServiceClass {
 
   constructor() {
     this.#asyncShutdownBlocker = () => this.uninit();
+    this.#asyncShutdownBarrier = new lazy.AsyncShutdown.Barrier(
+      "ProfilesDatastoreService: waiting for clients to finish pending writes"
+    );
     this.#profileService = Cc[
       "@mozilla.org/toolkit/profile-service;1"
     ].getService(Ci.nsIToolkitProfileService);
@@ -316,6 +354,10 @@ class ProfilesDatastoreServiceClass {
   }
 
   async uninit() {
+    if (this.#asyncShutdownBarrier) {
+      await this.#asyncShutdownBarrier.wait();
+    }
+
     lazy.AsyncShutdown.profileChangeTeardown.removeBlocker(
       this.#asyncShutdownBlocker
     );

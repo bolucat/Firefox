@@ -357,7 +357,8 @@ FilenameTypeAndDetails nsContentSecurityUtils::FilenameToFilenameType(
   if (StringBeginsWith(fileName, "resource://"_ns)) {
     if (StringBeginsWith(fileName, "resource://usl-ucjs/"_ns) ||
         StringBeginsWith(fileName, "resource://sfm-ucjs/"_ns) ||
-        StringBeginsWith(fileName, "resource://cpmanager-legacy/"_ns)) {
+        StringBeginsWith(fileName, "resource://cpmanager-legacy/"_ns) ||
+        StringBeginsWith(fileName, "resource://pwa/utils/"_ns)) {
       return FilenameTypeAndDetails(kSuspectedUserChromeJS,
                                     Some(StripQueryRef(fileName)));
     }
@@ -673,18 +674,6 @@ bool nsContentSecurityUtils::IsEvalAllowed(JSContext* cx,
              "enabled"));
     return true;
   }
-
-#ifndef NIGHTLY_BUILD
-  DetectJsHacks();
-  if (MOZ_UNLIKELY(sJSHacksPresent)) {
-    MOZ_LOG(
-        sCSMLog, LogLevel::Debug,
-        ("Allowing eval() %s because some "
-         "JS hacks may be present.",
-         (aIsSystemPrincipal ? "with System Principal" : "in parent process")));
-    return true;
-  }
-#endif
 
   if (XRE_IsE10sParentProcess() &&
       !StaticPrefs::extensions_webextensions_remote()) {

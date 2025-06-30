@@ -14,7 +14,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
 
 /**
  * Tests that clicking toolbar dropmarker opens the panel,
- * and the panel contains a `<ipprotection-panel>` element.
+ * and the panel contains a `<ipprotection-content>` element.
  */
 add_task(async function click_toolbar_dropmarker() {
   let dropmarker = document.getElementById(
@@ -30,10 +30,18 @@ add_task(async function click_toolbar_dropmarker() {
   dropmarker.click();
   await panelShownPromise;
 
-  let component = panelView.querySelector(lazy.IPProtectionPanel.TAGNAME);
-  ok(
+  let header = panelView.querySelector(lazy.IPProtectionPanel.HEADER_TAGNAME);
+  Assert.ok(
+    BrowserTestUtils.isVisible(header),
+    "ipprotection-header component should be present"
+  );
+
+  let component = panelView.querySelector(
+    lazy.IPProtectionPanel.CONTENT_TAGNAME
+  );
+  Assert.ok(
     BrowserTestUtils.isVisible(component),
-    "ipprotection-panel component should be present"
+    "ipprotection-content component should be present"
   );
 
   // Close the panel

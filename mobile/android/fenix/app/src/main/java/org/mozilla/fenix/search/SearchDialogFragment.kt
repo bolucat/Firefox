@@ -84,7 +84,6 @@ import org.mozilla.fenix.GleanMetrics.Events
 import org.mozilla.fenix.GleanMetrics.VoiceSearch
 import org.mozilla.fenix.HomeActivity
 import org.mozilla.fenix.R
-import org.mozilla.fenix.automotive.isAndroidAutomotiveAvailable
 import org.mozilla.fenix.browser.tabstrip.isTabStripEnabled
 import org.mozilla.fenix.components.appstate.AppAction
 import org.mozilla.fenix.components.search.BOOKMARKS_SEARCH_ENGINE_ID
@@ -105,7 +104,6 @@ import org.mozilla.fenix.navigation.DefaultNavControllerProvider
 import org.mozilla.fenix.navigation.NavControllerProvider
 import org.mozilla.fenix.nimbus.FxNimbus
 import org.mozilla.fenix.search.awesomebar.AwesomeBarView
-import org.mozilla.fenix.search.awesomebar.toSearchProviderState
 import org.mozilla.fenix.search.ext.searchEngineShortcuts
 import org.mozilla.fenix.search.toolbar.IncreasedTapAreaActionDecorator
 import org.mozilla.fenix.search.toolbar.SearchSelectorMenu
@@ -198,7 +196,7 @@ class SearchDialogFragment : AppCompatDialogFragment(), UserInteractionHandler {
         }
 
         requireComponents.appStore.dispatch(
-            AppAction.UpdateSearchDialogVisibility(isVisible = true),
+            AppAction.UpdateSearchBeingActiveState(isSearchActive = true),
         )
     }
 
@@ -253,7 +251,6 @@ class SearchDialogFragment : AppCompatDialogFragment(), UserInteractionHandler {
                 searchEngine = requireComponents.core.store.state.search.searchEngines.firstOrNull {
                     it.id == args.searchEngine
                 },
-                isAndroidAutomotiveAvailable = requireContext().isAndroidAutomotiveAvailable(),
             ),
         )
 
@@ -304,6 +301,7 @@ class SearchDialogFragment : AppCompatDialogFragment(), UserInteractionHandler {
             interactor,
             awesomeBar,
             fromHomeFragment,
+            browsingModeManager = activity.browsingModeManager,
         )
 
         binding.awesomeBar.setOnTouchListener { _, _ ->
@@ -563,7 +561,7 @@ class SearchDialogFragment : AppCompatDialogFragment(), UserInteractionHandler {
     }
 
     private fun observeSuggestionProvidersState() = consumeFlow(store) { flow ->
-        flow.map { state -> state.toSearchProviderState() }
+        flow
             .distinctUntilChanged()
             .collect { state -> awesomeBarView.updateSuggestionProvidersVisibility(state) }
     }
@@ -635,7 +633,6 @@ class SearchDialogFragment : AppCompatDialogFragment(), UserInteractionHandler {
 
     override fun onDestroyView() {
         super.onDestroyView()
-        awesomeBarView.onDestroy()
         _awesomeBarView = null
         nullableInteractor = null
         controller?.apply {
@@ -671,7 +668,7 @@ class SearchDialogFragment : AppCompatDialogFragment(), UserInteractionHandler {
         }
 
         requireComponents.appStore.dispatch(
-            AppAction.UpdateSearchDialogVisibility(isVisible = false),
+            AppAction.UpdateSearchBeingActiveState(isSearchActive = false),
         )
     }
 

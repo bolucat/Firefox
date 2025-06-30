@@ -1256,6 +1256,18 @@ export var Policies = {
           param.Locked
         );
       }
+      if ("SuspectedFingerprinting" in param) {
+        PoliciesUtils.setDefaultPref(
+          "privacy.fingerprintingProtection",
+          param.SuspectedFingerprinting,
+          param.Locked
+        );
+        PoliciesUtils.setDefaultPref(
+          "privacy.fingerprintingProtection.pbmode",
+          param.SuspectedFingerprinting,
+          param.Locked
+        );
+      }
     },
   },
 
@@ -1491,6 +1503,44 @@ export var Policies = {
         PoliciesUtils.setDefaultPref(
           "browser.newtabpage.activity-stream.feeds.section.highlights",
           param.Highlights,
+          param.Locked
+        );
+      }
+      if ("Pocket" in param) {
+        PoliciesUtils.setDefaultPref(
+          "browser.newtabpage.activity-stream.feeds.system.topstories",
+          param.Pocket,
+          param.Locked
+        );
+        PoliciesUtils.setDefaultPref(
+          "browser.newtabpage.activity-stream.feeds.section.topstories",
+          param.Pocket,
+          param.Locked
+        );
+      }
+      if ("Stories" in param) {
+        PoliciesUtils.setDefaultPref(
+          "browser.newtabpage.activity-stream.feeds.system.topstories",
+          param.Stories,
+          param.Locked
+        );
+        PoliciesUtils.setDefaultPref(
+          "browser.newtabpage.activity-stream.feeds.section.topstories",
+          param.Stories,
+          param.Locked
+        );
+      }
+      if ("SponsoredPocket" in param) {
+        PoliciesUtils.setDefaultPref(
+          "browser.newtabpage.activity-stream.showSponsored",
+          param.SponsoredPocket,
+          param.Locked
+        );
+      }
+      if ("SponsoredStories" in param) {
+        PoliciesUtils.setDefaultPref(
+          "browser.newtabpage.activity-stream.showSponsored",
+          param.SponsoredStories,
           param.Locked
         );
       }

@@ -108,7 +108,6 @@ import org.mozilla.geckoview.WebExtension as GeckoWebExtension
 
 typealias GeckoInstallException = org.mozilla.geckoview.WebExtension.InstallException
 
-@Suppress("DEPRECATION")
 @RunWith(AndroidJUnit4::class)
 class GeckoEngineTest {
 
@@ -303,7 +302,7 @@ class GeckoEngineTest {
         // Specifying no ua-string default should result in GeckoView's default.
         assertEquals(GeckoSession.getDefaultUserAgent(), engine.settings.userAgentString)
         // It also should be possible to read and set a new default.
-        engine.settings.userAgentString = engine.settings.userAgentString + "-test"
+        engine.settings.userAgentString += "-test"
         assertEquals(GeckoSession.getDefaultUserAgent() + "-test", engine.settings.userAgentString)
 
         assertEquals(null, engine.settings.trackingProtectionPolicy)
@@ -344,6 +343,7 @@ class GeckoEngineTest {
         assertEquals(contentBlockingSettings.queryParameterStrippingPrivateBrowsingEnabled, engine.settings.queryParameterStrippingPrivateBrowsing)
         assertEquals(contentBlockingSettings.queryParameterStrippingAllowList[0], engine.settings.queryParameterStrippingAllowList)
         assertEquals(contentBlockingSettings.queryParameterStrippingStripList[0], engine.settings.queryParameterStrippingStripList)
+        assertEquals(contentBlockingSettings.bounceTrackingProtectionMode, EngineSession.BounceTrackingProtectionMode.ENABLED.mode)
 
         assertEquals(contentBlockingSettings.emailTrackerBlockingPrivateBrowsingEnabled, engine.settings.emailTrackerBlockingPrivateBrowsing)
 
@@ -415,6 +415,88 @@ class GeckoEngineTest {
 
         verify(mockRuntime.settings.contentBlocking).setEnhancedTrackingProtectionLevel(
             ContentBlocking.EtpLevel.STRICT,
+        )
+    }
+
+    @Test
+    fun `WHEN a recommended tracking protection policy is set THEN Bounce Tracking Protection must be in standby mode`() {
+        val mockRuntime = mock<GeckoRuntime>()
+        whenever(mockRuntime.settings).thenReturn(mock())
+        whenever(mockRuntime.settings.contentBlocking).thenReturn(mock())
+
+        val engine = GeckoEngine(testContext, runtime = mockRuntime)
+
+        engine.settings.trackingProtectionPolicy = TrackingProtectionPolicy.recommended()
+
+        verify(mockRuntime.settings.contentBlocking).setBounceTrackingProtectionMode(
+            EngineSession.BounceTrackingProtectionMode.ENABLED_STANDBY.mode,
+        )
+    }
+
+    @Test
+    fun `WHEN a strict tracking protection policy is set THEN Bounce Tracking Protection must be enabled`() {
+        val mockRuntime = mock<GeckoRuntime>()
+        whenever(mockRuntime.settings).thenReturn(mock())
+        whenever(mockRuntime.settings.contentBlocking).thenReturn(mock())
+
+        val engine = GeckoEngine(testContext, runtime = mockRuntime)
+
+        engine.settings.trackingProtectionPolicy = TrackingProtectionPolicy.strict()
+
+        verify(mockRuntime.settings.contentBlocking).setBounceTrackingProtectionMode(
+            EngineSession.BounceTrackingProtectionMode.ENABLED.mode,
+        )
+    }
+
+    @Test
+    fun `WHEN a custom tracking protection policy is set THEN Bounce Tracking Protection must be in standby mode`() {
+        val mockRuntime = mock<GeckoRuntime>()
+        whenever(mockRuntime.settings).thenReturn(mock())
+        whenever(mockRuntime.settings.contentBlocking).thenReturn(mock())
+
+        val engine = GeckoEngine(testContext, runtime = mockRuntime)
+
+        engine.settings.trackingProtectionPolicy = TrackingProtectionPolicy.select(
+            // Set only an unrelated setting.
+            strictSocialTrackingProtection = true,
+        )
+
+        verify(mockRuntime.settings.contentBlocking).setBounceTrackingProtectionMode(
+            EngineSession.BounceTrackingProtectionMode.ENABLED_STANDBY.mode,
+        )
+    }
+
+    @Test
+    fun `WHEN a custom tracking protection policy enables BTP THEN Bounce Tracking Protection must be enabled`() {
+        val mockRuntime = mock<GeckoRuntime>()
+        whenever(mockRuntime.settings).thenReturn(mock())
+        whenever(mockRuntime.settings.contentBlocking).thenReturn(mock())
+
+        val engine = GeckoEngine(testContext, runtime = mockRuntime)
+
+        engine.settings.trackingProtectionPolicy = TrackingProtectionPolicy.select(
+            // Set only an unrelated setting.
+            strictSocialTrackingProtection = true,
+            bounceTrackingProtectionMode = EngineSession.BounceTrackingProtectionMode.ENABLED,
+        )
+
+        verify(mockRuntime.settings.contentBlocking).setBounceTrackingProtectionMode(
+            EngineSession.BounceTrackingProtectionMode.ENABLED.mode,
+        )
+    }
+
+    @Test
+    fun `WHEN a none tracking protection policy is set THEN Bounce Tracking Protection must be in standby mode`() {
+        val mockRuntime = mock<GeckoRuntime>()
+        whenever(mockRuntime.settings).thenReturn(mock())
+        whenever(mockRuntime.settings.contentBlocking).thenReturn(mock())
+
+        val engine = GeckoEngine(testContext, runtime = mockRuntime)
+
+        engine.settings.trackingProtectionPolicy = TrackingProtectionPolicy.none()
+
+        verify(mockRuntime.settings.contentBlocking).setBounceTrackingProtectionMode(
+            EngineSession.BounceTrackingProtectionMode.ENABLED_STANDBY.mode,
         )
     }
 
@@ -1625,6 +1707,7 @@ class GeckoEngineTest {
         val extension = mockNativeWebExtension("test", "uri")
         val permissions = arrayOf("p1", "p2")
         val origins = arrayOf("p3", "p4")
+        val dataCollectionPermissions = arrayOf("p5", "p6")
         val webExtensionsDelegate: WebExtensionDelegate = mock()
         val engine = GeckoEngine(context, runtime = runtime)
         engine.registerWebExtensionDelegate(webExtensionsDelegate)
@@ -1632,7 +1715,7 @@ class GeckoEngineTest {
         val geckoDelegateCaptor = argumentCaptor<WebExtensionController.PromptDelegate>()
         verify(webExtensionController).promptDelegate = geckoDelegateCaptor.capture()
 
-        val result = geckoDelegateCaptor.value.onOptionalPrompt(extension, permissions, origins)
+        val result = geckoDelegateCaptor.value.onOptionalPrompt(extension, permissions, origins, dataCollectionPermissions)
         assertNotNull(result)
 
         val extensionCaptor = argumentCaptor<WebExtension>()
@@ -1641,6 +1724,7 @@ class GeckoEngineTest {
             extensionCaptor.capture(),
             eq(permissions.toList()),
             eq(origins.toList()),
+            eq(dataCollectionPermissions.toList()),
             onPermissionsGrantedCaptor.capture(),
         )
         val current = extensionCaptor.value as mozilla.components.browser.engine.gecko.webextension.GeckoWebExtension
@@ -1659,6 +1743,7 @@ class GeckoEngineTest {
         val extension = mockNativeWebExtension("test", "uri")
         val permissions = arrayOf("p1", "p2")
         val origins = emptyArray<String>()
+        val dataCollectionPermissions = emptyArray<String>()
         val webExtensionsDelegate: WebExtensionDelegate = mock()
         val engine = GeckoEngine(context, runtime = runtime)
         engine.registerWebExtensionDelegate(webExtensionsDelegate)
@@ -1666,7 +1751,12 @@ class GeckoEngineTest {
         val geckoDelegateCaptor = argumentCaptor<WebExtensionController.PromptDelegate>()
         verify(webExtensionController).promptDelegate = geckoDelegateCaptor.capture()
 
-        val result = geckoDelegateCaptor.value.onOptionalPrompt(extension, permissions, origins)
+        val result = geckoDelegateCaptor.value.onOptionalPrompt(
+            extension,
+            permissions,
+            origins,
+            dataCollectionPermissions,
+        )
         assertNotNull(result)
 
         val extensionCaptor = argumentCaptor<WebExtension>()
@@ -1675,6 +1765,7 @@ class GeckoEngineTest {
             extensionCaptor.capture(),
             eq(permissions.toList()),
             eq(origins.toList()),
+            eq(dataCollectionPermissions.toList()),
             onPermissionsGrantedCaptor.capture(),
         )
         val current = extensionCaptor.value as mozilla.components.browser.engine.gecko.webextension.GeckoWebExtension
@@ -3208,7 +3299,7 @@ class GeckoEngineTest {
         val geckoResult = GeckoResult<TranslationSupport>()
         val toLanguage = Language("de", "German")
         val fromLanguage = Language("es", "Spanish")
-        val geckoResultValue = TranslationSupport(listOf<Language>(fromLanguage), listOf<Language>(toLanguage))
+        val geckoResultValue = TranslationSupport(listOf(fromLanguage), listOf(toLanguage))
 
         // simulate successful response call
         `when`(
@@ -3283,7 +3374,7 @@ class GeckoEngineTest {
         val onSuccess: () -> Unit = { onSuccessCalled = true }
         val onError: (Throwable) -> Unit = { onErrorCalled = true }
 
-        var options = ModelManagementOptions(null, ModelOperation.DOWNLOAD, OperationLevel.ALL)
+        val options = ModelManagementOptions(null, ModelOperation.DOWNLOAD, OperationLevel.ALL)
         val geckoResult = GeckoResult<Void>()
 
         // simulate successful response call
@@ -3319,7 +3410,7 @@ class GeckoEngineTest {
         val onSuccess: () -> Unit = { onSuccessCalled = true }
         val onError: (Throwable) -> Unit = { onErrorCalled = true }
 
-        var options = ModelManagementOptions(null, ModelOperation.DOWNLOAD, OperationLevel.ALL)
+        val options = ModelManagementOptions(null, ModelOperation.DOWNLOAD, OperationLevel.ALL)
         val geckoResult = GeckoResult<Void>()
 
         // simulate unsuccessful response call

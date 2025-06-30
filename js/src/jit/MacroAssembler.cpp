@@ -3871,7 +3871,7 @@ void MacroAssembler::generateBailoutTail(Register scratch,
             FramePointer);
 
     // Enter exit frame for the FinishBailoutToBaseline call.
-    pushFrameDescriptor(FrameType::BaselineJS);
+    push(FrameDescriptor(FrameType::BaselineJS));
     push(Address(bailoutInfo, offsetof(BaselineBailoutInfo, resumeAddr)));
     push(FramePointer);
     // No GC things to mark on the stack, push a bare token.
@@ -3927,25 +3927,42 @@ void MacroAssembler::loadJitCodeRaw(Register func, Register dest) {
   loadPtr(Address(dest, BaseScript::offsetOfJitCodeRaw()), dest);
 }
 
-void MacroAssembler::loadBaselineJitCodeRaw(Register func, Register dest,
-                                            Label* failure) {
-  // Load JitScript
+void MacroAssembler::loadJitCodeRawNoIon(Register func, Register dest,
+                                         Register scratch) {
+  // This is used when calling a trial-inlined script using a private
+  // ICScript to collect callsite-specific CacheIR. Ion doesn't use
+  // the baseline ICScript, so we want to enter at the highest
+  // available non-Ion tier.
+
+  Label useJitCodeRaw, done;
   loadPrivate(Address(func, JSFunction::offsetOfJitInfoOrScript()), dest);
-  if (failure) {
-    branchIfScriptHasNoJitScript(dest, failure);
-  }
-  loadJitScript(dest, dest);
+  branchIfScriptHasNoJitScript(dest, &useJitCodeRaw);
+  loadJitScript(dest, scratch);
 
-  // Load BaselineScript
-  loadPtr(Address(dest, JitScript::offsetOfBaselineScript()), dest);
-  if (failure) {
-    static_assert(DisabledScript < CompilingScript);
-    branchPtr(Assembler::BelowOrEqual, dest, ImmWord(CompilingScript), failure);
-  }
+  // If we have an IonScript, jitCodeRaw_ will point to it, so we have
+  // to load the baseline entry out of the BaselineScript.
+  branchPtr(Assembler::BelowOrEqual,
+            Address(scratch, JitScript::offsetOfIonScript()),
+            ImmPtr(IonCompilingScriptPtr), &useJitCodeRaw);
+  loadPtr(Address(scratch, JitScript::offsetOfBaselineScript()), scratch);
 
-  // Load Baseline jitcode
-  loadPtr(Address(dest, BaselineScript::offsetOfMethod()), dest);
-  loadPtr(Address(dest, JitCode::offsetOfCode()), dest);
+#ifdef DEBUG
+  // If we have an IonScript, we must also have a BaselineScript.
+  Label hasBaselineScript;
+  branchPtr(Assembler::Above, scratch, ImmPtr(BaselineCompilingScriptPtr),
+            &hasBaselineScript);
+  assumeUnreachable("JitScript has IonScript without BaselineScript");
+  bind(&hasBaselineScript);
+#endif
+
+  loadPtr(Address(scratch, BaselineScript::offsetOfMethod()), scratch);
+  loadPtr(Address(scratch, JitCode::offsetOfCode()), dest);
+  jump(&done);
+
+  // If there's no IonScript, we can just use jitCodeRaw_.
+  bind(&useJitCodeRaw);
+  loadPtr(Address(dest, BaseScript::offsetOfJitCodeRaw()), dest);
+  bind(&done);
 }
 
 void MacroAssembler::loadBaselineFramePtr(Register framePtr, Register dest) {
@@ -3953,10 +3970,6 @@ void MacroAssembler::loadBaselineFramePtr(Register framePtr, Register dest) {
     movePtr(framePtr, dest);
   }
   subPtr(Imm32(BaselineFrame::Size()), dest);
-}
-
-void MacroAssembler::storeICScriptInJSContext(Register icScript) {
-  storePtr(icScript, AbsoluteAddress(runtime()->addressOfInlinedICScript()));
 }
 
 void MacroAssembler::handleFailure() {
@@ -5814,6 +5827,13 @@ static ReturnCallTrampolineData MakeReturnCallTrampoline(MacroAssembler& masm) {
   masm.append(wasm::CodeRangeUnwindInfo::UseFpLr, masm.currentOffset());
   masm.Mov(PseudoStackPointer64, vixl::sp);
   masm.abiret();
+#elif defined(JS_CODEGEN_MIPS64) || defined(JS_CODEGEN_LOONG64)
+  masm.loadPtr(Address(FramePointer, wasm::Frame::returnAddressOffset()), ra);
+  masm.loadPtr(Address(FramePointer, wasm::Frame::callerFPOffset()),
+               FramePointer);
+  masm.append(wasm::CodeRangeUnwindInfo::UseFpLr, masm.currentOffset());
+  masm.addToStackPtr(Imm32(sizeof(wasm::Frame)));
+  masm.abiret();
 #else
   masm.pop(FramePointer);
   masm.append(wasm::CodeRangeUnwindInfo::UseFp, masm.currentOffset());
@@ -6045,7 +6065,15 @@ static void CollapseWasmFrameSlow(MacroAssembler& masm,
       tempForRA);
   masm.append(desc, CodeOffset(data.trampolineOffset));
 #else
+
+#  if defined(JS_CODEGEN_MIPS64) || defined(JS_CODEGEN_LOONG64)
+  // intermediate values in ra can break the unwinder.
+  masm.mov(&data.trampoline, ScratchRegister);
+  // thus, modify ra in only one instruction.
+  masm.mov(ScratchRegister, tempForRA);
+#  else
   masm.mov(&data.trampoline, tempForRA);
+#  endif
 
   masm.addCodeLabel(data.trampoline);
   // Add slow trampoline callsite description, to be annotated in
@@ -7873,12 +7901,12 @@ void MacroAssembler::emitPreBarrierFastPath(JSRuntime* rt, MIRType type,
   andPtr(Imm32(gc::ChunkMask), temp1);
   rshiftPtr(Imm32(3), temp1);
 
-  static_assert(gc::MarkBitmapWordBits == JS_BITS_PER_WORD,
+  static_assert(gc::ChunkMarkBitmap::BitsPerWord == JS_BITS_PER_WORD,
                 "Calculation below relies on this");
 
   // Load the bitmap word in temp2.
   //
-  // word = chunk.bitmap[bit / MarkBitmapWordBits];
+  // word = chunk.bitmap[bit / WordBits];
 
   // Fold the adjustment for the fact that arenas don't start at the beginning
   // of the chunk into the offset to the chunk bitmap.
@@ -7898,8 +7926,8 @@ void MacroAssembler::emitPreBarrierFastPath(JSRuntime* rt, MIRType type,
 
   // Load the mask in temp1.
   //
-  // mask = uintptr_t(1) << (bit % MarkBitmapWordBits);
-  andPtr(Imm32(gc::MarkBitmapWordBits - 1), temp3);
+  // mask = uintptr_t(1) << (bit % WordBits);
+  andPtr(Imm32(gc::ChunkMarkBitmap::BitsPerWord - 1), temp3);
   move32(Imm32(1), temp1);
 #ifdef JS_CODEGEN_X64
   MOZ_ASSERT(temp3 == rcx);

@@ -2650,19 +2650,24 @@ nsresult ScriptLoader::FillCompileOptionsForRequest(
   return NS_OK;
 }
 
-/* static */
 void ScriptLoader::CalculateBytecodeCacheFlag(ScriptLoadRequest* aRequest) {
   using mozilla::TimeDuration;
   using mozilla::TimeStamp;
 
-  if (aRequest->IsStencil()) {
-    aRequest->MarkPassedConditionForBytecodeEncoding();
-    return;
-  }
-
   if (aRequest->IsModuleRequest() &&
       aRequest->AsModuleRequest()->mModuleType != JS::ModuleType::JavaScript) {
     aRequest->MarkSkippedBytecodeEncoding();
+    return;
+  }
+
+  if (aRequest->IsStencil()) {
+    aRequest->MarkPassedConditionForBytecodeEncoding();
+
+    if (aRequest->IsModuleRequest() &&
+        !aRequest->AsModuleRequest()->IsTopLevel()) {
+      MOZ_ASSERT(!aRequest->isInList());
+      mBytecodeEncodableDependencyModules.AppendElement(aRequest);
+    }
     return;
   }
 
@@ -2752,6 +2757,12 @@ void ScriptLoader::CalculateBytecodeCacheFlag(ScriptLoadRequest* aRequest) {
 
   LOG(("ScriptLoadRequest (%p): Bytecode-cache: Trigger encoding.", aRequest));
   aRequest->MarkPassedConditionForBytecodeEncoding();
+
+  if (aRequest->IsModuleRequest() &&
+      !aRequest->AsModuleRequest()->IsTopLevel()) {
+    MOZ_ASSERT(!aRequest->isInList());
+    mBytecodeEncodableDependencyModules.AppendElement(aRequest);
+  }
 }
 
 class MOZ_RAII AutoSetProcessingScriptTag {
@@ -3204,27 +3215,33 @@ nsresult ScriptLoader::MaybePrepareForBytecodeEncodingAfterExecute(
 
 bool ScriptLoader::IsAlreadyHandledForBytecodeEncodingPreparation(
     ScriptLoadRequest* aRequest) {
+  MOZ_ASSERT_IF(aRequest->isInList(),
+                mBytecodeEncodingQueue.Contains(aRequest));
   return aRequest->isInList() || !aRequest->mCacheInfo;
 }
 
 void ScriptLoader::MaybePrepareModuleForBytecodeEncodingBeforeExecute(
     JSContext* aCx, ModuleLoadRequest* aRequest) {
-  {
-    ModuleScript* moduleScript = aRequest->mModuleScript;
-    JS::Rooted<JSObject*> module(aCx, moduleScript->ModuleRecord());
-
-    if (aRequest->IsMarkedForBytecodeEncoding()) {
-      // This module is imported multiple times, and already marked.
-      return;
-    }
-
-    if (aRequest->PassedConditionForBytecodeEncoding()) {
-      aRequest->MarkModuleForBytecodeEncoding();
-    }
+  if (aRequest->IsMarkedForBytecodeEncoding()) {
+    // This module is imported multiple times, and already marked.
+    return;
   }
 
-  for (ModuleLoadRequest* childRequest : aRequest->mImports) {
-    MaybePrepareModuleForBytecodeEncodingBeforeExecute(aCx, childRequest);
+  if (aRequest->PassedConditionForBytecodeEncoding()) {
+    aRequest->MarkModuleForBytecodeEncoding();
+  }
+
+  for (auto* r = mBytecodeEncodableDependencyModules.getFirst(); r;
+       r = r->getNext()) {
+    auto* dep = r->AsModuleRequest();
+    MOZ_ASSERT(dep->PassedConditionForBytecodeEncoding());
+
+    if (dep->GetRootModule() != aRequest) {
+      continue;
+    }
+    MOZ_ASSERT(!dep->IsMarkedForBytecodeEncoding());
+
+    dep->MarkModuleForBytecodeEncoding();
   }
 }
 
@@ -3237,8 +3254,21 @@ nsresult ScriptLoader::MaybePrepareModuleForBytecodeEncodingAfterExecute(
 
   aRv = MaybePrepareForBytecodeEncodingAfterExecute(aRequest, aRv);
 
-  for (ModuleLoadRequest* childRequest : aRequest->mImports) {
-    aRv = MaybePrepareModuleForBytecodeEncodingAfterExecute(childRequest, aRv);
+  for (auto* r = mBytecodeEncodableDependencyModules.getFirst(); r;) {
+    auto* dep = r->AsModuleRequest();
+    MOZ_ASSERT(dep->PassedConditionForBytecodeEncoding());
+
+    r = r->getNext();
+
+    if (dep->GetRootModule() != aRequest) {
+      continue;
+    }
+
+    mBytecodeEncodableDependencyModules.Remove(dep);
+
+    if (!IsAlreadyHandledForBytecodeEncodingPreparation(dep)) {
+      aRv = MaybePrepareForBytecodeEncodingAfterExecute(dep, aRv);
+    }
   }
 
   return aRv;
@@ -3606,6 +3636,10 @@ void ScriptLoader::GiveUpBytecodeEncoding() {
 
     request->DropBytecode();
     request->DropBytecodeCacheReferences();
+  }
+
+  while (!mBytecodeEncodableDependencyModules.isEmpty()) {
+    (void)mBytecodeEncodableDependencyModules.StealFirst();
   }
 }
 

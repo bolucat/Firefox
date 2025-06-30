@@ -104,13 +104,16 @@ struct OriginMetadata : public PrincipalMetadata {
 
 struct OriginStateMetadata {
   int64_t mLastAccessTime;
+  int32_t mLastMaintenanceDate;
   bool mAccessed;
   bool mPersisted;
 
   OriginStateMetadata() = default;
 
-  OriginStateMetadata(int64_t aLastAccessTime, bool aAccessed, bool aPersisted)
+  OriginStateMetadata(int64_t aLastAccessTime, int32_t aLastMaintenanceDate,
+                      bool aAccessed, bool aPersisted)
       : mLastAccessTime(aLastAccessTime),
+        mLastMaintenanceDate(aLastMaintenanceDate),
         mAccessed(aAccessed),
         mPersisted(aPersisted) {}
 
@@ -121,6 +124,7 @@ struct OriginStateMetadata {
                             std::is_same<T, OriginStateMetadata>::value>>
   bool Equals(const T& aOther) const {
     return mLastAccessTime == aOther.mLastAccessTime &&
+           mLastMaintenanceDate == aOther.mLastMaintenanceDate &&
            mAccessed == aOther.mAccessed && mPersisted == aOther.mPersisted;
   }
 };
@@ -152,6 +156,18 @@ struct FullOriginMetadata : OriginMetadata, OriginStateMetadata {
                static_cast<const OriginMetadata&>(aOther)) &&
            static_cast<const OriginStateMetadata&>(*this).Equals(
                static_cast<const OriginStateMetadata&>(aOther)) &&
+           mClientUsages == aOther.mClientUsages &&
+           mOriginUsage == aOther.mOriginUsage &&
+           mQuotaVersion == aOther.mQuotaVersion;
+  }
+
+  // Compares all fields of this FullOriginMetadata instance with another,
+  // except for the fields inherited from OriginStateMetadata.
+  template <typename T, typename = std::enable_if_t<
+                            std::is_same<T, FullOriginMetadata>::value>>
+  bool EqualsIgnoringOriginState(const T& aOther) const {
+    return static_cast<const OriginMetadata&>(*this).Equals(
+               static_cast<const OriginMetadata&>(aOther)) &&
            mClientUsages == aOther.mClientUsages &&
            mOriginUsage == aOther.mOriginUsage &&
            mQuotaVersion == aOther.mQuotaVersion;

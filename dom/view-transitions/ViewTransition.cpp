@@ -4,13 +4,11 @@
 
 #include "ViewTransition.h"
 
-#include "mozilla/gfx/2D.h"
 #include "WindowRenderer.h"
 #include "mozilla/layers/WebRenderLayerManager.h"
 #include "mozilla/layers/RenderRootStateManager.h"
 #include "mozilla/dom/BindContext.h"
 #include "mozilla/layers/WebRenderBridgeChild.h"
-#include "mozilla/gfx/DataSurfaceHelpers.h"
 #include "mozilla/dom/DocumentInlines.h"
 #include "mozilla/dom/DocumentTimeline.h"
 #include "mozilla/dom/Promise-inl.h"
@@ -75,60 +73,11 @@ static CSSToCSSMatrix4x4Flagged EffectiveTransform(nsIFrame* aFrame) {
   return matrix;
 }
 
-// Let the rect be snapshot containing block if capturedElement is the document
-// element, otherwise, capturedElement’s border box. NOTE: Needs ink overflow
-// rect instead to get the correct rendering, see
-// https://github.com/w3c/csswg-drafts/issues/12092.
-// TODO(emilio, bug 1961139): Maybe revisit this.
-static inline nsRect CapturedRect(const nsIFrame* aFrame) {
-  return aFrame->Style()->IsRootElementStyle()
-             ? ViewTransition::SnapshotContainingBlockRect(
-                   aFrame->PresContext())
-             : aFrame->InkOverflowRectRelativeToSelf();
-}
 static inline nsSize CapturedSize(const nsIFrame* aFrame,
                                   const nsSize& aSnapshotContainingBlockSize) {
   return aFrame->Style()->IsRootElementStyle()
              ? aSnapshotContainingBlockSize
              : aFrame->InkOverflowRectRelativeToSelf().Size();
-}
-
-static RefPtr<gfx::DataSourceSurface> CaptureFallbackSnapshot(
-    nsIFrame* aFrame) {
-  VT_LOG_DEBUG("CaptureFallbackSnapshot(%s)", aFrame->ListTag().get());
-  nsPresContext* pc = aFrame->PresContext();
-  nsIFrame* frameToCapture = aFrame->Style()->IsRootElementStyle()
-                                 ? pc->PresShell()->GetCanvasFrame()
-                                 : aFrame;
-  const nsRect& rect = CapturedRect(aFrame);
-  const auto surfaceRect = LayoutDeviceIntRect::FromAppUnitsToOutside(
-      rect, pc->AppUnitsPerDevPixel());
-
-  // TODO: Should we use the DrawTargetRecorder infra or what not?
-  const auto format = gfx::SurfaceFormat::B8G8R8A8;
-  RefPtr<gfx::DrawTarget> dt = gfx::Factory::CreateDrawTarget(
-      gfxPlatform::GetPlatform()->GetSoftwareBackend(),
-      surfaceRect.Size().ToUnknownSize(), format);
-  if (NS_WARN_IF(!dt) || NS_WARN_IF(!dt->IsValid())) {
-    return nullptr;
-  }
-
-  {
-    using PaintFrameFlags = nsLayoutUtils::PaintFrameFlags;
-    gfxContext thebes(dt);
-    // TODO: This matches the drawable code we use for -moz-element(), but is
-    // this right?
-    const PaintFrameFlags flags = PaintFrameFlags::InTransform;
-    nsLayoutUtils::PaintFrame(&thebes, frameToCapture, rect,
-                              NS_RGBA(0, 0, 0, 0),
-                              nsDisplayListBuilderMode::Painting, flags);
-  }
-
-  RefPtr<gfx::SourceSurface> surf = dt->GetBackingSurface();
-  if (NS_WARN_IF(!surf)) {
-    return nullptr;
-  }
-  return surf->GetDataSurface();
 }
 
 // TODO(emilio): Bug 1970954. These aren't quite correct, per spec we're
@@ -202,18 +151,14 @@ static constexpr wr::ImageKey kNoKey{{0}, 0};
 struct OldSnapshotData {
   wr::ImageKey mImageKey = kNoKey;
   nsSize mSize;
-  RefPtr<gfx::DataSourceSurface> mFallback;
   RefPtr<layers::RenderRootStateManager> mManager;
+  bool mUsed = false;
 
   OldSnapshotData() = default;
 
   explicit OldSnapshotData(nsIFrame* aFrame,
                            const nsSize& aSnapshotContainingBlockSize)
-      : mSize(CapturedSize(aFrame, aSnapshotContainingBlockSize)) {
-    if (!StaticPrefs::dom_viewTransitions_wr_old_capture()) {
-      mFallback = CaptureFallbackSnapshot(aFrame);
-    }
-  }
+      : mSize(CapturedSize(aFrame, aSnapshotContainingBlockSize)) {}
 
   void EnsureKey(layers::RenderRootStateManager* aManager,
                  wr::IpcResourceUpdateQueue& aResources) {
@@ -221,32 +166,19 @@ struct OldSnapshotData {
       MOZ_ASSERT(mManager == aManager, "Stale manager?");
       return;
     }
-    if (StaticPrefs::dom_viewTransitions_wr_old_capture()) {
-      mManager = aManager;
-      mImageKey = aManager->WrBridge()->GetNextImageKey();
-      aResources.AddSnapshotImage(wr::SnapshotImageKey{mImageKey});
-      return;
-    }
-    if (NS_WARN_IF(!mFallback)) {
-      return;
-    }
-    gfx::DataSourceSurface::ScopedMap map(mFallback,
-                                          gfx::DataSourceSurface::READ);
-    if (NS_WARN_IF(!map.IsMapped())) {
-      return;
-    }
     mManager = aManager;
     mImageKey = aManager->WrBridge()->GetNextImageKey();
-    auto size = mFallback->GetSize();
-    auto format = mFallback->GetFormat();
-    wr::ImageDescriptor desc(size, format);
-    Range<uint8_t> bytes(map.GetData(), map.GetStride() * size.height);
-    Unused << NS_WARN_IF(!aResources.AddImage(mImageKey, desc, bytes));
+    aResources.AddSnapshotImage(wr::SnapshotImageKey{mImageKey});
   }
 
   ~OldSnapshotData() {
     if (mManager) {
-      mManager->AddImageKeyForDiscard(mImageKey);
+      wr::SnapshotImageKey key = {mImageKey};
+      if (mUsed) {
+        mManager->AddSnapshotImageKeyForDiscard(key);
+      } else {
+        mManager->AddUnusedSnapshotImageKeyForDiscard(key);
+      }
     }
   }
 };
@@ -378,7 +310,7 @@ Maybe<nsSize> ViewTransition::GetNewSize(nsAtom* aName) const {
   return Some(el->mNewSnapshotSize);
 }
 
-const wr::ImageKey* ViewTransition::GetOldImageKey(
+const wr::ImageKey* ViewTransition::GetOrCreateOldImageKey(
     nsAtom* aName, layers::RenderRootStateManager* aManager,
     wr::IpcResourceUpdateQueue& aResources) const {
   auto* el = mNamedElements.Get(aName);
@@ -386,6 +318,18 @@ const wr::ImageKey* ViewTransition::GetOldImageKey(
     return nullptr;
   }
   el->mOldState.mSnapshot.EnsureKey(aManager, aResources);
+  return &el->mOldState.mSnapshot.mImageKey;
+}
+
+const wr::ImageKey* ViewTransition::ReadOldImageKey(
+    nsAtom* aName, layers::RenderRootStateManager* aManager,
+    wr::IpcResourceUpdateQueue& aResources) const {
+  auto* el = mNamedElements.Get(aName);
+  if (NS_WARN_IF(!el)) {
+    return nullptr;
+  }
+
+  el->mOldState.mSnapshot.mUsed = true;
   return &el->mOldState.mSnapshot.mImageKey;
 }
 
@@ -415,7 +359,7 @@ const wr::ImageKey* ViewTransition::GetImageKeyForCapturedFrame(
          nsAtomCString(name).get(), isOld);
 
   if (isOld) {
-    const auto* key = GetOldImageKey(name, aManager, aResources);
+    const auto* key = GetOrCreateOldImageKey(name, aManager, aResources);
     VT_LOG(" > old image is %s", key ? ToString(*key).c_str() : "null");
     return key;
   }
@@ -967,7 +911,7 @@ void ViewTransition::SetupTransitionPseudoElements() {
         /* aIsRemove = */ false);
   }
   if (PresShell* ps = mDocument->GetPresShell()) {
-    ps->ContentAppended(mSnapshotContainingBlock);
+    ps->ContentAppended(mSnapshotContainingBlock, {});
   }
 }
 
@@ -1328,8 +1272,7 @@ Maybe<SkipTransitionReason> ViewTransition::CaptureOldState() {
     mNames.AppendElement(name);
   }
 
-  if (!captureElements.IsEmpty() &&
-      StaticPrefs::dom_viewTransitions_wr_old_capture()) {
+  if (!captureElements.IsEmpty()) {
     // When snapshotting an iframe, we need to paint from the root subdoc.
     if (RefPtr<PresShell> ps =
             nsContentUtils::GetInProcessSubtreeRootDocument(mDocument)
@@ -1621,7 +1564,7 @@ void ViewTransition::ClearActiveTransition(bool aIsDocumentHidden) {
           /* aIsRemove = */ true);
     }
     if (PresShell* ps = mDocument->GetPresShell()) {
-      ps->ContentWillBeRemoved(mSnapshotContainingBlock, nullptr);
+      ps->ContentWillBeRemoved(mSnapshotContainingBlock, {});
     }
     mSnapshotContainingBlock->UnbindFromTree();
     mSnapshotContainingBlock = nullptr;

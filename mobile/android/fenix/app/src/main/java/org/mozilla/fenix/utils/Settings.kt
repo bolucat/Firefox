@@ -333,10 +333,15 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         default = false,
     )
 
-    var privateBrowsingLockedEnabled by lazyFeatureFlagPreference(
-        appContext.getPreferenceKey(R.string.pref_key_private_browsing_locked_enabled),
-        featureFlag = FxNimbus.features.privateBrowsingLock.value().enabled,
-        default = { false },
+    var privateBrowsingLockedFeatureEnabled by lazyFeatureFlagPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_private_browsing_locked_enabled),
+        featureFlag = true,
+        default = { FxNimbus.features.privateBrowsingLock.value().enabled },
+    )
+
+    var privateBrowsingModeLocked by booleanPreference(
+        appContext.getString(R.string.pref_key_private_browsing_locked),
+        false,
     )
 
     var shouldReturnToBrowser by booleanPreference(
@@ -416,6 +421,15 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     var isExperimentationEnabled by booleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_experimentation_v2),
         default = isTelemetryEnabled,
+    )
+
+    /**
+     * This lets us know if the user has disabled experimentation manually so that we know
+     * if we should re-enable experimentation if the user disables and re-enables telemetry.
+     */
+    var hasUserDisabledExperimentation by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_user_disabled_experimentation),
+        default = false,
     )
 
     var isOverrideTPPopupsForPerformanceTest = false
@@ -1242,10 +1256,9 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         default = true,
     )
 
-    var shouldShowLockPbmBanner by lazyFeatureFlagPreference(
+    var shouldShowLockPbmBanner by booleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_should_show_lock_pbm_banner),
-        featureFlag = FxNimbus.features.privateBrowsingLock.value().enabled,
-        default = { true },
+        true,
     )
 
     var shouldShowInactiveTabsOnboardingPopup by booleanPreference(
@@ -1672,15 +1685,6 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         appContext.getPreferenceKey(R.string.pref_key_history_metadata_feature),
         default = { homescreenSections[HomeScreenSection.RECENT_EXPLORATIONS] == true },
         featureFlag = true,
-    )
-
-    /**
-     * Indicates if sync onboarding CFR should be shown.
-     */
-    var showSyncCFR by lazyFeatureFlagPreference(
-        appContext.getPreferenceKey(R.string.pref_key_should_show_sync_cfr),
-        featureFlag = true,
-        default = { mr2022Sections[Mr2022Section.SYNC_CFR] == true },
     )
 
     /**

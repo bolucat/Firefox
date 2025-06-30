@@ -9,6 +9,7 @@ import mozilla.components.compose.browser.toolbar.store.BrowserDisplayToolbarAct
 import mozilla.components.compose.browser.toolbar.store.BrowserDisplayToolbarAction.PageActionsEndUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserDisplayToolbarAction.PageActionsStartUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserDisplayToolbarAction.PageOriginUpdated
+import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction.UrlSuggestionAutocompleted
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteraction.BrowserToolbarEvent
 import mozilla.components.lib.state.Middleware
 import mozilla.components.lib.state.UiStore
@@ -47,7 +48,7 @@ private fun reduce(state: BrowserToolbarState, action: BrowserToolbarAction): Br
         is BrowserToolbarAction.ToggleEditMode -> state.copy(
             mode = if (action.editMode) Mode.EDIT else Mode.DISPLAY,
             editState = state.editState.copy(
-                editText = if (action.editMode) null else state.editState.editText,
+                query = if (action.editMode) state.editState.query else "",
             ),
         )
 
@@ -83,21 +84,28 @@ private fun reduce(state: BrowserToolbarState, action: BrowserToolbarAction): Br
             ),
         )
 
-        is BrowserEditToolbarAction.UpdateEditText -> state.copy(
+        is BrowserEditToolbarAction.SearchQueryUpdated -> state.copy(
             editState = state.editState.copy(
-                editText = action.text,
+                query = action.query,
+                showQueryAsPreselected = action.showAsPreselected,
             ),
         )
 
-        is BrowserEditToolbarAction.AddEditActionStart -> state.copy(
+        is BrowserEditToolbarAction.AutocompleteProvidersUpdated -> state.copy(
             editState = state.editState.copy(
-                editActionsStart = state.editState.editActionsStart + action.action,
+                autocompleteProviders = action.autocompleteProviders,
             ),
         )
 
-        is BrowserEditToolbarAction.AddEditActionEnd -> state.copy(
+        is BrowserEditToolbarAction.SearchActionsStartUpdated -> state.copy(
             editState = state.editState.copy(
-                editActionsEnd = state.editState.editActionsEnd + action.action,
+                editActionsStart = action.actions,
+            ),
+        )
+
+        is BrowserEditToolbarAction.SearchActionsEndUpdated -> state.copy(
+            editState = state.editState.copy(
+                editActionsEnd = action.actions,
             ),
         )
 
@@ -107,7 +115,9 @@ private fun reduce(state: BrowserToolbarState, action: BrowserToolbarAction): Br
             ),
         )
 
-        is BrowserToolbarEvent -> {
+        is UrlSuggestionAutocompleted,
+        is BrowserToolbarEvent,
+            -> {
             // no-op
             // Expected to be handled in middlewares set by integrators.
             state

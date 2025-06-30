@@ -15,6 +15,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.NavController
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.launch
@@ -41,10 +42,13 @@ import mozilla.components.compose.browser.toolbar.store.BrowserDisplayToolbarAct
 import mozilla.components.compose.browser.toolbar.store.BrowserDisplayToolbarAction.PageActionsEndUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserDisplayToolbarAction.UpdateProgressBarConfig
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarAction
-import mozilla.components.compose.browser.toolbar.store.BrowserToolbarAction.ToggleEditMode
+import mozilla.components.compose.browser.toolbar.store.BrowserToolbarAction.Init
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteraction.BrowserToolbarEvent
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteraction.BrowserToolbarMenu
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarMenuItem.BrowserToolbarMenuButton
+import mozilla.components.compose.browser.toolbar.store.BrowserToolbarMenuItem.BrowserToolbarMenuButton.ContentDescription.StringResContentDescription
+import mozilla.components.compose.browser.toolbar.store.BrowserToolbarMenuItem.BrowserToolbarMenuButton.Icon.DrawableResIcon
+import mozilla.components.compose.browser.toolbar.store.BrowserToolbarMenuItem.BrowserToolbarMenuButton.Text.StringResText
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarMenuItem.BrowserToolbarMenuDivider
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarState
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarStore
@@ -84,6 +88,7 @@ import org.mozilla.fenix.components.UseCases
 import org.mozilla.fenix.components.appstate.AppAction.CurrentTabClosed
 import org.mozilla.fenix.components.appstate.AppAction.SnackbarAction.SnackbarDismissed
 import org.mozilla.fenix.components.appstate.AppAction.URLCopiedToClipboard
+import org.mozilla.fenix.components.appstate.AppAction.UpdateSearchBeingActiveState
 import org.mozilla.fenix.components.menu.MenuAccessPoint
 import org.mozilla.fenix.components.toolbar.DisplayActions.HomeClicked
 import org.mozilla.fenix.components.toolbar.DisplayActions.MenuClicked
@@ -99,6 +104,8 @@ import org.mozilla.fenix.components.toolbar.TabCounterInteractions.AddNewPrivate
 import org.mozilla.fenix.components.toolbar.TabCounterInteractions.AddNewTab
 import org.mozilla.fenix.components.toolbar.TabCounterInteractions.CloseCurrentTab
 import org.mozilla.fenix.components.toolbar.TabCounterInteractions.TabCounterClicked
+import org.mozilla.fenix.components.toolbar.URLDomainHighlight.getRegistrableDomainOrHostIndexRange
+import org.mozilla.fenix.components.usecases.FenixBrowserUseCases.Companion.ABOUT_HOME
 import org.mozilla.fenix.ext.isLargeWindow
 import org.mozilla.fenix.ext.nav
 import org.mozilla.fenix.ext.navigateSafe
@@ -167,7 +174,7 @@ internal sealed class PageEndActionsInteractions : BrowserToolbarEvent {
  * @param settings [Settings] for accessing user preferences.
  * @param sessionUseCases [SessionUseCases] for interacting with the current session.
  */
-@Suppress("LongParameterList", "TooManyFunctions")
+@Suppress("LargeClass", "LongParameterList", "TooManyFunctions")
 class BrowserToolbarMiddleware(
     private val appStore: AppStore,
     private val browserScreenStore: BrowserScreenStore,
@@ -213,8 +220,10 @@ class BrowserToolbarMiddleware(
         action: BrowserToolbarAction,
     ) {
         when (action) {
-            is BrowserToolbarAction.Init -> {
+            is Init -> {
                 store = context.store as BrowserToolbarStore
+
+                appStore.dispatch(UpdateSearchBeingActiveState(context.store.state.isEditMode()))
 
                 updateStartBrowserActions()
                 updateCurrentPageOrigin()
@@ -303,7 +312,15 @@ class BrowserToolbarMiddleware(
             }
 
             is OriginClicked -> {
-                store?.dispatch(ToggleEditMode(editMode = true))
+                val selectedTab = browserStore.state.selectedTab ?: return
+                if (selectedTab.content.searchTerms.isBlank()) {
+                    dependencies.navController.navigate(
+                        BrowserFragmentDirections.actionGlobalHome(
+                            focusOnAddressBar = true,
+                            sessionToStartSearchFor = selectedTab.id,
+                        ),
+                    )
+                }
             }
             is CopyToClipboardClicked -> {
                 val selectedTab = browserStore.state.selectedTab
@@ -542,7 +559,7 @@ class BrowserToolbarMiddleware(
         } else if (tab?.content?.securityInfo?.secure == true) {
             add(
                 ActionButtonRes(
-                    drawableResId = R.drawable.mozac_ic_lock_24,
+                    drawableResId = R.drawable.mozac_ic_shield_checkmark_24,
                     contentDescription = R.string.mozac_browser_toolbar_content_description_site_info,
                     onClick = StartPageActions.SiteInfoClicked,
                 ),
@@ -550,7 +567,7 @@ class BrowserToolbarMiddleware(
         } else {
             add(
                 ActionButtonRes(
-                    drawableResId = R.drawable.mozac_ic_broken_lock,
+                    drawableResId = R.drawable.mozac_ic_shield_slash_24,
                     contentDescription = R.string.mozac_browser_toolbar_content_description_site_info,
                     onClick = StartPageActions.SiteInfoClicked,
                 ),
@@ -623,25 +640,25 @@ class BrowserToolbarMiddleware(
     private fun buildTabCounterMenu() = BrowserToolbarMenu {
         listOf(
             BrowserToolbarMenuButton(
-                iconResource = iconsR.drawable.mozac_ic_plus_24,
-                text = R.string.mozac_browser_menu_new_tab,
-                contentDescription = R.string.mozac_browser_menu_new_tab,
+                icon = DrawableResIcon(iconsR.drawable.mozac_ic_plus_24),
+                text = StringResText(R.string.mozac_browser_menu_new_tab),
+                contentDescription = StringResContentDescription(R.string.mozac_browser_menu_new_tab),
                 onClick = AddNewTab,
             ),
 
             BrowserToolbarMenuButton(
-                iconResource = iconsR.drawable.mozac_ic_private_mode_24,
-                text = R.string.mozac_browser_menu_new_private_tab,
-                contentDescription = R.string.mozac_browser_menu_new_private_tab,
+                icon = DrawableResIcon(iconsR.drawable.mozac_ic_private_mode_24),
+                text = StringResText(R.string.mozac_browser_menu_new_private_tab),
+                contentDescription = StringResContentDescription(R.string.mozac_browser_menu_new_private_tab),
                 onClick = AddNewPrivateTab,
             ),
 
             BrowserToolbarMenuDivider,
 
             BrowserToolbarMenuButton(
-                iconResource = iconsR.drawable.mozac_ic_cross_24,
-                text = R.string.mozac_close_tab,
-                contentDescription = R.string.mozac_close_tab,
+                icon = DrawableResIcon(iconsR.drawable.mozac_ic_cross_24),
+                text = StringResText(R.string.mozac_close_tab),
+                contentDescription = StringResContentDescription(R.string.mozac_close_tab),
                 onClick = CloseCurrentTab,
             ),
         )
@@ -702,16 +719,28 @@ class BrowserToolbarMiddleware(
         }
     }
 
-    private fun updateCurrentPageOrigin() {
-        val urlString = browserStore.state.selectedTab?.content?.url
-            ?.let { URLStringUtils.toDisplayUrl(it).toString() }
+    private fun updateCurrentPageOrigin() = MainScope().launch {
+        val url = browserStore.state.selectedTab?.content?.url
+        val displayUrl = url?.let { originalUrl ->
+            if (originalUrl == ABOUT_HOME) {
+                // Default to showing the toolbar hint when the URL is ABOUT_HOME.
+                ""
+            } else {
+                URLStringUtils.toDisplayUrl(originalUrl).toString()
+            }
+        }
+        val registrableDomainIndexRange = when (displayUrl != null && displayUrl.isNotEmpty()) {
+            true -> getRegistrableDomainOrHostIndexRange(url, displayUrl, publicSuffixList)
+            false -> null
+        }
 
         store?.dispatch(
             BrowserDisplayToolbarAction.PageOriginUpdated(
                 PageOrigin(
                     hint = R.string.search_hint,
                     title = null,
-                    url = urlString,
+                    url = displayUrl,
+                    registrableDomainIndexRange = registrableDomainIndexRange,
                     contextualMenuOptions = ContextualMenuOption.entries,
                     onClick = OriginClicked,
                 ),
@@ -792,7 +821,7 @@ class BrowserToolbarMiddleware(
     private fun observePageRefreshUpdates() {
         with(dependencies.lifecycleOwner) {
             this.lifecycleScope.launch {
-                repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+                repeatOnLifecycle(RESUMED) {
                     browserStore.flow()
                         .distinctUntilChangedBy {
                             it.selectedTab?.content?.loading == true

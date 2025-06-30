@@ -2015,6 +2015,9 @@ pref("browser.newtabpage.activity-stream.logowordmark.alwaysVisible", true);
 // - "key=value" - Search param named "key" with value "value"
 pref("browser.newtabpage.activity-stream.hideTopSitesWithSearchParam", "mfadid=adm");
 
+// Set to true to enable debug logging for AboutNewTabResourceMapping.
+pref("browser.newtabpage.resource-mapping.log", false);
+
 // Separate about welcome
 pref("browser.aboutwelcome.enabled", true);
 // Used to set multistage welcome UX
@@ -2034,7 +2037,7 @@ pref("nimbus.profilesdatastoreservice.enabled", true);
 
 // Should Nimbus read from the shared ProfilesDatastoreService?
 // TODO(bug 1972426): Enable this behaviour by default and remove this pref.
-#if defined(NIGHTLY_BUIILD)
+#if defined(NIGHTLY_BUILD)
 pref("nimbus.profilesdatastoreservice.read.enabled", true);
 #else
 pref("nimbus.profilesdatastoreservice.read.enabled", false);
@@ -2101,10 +2104,14 @@ pref("sidebar.expandOnHover", true);
 pref("sidebar.old-sidebar.has-used", false);
 pref("sidebar.new-sidebar.has-used", false);
 
+pref("sidebar.notification.badge.aichat", false);
+
 pref("browser.ml.chat.enabled", true);
 pref("browser.ml.chat.hideLocalhost", true);
+pref("browser.ml.chat.menu", true);
 pref("browser.ml.chat.page", false);
 pref("browser.ml.chat.page.footerBadge", true);
+pref("browser.ml.chat.page.menuBadge", true);
 pref("browser.ml.chat.prompt.prefix", '{"l10nId":"genai-prompt-prefix-selection"}');
 pref("browser.ml.chat.prompts.0", '{"id":"summarize","l10nId":"genai-prompts-summarize"}');
 pref("browser.ml.chat.prompts.1", '{"id":"explain","l10nId":"genai-prompts-explain","targeting":"contentType != \'page\'"}');

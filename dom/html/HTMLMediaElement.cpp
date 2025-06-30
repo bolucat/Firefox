@@ -1244,6 +1244,8 @@ class HTMLMediaElement::MediaElementTrackSource
     MediaStreamTrackSource::MutedChanged(Muted());
   }
 
+  void ConstraintsChanged(const MediaTrackConstraints& aConstraints) override {}
+
   void OverrideEnded() override {
     Destroy();
     MediaStreamTrackSource::OverrideEnded();
@@ -2198,7 +2200,7 @@ void HTMLMediaElement::AddSizeOfExcludingThis(nsWindowSizes& aSizes,
 }
 
 void HTMLMediaElement::ContentWillBeRemoved(nsIContent* aChild,
-                                            const BatchRemovalState*) {
+                                            const ContentRemoveInfo&) {
   if (aChild == mSourcePointer) {
     mSourcePointer = aChild->GetPreviousSibling();
   }

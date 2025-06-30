@@ -23,13 +23,18 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavController
+import mozilla.components.browser.state.ext.getUrl
+import mozilla.components.browser.state.selector.findTab
 import mozilla.components.browser.state.state.BrowserState
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.compose.base.Divider
 import mozilla.components.compose.base.theme.AcornTheme
 import mozilla.components.compose.browser.toolbar.BrowserToolbar
+import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction.SearchQueryUpdated
+import mozilla.components.compose.browser.toolbar.store.BrowserToolbarAction.ToggleEditMode
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarState
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarStore
+import mozilla.components.support.ktx.android.view.ImeInsetsSynchronizer
 import org.mozilla.fenix.R
 import org.mozilla.fenix.browser.browsingmode.BrowsingModeManager
 import org.mozilla.fenix.browser.tabstrip.isTabStripEnabled
@@ -40,6 +45,8 @@ import org.mozilla.fenix.components.toolbar.ToolbarPosition.TOP
 import org.mozilla.fenix.databinding.FragmentHomeBinding
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.home.toolbar.BrowserToolbarMiddleware.LifecycleDependencies
+import org.mozilla.fenix.search.BrowserToolbarSearchMiddleware
+import org.mozilla.fenix.search.BrowserToolbarSearchStatusSyncMiddleware
 import org.mozilla.fenix.utils.Settings
 
 /**
@@ -54,7 +61,10 @@ import org.mozilla.fenix.utils.Settings
  * @param browserStore [BrowserStore] to sync from.
  * @param browsingModeManager [BrowsingModeManager] for querying the current browsing mode.
  * @param settings [Settings] for querying various application settings.
+ * @param directToSearchConfig [DirectToSearchConfig] configuration for starting with the toolbar in search mode.
  * @param tabStripContent [Composable] as the tab strip content to be displayed together with this toolbar.
+ * @param searchSuggestionsContent [Composable] as the search suggestions content to be displayed
+ * together with this toolbar.
  */
 @Suppress("LongParameterList")
 internal class HomeToolbarComposable(
@@ -66,15 +76,19 @@ internal class HomeToolbarComposable(
     private val browserStore: BrowserStore,
     private val browsingModeManager: BrowsingModeManager,
     private val settings: Settings,
+    private val directToSearchConfig: DirectToSearchConfig,
     private val tabStripContent: @Composable () -> Unit,
+    private val searchSuggestionsContent: @Composable (BrowserToolbarStore, Modifier) -> Unit,
 ) : FenixHomeToolbar {
     private var showDivider by mutableStateOf(true)
 
-    private val middleware = getOrCreate<BrowserToolbarMiddleware>()
+    private val displayMiddleware = getOrCreate<BrowserToolbarMiddleware>()
+    private val searchMiddleware = getOrCreate<BrowserToolbarSearchMiddleware>()
+    private val searchSyncMiddleware = getOrCreate<BrowserToolbarSearchStatusSyncMiddleware>()
     private val store = StoreProvider.get(lifecycleOwner) {
         BrowserToolbarStore(
             initialState = BrowserToolbarState(),
-            middleware = listOf(middleware),
+            middleware = listOf(displayMiddleware, searchMiddleware, searchSyncMiddleware),
         )
     }
 
@@ -85,16 +99,22 @@ internal class HomeToolbarComposable(
             val shouldShowTabStrip: Boolean = remember { context.isTabStripEnabled() }
 
             AcornTheme {
-                when (shouldShowTabStrip) {
-                    true -> Column {
+                Column {
+                    if (shouldShowTabStrip) {
                         tabStripContent()
-                        BrowserToolbar(showDivider, settings.shouldUseBottomToolbar)
                     }
 
-                    false -> BrowserToolbar(showDivider, settings.shouldUseBottomToolbar)
+                    if (settings.shouldUseBottomToolbar) {
+                        searchSuggestionsContent(store, Modifier.weight(1f))
+                    }
+                    BrowserToolbar(showDivider, settings.shouldUseBottomToolbar)
+                    if (!settings.shouldUseBottomToolbar) {
+                        searchSuggestionsContent(store, Modifier.weight(1f))
+                    }
                 }
             }
         }
+        translationZ = context.resources.getDimension(R.dimen.browser_fragment_above_toolbar_panels_elevation)
         homeBinding.homeLayout.addView(this)
     }
 
@@ -106,7 +126,12 @@ internal class HomeToolbarComposable(
             }
         }
 
+        if (settings.shouldUseBottomToolbar) {
+            ImeInsetsSynchronizer.setup(layout)
+        }
+
         updateHomeAppBarIntegration()
+        configureStartingInSearchMode()
     }
 
     override fun updateDividerVisibility(isVisible: Boolean) {
@@ -159,6 +184,22 @@ internal class HomeToolbarComposable(
         }
     }
 
+    private fun configureStartingInSearchMode() {
+        if (!directToSearchConfig.startSearch) return
+        store.dispatch(ToggleEditMode(true))
+
+        if (directToSearchConfig.sessionId != null) {
+            browserStore.state.findTab(directToSearchConfig.sessionId)?.let {
+                store.dispatch(
+                    SearchQueryUpdated(
+                        query = it.getUrl() ?: "",
+                        showAsPreselected = true,
+                    ),
+                )
+            }
+        }
+    }
+
     private inline fun <reified T> getOrCreate(): T = when (T::class.java) {
         BrowserToolbarMiddleware::class.java ->
             ViewModelProvider(
@@ -180,6 +221,56 @@ internal class HomeToolbarComposable(
                 )
             } as T
 
+        BrowserToolbarSearchStatusSyncMiddleware::class.java ->
+            ViewModelProvider(
+                lifecycleOwner,
+                BrowserToolbarSearchStatusSyncMiddleware.viewModelFactory(
+                    appStore = appStore,
+                ),
+            ).get(BrowserToolbarSearchStatusSyncMiddleware::class.java).also {
+                it.updateLifecycleDependencies(
+                    BrowserToolbarSearchStatusSyncMiddleware.LifecycleDependencies(
+                        lifecycleOwner = lifecycleOwner,
+                    ),
+                )
+            } as T
+
+        BrowserToolbarSearchMiddleware::class.java ->
+            ViewModelProvider(
+                lifecycleOwner,
+                BrowserToolbarSearchMiddleware.viewModelFactory(
+                    appStore = appStore,
+                    browserStore = browserStore,
+                    components = context.components,
+                    settings = context.components.settings,
+                ),
+            ).get(BrowserToolbarSearchMiddleware::class.java).also {
+                it.updateLifecycleDependencies(
+                    BrowserToolbarSearchMiddleware.LifecycleDependencies(
+                        lifecycleOwner = lifecycleOwner,
+                        navController = navController,
+                        resources = context.resources,
+                    ),
+                )
+            } as T
+
         else -> throw IllegalArgumentException("Unknown type: ${T::class.java}")
+    }
+
+    /**
+     * Static configuration and properties of [HomeToolbarComposable].
+     */
+    companion object {
+        /**
+         * Configuration for starting with the toolbar in search mode.
+         *
+         * @property startSearch Whether to start in search mode. Defaults to `false`.
+         * @property sessionId The session ID of the current session with details of which to start search.
+         * Defaults to `null`.
+         */
+        data class DirectToSearchConfig(
+            val startSearch: Boolean = false,
+            val sessionId: String? = null,
+        )
     }
 }

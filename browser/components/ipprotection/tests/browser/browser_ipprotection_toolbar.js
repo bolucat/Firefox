@@ -16,24 +16,47 @@ ChromeUtils.defineESModuleGetters(lazy, {
  */
 add_task(async function toolbar_added_and_removed() {
   let widget = document.getElementById(lazy.IPProtectionWidget.WIDGET_ID);
-  ok(
+  Assert.ok(
     BrowserTestUtils.isVisible(widget),
     "IP Protection widget should be added to the navbar"
   );
   let position = CustomizableUI.getPlacementOfWidget(
     lazy.IPProtectionWidget.WIDGET_ID
   ).position;
-  is(position, 7, "IP Protection widget added in the correct position");
+  Assert.equal(
+    position,
+    7,
+    "IP Protection widget added in the correct position"
+  );
   // Disable the feature
   Services.prefs.clearUserPref("browser.ipProtection.enabled");
   widget = document.getElementById(lazy.IPProtectionWidget.WIDGET_ID);
-  is(widget, null, "IP Protection widget is removed");
+  Assert.equal(widget, null, "IP Protection widget is removed");
 
   // Reenable the feature
   Services.prefs.setBoolPref("browser.ipProtection.enabled", true);
   widget = document.getElementById(lazy.IPProtectionWidget.WIDGET_ID);
-  ok(
+  Assert.ok(
     BrowserTestUtils.isVisible(widget),
     "IP Protection widget should be added back to the navbar"
+  );
+});
+
+/**
+ * Tests that dropmarker has l10n attributes.
+ */
+add_task(async function dropmarker_has_l10n() {
+  let dropmarker = document.getElementById(
+    lazy.IPProtectionWidget.DROPMARKER_ID
+  );
+  ok(
+    BrowserTestUtils.isVisible(dropmarker),
+    "IP Protection dropmarker is visible"
+  );
+
+  is(
+    dropmarker.getAttribute("data-l10n-id"),
+    lazy.IPProtectionWidget.DROPMARKER_ID,
+    "Dropmarker has l10n attributes set"
   );
 });

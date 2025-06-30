@@ -11,9 +11,9 @@
   -->
   <string name="content_description_menu">अधिक विकल्प</string>
   <!-- Content description (not visible, for screen readers etc.): "Private Browsing" menu button. -->
-  <string name="content_description_private_browsing_button">निजी ब्राउज़िंग सक्षम करें</string>
+  <string name="content_description_private_browsing_button" moz:removedIn="142" tools:ignore="UnusedResources">निजी ब्राउज़िंग सक्षम करें</string>
   <!-- Content description (not visible, for screen readers etc.): "Private Browsing" menu button. -->
-  <string name="content_description_disable_private_browsing_button">निजी ब्राउज़िंग अक्षम करें</string>
+  <string name="content_description_disable_private_browsing_button" moz:removedIn="142" tools:ignore="UnusedResources">निजी ब्राउज़िंग अक्षम करें</string>
   <!-- Content description (not visible, for screen readers etc.): "Private Browsing" menu button. -->
   <string name="content_description_private_browsing">निजी ब्राउज़िंग</string>
   <!-- Placeholder text shown in the search bar before a user enters text for the default engine -->
@@ -279,7 +279,7 @@
   <!-- Preference for open links in third party apps -->
   <string name="preferences_open_links_in_apps">ऐप में लिंक खोलें</string>
   <!-- Preference for open download with an external download manager app -->
-  <string name="preferences_external_download_manager">बाहरी डाउनलोड प्रबंधक</string>
+  <string name="preferences_external_download_manager" tools:ignore="UnusedResources" moz:removedIn="141">बाहरी डाउनलोड प्रबंधक</string>
   <!-- Preference for notifications -->
   <string name="preferences_notifications">अधिसूचनाएं</string>
   <!-- Button caption to confirm the add-on collection configuration -->
@@ -1266,4 +1266,6 @@
   <!-- Clickable text for opening an external link for more information about Pocket. -->
   <string name="pocket_stories_feature_learn_more" moz:removedIn="140" tools:ignore="UnusedResources">अधिक जानें</string>
   <!-- Translations feature -->
+
+  <!-- TextField Design System Component -->
 </resources>
