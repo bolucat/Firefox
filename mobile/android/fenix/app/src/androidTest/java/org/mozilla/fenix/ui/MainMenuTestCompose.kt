@@ -525,7 +525,6 @@ class MainMenuTestCompose : TestSetup() {
     }
 
     // TestRail link: https://mozilla.testrail.io/index.php?/cases/view/2860845
-    @Ignore("Failing, see https://bugzilla.mozilla.org/show_bug.cgi?id=1968653")
     @SmokeTest
     @Test
     fun switchDesktopSiteModeOnOffTest() {
@@ -535,18 +534,19 @@ class MainMenuTestCompose : TestSetup() {
         }.enterURLAndEnterToBrowser(defaultWebPage.url) {
         }.openThreeDotMenu(composeTestRule) {
             verifySwitchToDesktopSiteButton()
+            verifyDesktopSiteButtonState(isEnabled = false)
             clickSwitchToDesktopSiteButton()
         }
         browserScreen {
             waitForPageToLoad(pageLoadWaitingTime = waitingTimeLong)
         }.openThreeDotMenu(composeTestRule) {
-            verifySwitchToMobileSiteButton()
-            clickSwitchToMobileSiteButton()
+            verifyDesktopSiteButtonState(isEnabled = true)
+            clickSwitchToDesktopSiteButton()
         }
         browserScreen {
             waitForPageToLoad(pageLoadWaitingTime = waitingTimeLong)
         }.openThreeDotMenu(composeTestRule) {
-            verifySwitchToDesktopSiteButton()
+            verifyDesktopSiteButtonState(isEnabled = false)
         }
     }
 
@@ -609,13 +609,15 @@ class MainMenuTestCompose : TestSetup() {
     }
 
     // TestRail link: https://mozilla.testrail.io/index.php?/cases/view/2860725
-    @Ignore("Failing, see https://bugzilla.mozilla.org/show_bug.cgi?id=1971959")
     @Test
-    fun verifyTheHomePageMainMenuCFRTest() {
+    fun verifyTheBrowserViewMainMenuCFRTest() {
+        val genericURL = getGenericAsset(mockWebServer, 1)
+
         composeTestRule.activityRule.applySettingsExceptions {
             it.isMenuRedesignCFREnabled = true
         }
-        homeScreen {
+        navigationToolbar {
+        }.enterURLAndEnterToBrowser(genericURL.url) {
         }.openThreeDotMenu(composeTestRule) {
             verifyMainMenuCFR()
         }
@@ -868,7 +870,7 @@ class MainMenuTestCompose : TestSetup() {
     }
 
     // TestRail link: https://mozilla.testrail.io/index.php?/cases/view/2860800
-    @Ignore("Failing, see https://bugzilla.mozilla.org/show_bug.cgi?id=1807268")
+    @Ignore("Failing, see https://bugzilla.mozilla.org/show_bug.cgi?id=1974939")
     @Test
     fun verifyTheReportBrokenSiteOptionTest() {
         val defaultWebPage = getGenericAsset(mockWebServer, 1)
@@ -1042,7 +1044,7 @@ class MainMenuTestCompose : TestSetup() {
     }
 
     // TestRail link: https://mozilla.testrail.io/index.php?/cases/view/2939182
-    @Ignore("Failing, see https://bugzilla.mozilla.org/show_bug.cgi?id=1807268")
+    @Ignore("Failing, see https://bugzilla.mozilla.org/show_bug.cgi?id=1974939")
     @Test
     fun verifyReportBrokenSiteFormNotDisplayedWhenTelemetryIsDisabledTest() {
         val defaultWebPage = getGenericAsset(mockWebServer, 1)

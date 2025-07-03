@@ -859,6 +859,8 @@
   <string name="preferences_category_account">Tài khoản</string>
   <!-- Preference for changing where the AddressBar is positioned -->
   <string name="preferences_toolbar_2">Vị trí thanh địa chỉ</string>
+  <!-- Preference for changing toolbar layout -->
+  <string name="preferences_toolbar_layout">Bố cục thanh công cụ</string>
   <!-- Preference for changing default theme to dark or light mode -->
   <string name="preferences_theme">Chủ đề</string>
   <!-- Preference for customizing the home screen -->
@@ -878,7 +880,7 @@
   <!-- Preference for translations -->
   <string name="preferences_translations">Dịch</string>
   <!-- Preference for data choices -->
-  <string name="preferences_data_choices">Lựa chọn dữ liệu</string>
+  <string name="preferences_data_choices" tools:ignore="UnusedResources" moz:removedIn="141">Lựa chọn dữ liệu</string>
   <!-- Preference for data collection -->
   <string name="preferences_data_collection">Thu thập dữ liệu</string>
   <!-- Preference for developers -->
@@ -943,7 +945,7 @@
   <string name="preferences_external_download_manager" tools:ignore="UnusedResources" moz:removedIn="141">Trình quản lý tải xuống bên ngoài</string>
   <!-- Preference title for choosing an app to handle downloads -->
   <string name="preferences_choose_app_for_downloads">Quản lý tải xuống bằng ứng dụng khác</string>
-  <!-- Title for the setting to automatically clean up downloaded files. %s is the brand of the phone (for example: Samsung). -->
+  <!-- Title for the setting to automatically clean up downloaded files. %s is the name of the app (for example "Firefox"). -->
   <string name="preferences_downloads_settings_clean_up_files_title">Xóa khỏi %s và thiết bị</string>
   <!-- Summary for the setting to automatically clean up downloaded files -->
   <string name="preferences_downloads_settings_clean_up_files_summary">Xóa tập tin khỏi trình quản lý tải xuống của bạn và cũng xóa chúng khỏi thiết bị của bạn</string>
@@ -1229,9 +1231,17 @@
   <!-- Preference switch for usage and technical data collection -->
   <string name="preference_usage_data_2">Gửi dữ liệu kỹ thuật và tương tác</string>
   <!-- Preference switch for usage and technical learn more link -->
-  <string name="preference_usage_data_learn_more">Tìm hiểu thêm</string>
+  <string name="preference_usage_data_learn_more" tools:ignore="UnusedResources" moz:removedIn="141">Tìm hiểu thêm</string>
   <!-- Preference description for marketing data collection. Note: The words "Firefox" should NOT be translated -->
   <string name="preferences_usage_data_description_1" tools:ignore="BrandUsage">Dữ liệu về thiết bị, cấu hình phần cứng và cách sử dụng của bạn giúp chúng tôi cải thiện các tính năng, hiệu suất và độ ổn định của Firefox.</string>
+  <!-- Preference switch for daily usage ping data collection -->
+  <string name="preferences_daily_usage_ping_title">Ping sử dụng hàng ngày</string>
+  <string name="preferences_daily_usage_ping_description">Điều này giúp Mozilla ước tính số người dùng đang hoạt động.</string>
+  <string name="preferences_daily_usage_ping_learn_more">Tìm hiểu thêm về ping sử dụng hàng ngày</string>
+  <!-- Preference switch title for automatically submitting crash reports -->
+  <string name="preferences_automatically_send_crashes_title">Tự động gửi báo cáo sự cố</string>
+  <!-- Preference switch description for automatically submitting crash reports -->
+  <string name="preferences_automatically_send_crashes_description">Điều này giúp chúng tôi chẩn đoán và khắc phục sự cố với trình duyệt. Báo cáo có thể bao gồm dữ liệu cá nhân hoặc nhạy cảm.</string>
   <!-- Preference switch for campaign measurement data (marketing data) collection -->
   <string name="preferences_marketing_data_2">Dữ liệu đo lường chiến dịch</string>
   <!--
@@ -1241,14 +1251,6 @@
   <string name="preferences_marketing_data_description_4" tools:ignore="BrandUsage">Chia sẻ cách bạn phát hiện ra Firefox và bạn sử dụng nó với các đối tác công nghệ tiếp thị của Mozilla.</string>
   <!-- Learn more link for marketing data preference -->
   <string name="preferences_marketing_data_learn_more">Tìm hiểu thêm về dữ liệu tiếp thị</string>
-  <!-- Preference switch for daily usage ping data collection -->
-  <string name="preferences_daily_usage_ping_title">Ping sử dụng hàng ngày</string>
-  <string name="preferences_daily_usage_ping_description">Điều này giúp Mozilla ước tính số người dùng đang hoạt động.</string>
-  <string name="preferences_daily_usage_ping_learn_more">Tìm hiểu thêm về ping sử dụng hàng ngày</string>
-  <!-- Preference switch title for automatically submitting crash reports -->
-  <string name="preferences_automatically_send_crashes_title">Tự động gửi báo cáo sự cố</string>
-  <!-- Preference switch description for automatically submitting crash reports -->
-  <string name="preferences_automatically_send_crashes_description">Điều này giúp chúng tôi chẩn đoán và khắc phục sự cố với trình duyệt. Báo cáo có thể bao gồm dữ liệu cá nhân hoặc nhạy cảm.</string>
   <!-- Learn more link for crash reporting preference -->
   <string name="onboarding_preferences_dialog_crash_reporting_learn_more">Tìm hiểu thêm về báo cáo sự cố</string>
   <!-- Title for studies preferences -->
@@ -1279,6 +1281,10 @@
   <string name="preference_top_toolbar">Phía trên</string>
   <!-- Preference for using bottom toolbar -->
   <string name="preference_bottom_toolbar">Phía dưới</string>
+  <!-- Preference for using simple toolbar -->
+  <string name="preference_simple_toolbar">Đơn giản</string>
+  <!-- Preference for using expanded toolbar -->
+  <string name="preference_expanded_toolbar">Mở rộng</string>
   <!--
     Theme Preferences
 
@@ -1653,11 +1659,21 @@
   -->
   <string name="download_item_in_progress_description_pending">%1$s / %2$s • đang đợi</string>
   <!--
+    Description of an in progress download item, displayed in the downloads list when the total download size is unknown. This results in the estimated download time remaining to be unknown also.
+    %1$s is the current file size that has been downloaded.
+  -->
+  <string name="download_item_in_progress_description_unknown_total_size">%1$s • thời gian không xác định</string>
+  <!--
     Description of a paused download item, displayed in the downloads list.
     %1$s is the current file size that has been downloaded.
     %2$s is the total size of the downloaded file.
   -->
   <string name="download_item_paused_description">%1$s / %2$s • đã tạm dừng</string>
+  <!--
+    Description of a paused download item, displayed in the downloads list when the total download size is unknown.
+    %1$s is the current file size that has been downloaded.
+  -->
+  <string name="download_item_paused_description_unknown_total_size">%1$s • đã tạm dừng</string>
   <!-- Text to indicate that an in progress download is paused. -->
   <string name="download_item_status_paused" moz:removedIn="141" tools:ignore="UnusedResources">đã tạm dừng</string>
   <!-- Text to indicate that the download speed of an in progress download is being calculated. -->
@@ -2635,6 +2651,14 @@
   <string name="saved_login_clear_username">Xóa tên người dùng</string>
   <!-- Content Description (for screenreaders etc) read for the button to clear the hostname field while creating a login -->
   <string name="saved_login_clear_hostname">Xóa tên máy chủ</string>
+  <!-- Content description, used by tools like screenreaders, for the 3 dots button that shows commands related to the currently displayed login (edit, delete). -->
+  <string name="login_detail_menu_button_content_description">Menu chi tiết đăng nhập</string>
+  <!-- Content description, used by tools like screenreaders, to go back and exit the login detail view. -->
+  <string name="login_details_navigate_back_button_content_description">Điều hướng quay lại</string>
+  <!-- Edit text for the login detail menu edit button -->
+  <string name="login_detail_menu_edit_button">Chỉnh sửa</string>
+  <!-- Delete text for the login detail menu delete button -->
+  <string name="login_detail_menu_delete_button">Xóa</string>
   <!-- Content Description (for screenreaders etc) read for the button to open a site in logins -->
   <string name="saved_login_open_site">Mở trang web trong trình duyệt</string>
   <!-- Content Description (for screenreaders etc) read for the button to reveal a password in logins -->

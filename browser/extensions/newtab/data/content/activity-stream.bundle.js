@@ -9202,7 +9202,9 @@ class TopSiteLink extends (external_React_default()).PureComponent {
         actionType: actionTypes.TOP_SITES_ORGANIC_IMPRESSION_STATS,
         tile: {
           position: this.props.index,
-          source: NEWTAB_SOURCE
+          source: NEWTAB_SOURCE,
+          isPinned: this.props.link.isPinned,
+          guid: this.props.link.guid
         }
         // For testing.
         ,
@@ -9397,7 +9399,9 @@ class TopSite extends (external_React_default()).PureComponent {
           data: {
             type: "click",
             position: this.props.index,
-            source: NEWTAB_SOURCE
+            source: NEWTAB_SOURCE,
+            isPinned: this.props.link.isPinned,
+            guid: this.props.link.guid
           }
         }));
       }
@@ -14993,6 +14997,13 @@ class BaseContent extends (external_React_default()).PureComponent {
         const uploadedWallpaperUrl = URL.createObjectURL(uploadedWallpaper);
         __webpack_require__.g.document?.body.style.setProperty("--newtab-wallpaper", `url(${uploadedWallpaperUrl})`);
         __webpack_require__.g.document?.body.style.setProperty("--newtab-wallpaper-color", "transparent");
+
+        // Based on the current colorMode, add the corresponding dark/light CSS classes
+        if (this.state.colorMode) {
+          this.setState(prevState => ({
+            wallpaperTheme: prevState.colorMode
+          }));
+        }
       } catch (e) {}
       return;
     }

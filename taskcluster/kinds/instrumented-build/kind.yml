@@ -50,7 +50,7 @@ tasks:
         shipping-product: firefox
         treeherder:
             platform: linux32-shippable/opt
-        worker-type: b-linux-gcp
+        worker-type: b-linux-amd
         run:
             config:
                 - builds/releng_base_firefox.py
@@ -80,7 +80,7 @@ tasks:
         shipping-product: firefox
         treeherder:
             platform: linux64-shippable/opt
-        worker-type: b-linux-gcp
+        worker-type: b-linux-amd
         run:
             config:
                 - builds/releng_base_firefox.py
@@ -109,7 +109,7 @@ tasks:
         shipping-product: firefox
         treeherder:
             platform: linux64-aarch64-shippable/opt
-        worker-type: b-linux-gcp
+        worker-type: b-linux-amd
         run:
             config:
                 - builds/releng_base_firefox.py
@@ -141,7 +141,7 @@ tasks:
         shipping-product: firefox
         treeherder:
             platform: osx-shippable/opt
-        worker-type: b-linux-gcp
+        worker-type: b-linux-amd
         worker:
             max-run-time: 7200
             env:
@@ -177,7 +177,7 @@ tasks:
         shipping-product: firefox
         treeherder:
             platform: osx-aarch64-shippable/opt
-        worker-type: b-linux-gcp
+        worker-type: b-linux-amd
         worker:
             max-run-time: 7200
             env:
@@ -437,7 +437,7 @@ tasks:
         shipping-product: firefox
         treeherder:
             platform: windows2012-32-shippable/opt
-        worker-type: b-linux-gcp
+        worker-type: b-linux-amd
         run:
             options: [append-env-variables-from-configs]
             mozconfig-variant: profile-generate
@@ -475,7 +475,7 @@ tasks:
         shipping-product: firefox
         treeherder:
             platform: win64-nightlyasrelease/opt
-        worker-type: b-linux-gcp
+        worker-type: b-linux-amd
         run:
             options: [append-env-variables-from-configs]
             mozconfig-variant: profile-generate
@@ -516,7 +516,7 @@ tasks:
         shipping-product: firefox
         treeherder:
             platform: windows2012-64-shippable/opt
-        worker-type: b-linux-gcp
+        worker-type: b-linux-amd
         run:
             options: [append-env-variables-from-configs]
             mozconfig-variant: profile-generate
@@ -555,7 +555,7 @@ tasks:
         shipping-product: firefox
         treeherder:
             platform: windows2012-aarch64-shippable/opt
-        worker-type: b-linux-gcp
+        worker-type: b-linux-amd
         run:
             options: [append-env-variables-from-configs]
             mozconfig-variant: profile-generate

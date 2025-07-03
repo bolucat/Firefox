@@ -9,15 +9,21 @@ import androidx.navigation.NavOptions
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.spyk
 import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import mozilla.appservices.places.BookmarkRoot
+import mozilla.components.browser.state.action.ShareResourceAction
+import mozilla.components.browser.state.state.BrowserState
 import mozilla.components.browser.state.state.ContentState
 import mozilla.components.browser.state.state.CustomTabConfig
 import mozilla.components.browser.state.state.CustomTabSessionState
 import mozilla.components.browser.state.state.ReaderState
+import mozilla.components.browser.state.state.content.ShareResourceState
 import mozilla.components.browser.state.state.createCustomTab
 import mozilla.components.browser.state.state.createTab
+import mozilla.components.browser.state.store.BrowserStore
+import mozilla.components.concept.engine.EngineSession
 import mozilla.components.concept.engine.EngineSession.LoadUrlFlags
 import mozilla.components.concept.engine.prompt.ShareData
 import mozilla.components.feature.addons.Addon
@@ -46,6 +52,9 @@ import org.mozilla.fenix.settings.SupportUtils.AMO_HOMEPAGE_FOR_ANDROID
 import org.mozilla.fenix.settings.SupportUtils.SumoTopic
 import org.mozilla.fenix.utils.Settings
 import org.mozilla.fenix.webcompat.WEB_COMPAT_REPORTER_URL
+import org.mozilla.fenix.webcompat.WebCompatReporterMoreInfoSender
+import org.mozilla.fenix.webcompat.fake.FakeWebCompatReporterMoreInfoSender
+import org.mozilla.fenix.webcompat.store.WebCompatReporterState
 
 class MenuNavigationMiddlewareTest {
 
@@ -448,6 +457,37 @@ class MenuNavigationMiddlewareTest {
     }
 
     @Test
+    fun `GIVEN the current tab is a local PDF WHEN share menu item is pressed THEN trigger ShareResourceAction`() = runTest {
+        val id = "1"
+        val url = "content://pdf.pdf"
+        val tab = createTab(
+            url = url,
+            id = id,
+        )
+        val browserStore = spyk(BrowserStore(BrowserState(tabs = listOf(tab), selectedTabId = id)))
+        val store = createStore(
+            browserStore = browserStore,
+            customTab = null,
+            menuState = MenuState(
+                browserMenuState = BrowserMenuState(
+                    selectedTab = tab,
+                ),
+            ),
+        )
+
+        store.dispatch(MenuAction.Navigate.Share).join()
+
+        verify {
+            browserStore.dispatch(
+                ShareResourceAction.AddShareAction(
+                    id,
+                    ShareResourceState.LocalResource(url),
+                ),
+            )
+        }
+    }
+
+    @Test
     fun `GIVEN the current tab is a custom tab WHEN navigate to share action is dispatched THEN navigate to share sheet`() = runTest {
         val url = "https://www.mozilla.org"
         val title = "Mozilla"
@@ -541,7 +581,7 @@ class MenuNavigationMiddlewareTest {
     }
 
     @Test
-    fun `GIVEN the user is on a tab WHEN the user clicks on the web compat button THEN navigate to the web compat reporter feature`() = runTest {
+    fun `GIVEN the user is on a tab and telemetry is enabled WHEN the user clicks on the web compat button THEN navigate to the web compat reporter feature`() = runTest {
         every { settings.isTelemetryEnabled } returns true
         val expectedTabUrl = "www.mozilla.org"
         createStore(
@@ -563,20 +603,38 @@ class MenuNavigationMiddlewareTest {
     }
 
     @Test
-    fun `GIVEN the user is on a tab WHEN the user clicks on the web compat button and telemetry is disabled THEN open browser`() = runTest {
+    fun `GIVEN the user is on a tab and telemetry is disabled WHEN the user clicks on the web compat button THEN send WebCompat info and open browser`() = runTest {
         every { settings.isTelemetryEnabled } returns false
         var params: BrowserNavigationParams? = null
         val expectedTabUrl = "www.mozilla.org"
+
+        var sendMoreWebCompatInfoCalled = false
+
+        val webCompatReporterMoreInfoSender = object : WebCompatReporterMoreInfoSender {
+            override suspend fun sendMoreWebCompatInfo(
+                reason: WebCompatReporterState.BrokenSiteReason?,
+                problemDescription: String?,
+                enteredUrl: String?,
+                tabUrl: String?,
+                engineSession: EngineSession?,
+            ) {
+                sendMoreWebCompatInfoCalled = true
+            }
+        }
+
         val store = createStore(
             customTab = createCustomTab(
                 url = expectedTabUrl,
             ),
+            webCompatReporterMoreInfoSender = webCompatReporterMoreInfoSender,
             openToBrowser = {
                 params = it
             },
         )
 
         store.dispatch(MenuAction.Navigate.WebCompatReporter).join()
+
+        assertTrue(sendMoreWebCompatInfoCalled)
 
         assertEquals("$WEB_COMPAT_REPORTER_URL$expectedTabUrl", params?.url)
     }
@@ -833,14 +891,17 @@ class MenuNavigationMiddlewareTest {
     }
 
     private fun createStore(
+        browserStore: BrowserStore = createBrowserStore(),
         customTab: CustomTabSessionState? = mockk(relaxed = true),
         menuState: MenuState = MenuState(),
+        webCompatReporterMoreInfoSender: WebCompatReporterMoreInfoSender = FakeWebCompatReporterMoreInfoSender(),
         openToBrowser: (params: BrowserNavigationParams) -> Unit = {},
         onDismiss: suspend () -> Unit = {},
     ) = MenuStore(
         initialState = menuState,
         middleware = listOf(
             MenuNavigationMiddleware(
+                browserStore = browserStore,
                 navController = navController,
                 openToBrowser = openToBrowser,
                 sessionUseCases = sessionUseCases,
@@ -849,7 +910,22 @@ class MenuNavigationMiddlewareTest {
                 onDismiss = onDismiss,
                 scope = scope,
                 customTab = customTab,
+                webCompatReporterMoreInfoSender = webCompatReporterMoreInfoSender,
             ),
         ),
     )
+
+    private fun createBrowserStore(): BrowserStore {
+        val tab = createTab(
+            url = "https://www.mozilla.org",
+            id = "test-tab",
+        )
+
+        return BrowserStore(
+            initialState = BrowserState(
+                tabs = listOf(tab),
+                selectedTabId = tab.id,
+            ),
+        )
+    }
 }

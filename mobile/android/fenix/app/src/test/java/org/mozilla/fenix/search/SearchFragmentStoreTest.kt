@@ -4,6 +4,7 @@
 
 package org.mozilla.fenix.search
 
+import android.content.Intent
 import io.mockk.MockKAnnotations
 import io.mockk.every
 import io.mockk.impl.annotations.MockK
@@ -63,6 +64,7 @@ class SearchFragmentStoreTest {
         MockKAnnotations.init(this)
         every { activity.browsingModeManager } returns object : BrowsingModeManager {
             override var mode: BrowsingMode = BrowsingMode.Normal
+            override fun updateMode(intent: Intent?) = Unit
         }
         every { components.settings } returns settings
         every { searchEngine.trendingUrl } returns null
@@ -1339,7 +1341,7 @@ class SearchFragmentStoreTest {
         val initialState = emptyDefaultState()
         val store = SearchFragmentStore(initialState)
 
-        store.dispatch(SearchStarted(selectedSearchEngine, true)).joinBlocking()
+        store.dispatch(SearchStarted(selectedSearchEngine, false, true)).joinBlocking()
 
         assertEquals(initialState, store.state)
     }

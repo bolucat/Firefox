@@ -28,7 +28,6 @@
 #include "mozilla/dom/AncestorIterator.h"
 #include "mozilla/dom/ElementInlines.h"
 #include "mozilla/dom/HTMLDetailsElement.h"
-#include "mozilla/dom/ImageTracker.h"
 #include "mozilla/dom/Selection.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/PathHelpers.h"
@@ -2899,6 +2898,20 @@ class AutoSaveRestoreContainsBlendMode {
   }
 };
 
+class AutoSaveRestoreContainsBackdropFilter {
+  nsDisplayListBuilder& mBuilder;
+  bool mSavedContainsBackdropFilter;
+
+ public:
+  explicit AutoSaveRestoreContainsBackdropFilter(nsDisplayListBuilder& aBuilder)
+      : mBuilder(aBuilder),
+        mSavedContainsBackdropFilter(aBuilder.ContainsBackdropFilter()) {}
+
+  ~AutoSaveRestoreContainsBackdropFilter() {
+    mBuilder.SetContainsBackdropFilter(mSavedContainsBackdropFilter);
+  }
+};
+
 static bool IsFrameOrAncestorApzAware(nsIFrame* aFrame) {
   nsIContent* node = aFrame->GetContent();
   if (!node) {
@@ -3204,8 +3217,15 @@ void nsIFrame::BuildDisplayListForStackingContext(
     }
   }
 
+  // Elements with a view-transition name also form a backdrop-root.
+  // See https://www.w3.org/TR/css-view-transitions-1/#named-and-transitioning
+  // and https://github.com/w3c/csswg-drafts/issues/11772
+  bool hasViewTransitionName = style.StyleUIReset()->HasViewTransitionName() &&
+                               !style.IsRootElementStyle();
+
   bool addBackdropRoot =
-      bool(disp->mWillChange.bits & StyleWillChangeBits::BACKDROP_ROOT);
+      (disp->mWillChange.bits & StyleWillChangeBits::BACKDROP_ROOT) ||
+      hasViewTransitionName;
 
   if (aBuilder->IsForPainting() && disp->mWillChange.bits) {
     aBuilder->AddToWillChangeBudget(this, GetSize());
@@ -3270,6 +3290,13 @@ void nsIFrame::BuildDisplayListForStackingContext(
   bool usingBackdropFilter = effects->HasBackdropFilters() &&
                              IsVisibleForPainting() &&
                              !style.IsRootElementStyle();
+
+  if (usingBackdropFilter) {
+    aBuilder->SetContainsBackdropFilter(true);
+  }
+
+  AutoSaveRestoreContainsBackdropFilter autoRestoreBackdropFilter(*aBuilder);
+  aBuilder->SetContainsBackdropFilter(false);
 
   nsRect visibleRectOutsideTransform = visibleRect;
   nsDisplayTransform::PrerenderInfo prerenderInfo;
@@ -3686,7 +3713,8 @@ void nsIFrame::BuildDisplayListForStackingContext(
         nsDisplayOpacity::NeedsActiveLayer(aBuilder, this);
     resultList.AppendNewToTop<nsDisplayOpacity>(
         aBuilder, this, &resultList, containerItemASR, opacityItemForEventsOnly,
-        needsActiveOpacityLayer, usingBackdropFilter);
+        needsActiveOpacityLayer, usingBackdropFilter,
+        addBackdropRoot && aBuilder->ContainsBackdropFilter());
     createdContainer = true;
     addBackdropRoot = false;
   }
@@ -3906,7 +3934,7 @@ void nsIFrame::BuildDisplayListForStackingContext(
     }
   }
 
-  if (addBackdropRoot) {
+  if (addBackdropRoot && aBuilder->ContainsBackdropFilter()) {
     resultList.AppendToTop(nsDisplayBlendContainer::Create(
         aBuilder, this, &resultList, containerItemASR));
     createdContainer = true;

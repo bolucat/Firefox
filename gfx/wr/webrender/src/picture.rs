@@ -117,7 +117,7 @@ use crate::internal_types::{FastHashMap, FastHashSet, PlaneSplitter, FilterGraph
 use crate::internal_types::{PlaneSplitterIndex, PlaneSplitAnchor, TextureSource};
 use crate::frame_builder::{FrameBuildingContext, FrameBuildingState, PictureState, PictureContext};
 use crate::gpu_cache::{GpuCache, GpuCacheAddress, GpuCacheHandle};
-use crate::gpu_types::{UvRectKind, ZBufferId};
+use crate::gpu_types::{UvRectKind, ZBufferId, BlurEdgeMode};
 use peek_poke::{PeekPoke, poke_into_vec, peek_from_slice, ensure_red_zone};
 use plane_split::{Clipper, Polygon};
 use crate::prim_store::{PrimitiveTemplateKind, PictureIndex, PrimitiveInstance, PrimitiveInstanceKind};
@@ -4387,7 +4387,7 @@ impl PictureCompositeMode {
         };
 
         match self {
-            PictureCompositeMode::Filter(Filter::Blur { width, height, should_inflate }) => {
+            PictureCompositeMode::Filter(Filter::Blur { width, height, should_inflate, .. }) => {
                 if *should_inflate {
                     let (width_factor, height_factor) = surface.clamp_blur_radius(*width, *height);
 
@@ -4483,7 +4483,7 @@ impl PictureCompositeMode {
         };
 
         match self {
-            PictureCompositeMode::Filter(Filter::Blur { width, height, should_inflate }) => {
+            PictureCompositeMode::Filter(Filter::Blur { width, height, should_inflate, .. }) => {
                 if *should_inflate {
                     let (width_factor, height_factor) = surface.clamp_blur_radius(*width, *height);
 
@@ -5723,6 +5723,7 @@ impl PicturePrimitive {
                                                 Some(clear_color),
                                                 cmd_buffer_index,
                                                 false,
+                                                None,
                                             )
                                         ),
                                     );
@@ -5774,6 +5775,7 @@ impl PicturePrimitive {
                                                 Some(clear_color),
                                                 cmd_buffer_index,
                                                 false,
+                                                None,
                                             )
                                         ),
                                     );
@@ -6018,7 +6020,7 @@ impl PicturePrimitive {
                     PictureCompositeMode::TileCache { .. } => {
                         unreachable!("handled above");
                     }
-                    PictureCompositeMode::Filter(Filter::Blur { width, height, .. }) => {
+                    PictureCompositeMode::Filter(Filter::Blur { width, height, edge_mode, .. }) => {
                         let surface = &frame_state.surfaces[raster_config.surface_index.0];
                         let (width, height) = surface.clamp_blur_radius(width, height);
 
@@ -6039,7 +6041,18 @@ impl PicturePrimitive {
                             blur_std_deviation,
                         );
 
+                        // If we have extended the size of the picture for blurring downscaling
+                        // accuracy, ensure we clear it so that any stray pixels don't affect the
+                        // downscaling passes. If not, the picture / resolve consumes the full
+                        // task size anyway, so we will clamp as usual to the task rect.
+                        let clear_color = if adjusted_size == original_size {
+                            None
+                        } else {
+                            Some(ColorF::TRANSPARENT)
+                        };
+
                         let cmd_buffer_index = frame_state.cmd_buffers.create_cmd_buffer();
+                        let adjusted_size = adjusted_size.to_i32();
 
                         // Since we (may have) adjusted the render task size for downscaling accuracy
                         // above, recalculate the uv rect for tasks that may sample from this blur output
@@ -6060,9 +6073,10 @@ impl PicturePrimitive {
                                     device_pixel_scale,
                                     None,
                                     None,
-                                    None,
+                                    clear_color,
                                     cmd_buffer_index,
                                     can_use_shared_surface,
+                                    Some(original_size.round().to_i32()),
                                 )
                             ).with_uv_rect_kind(uv_rect_kind)
                         );
@@ -6081,6 +6095,7 @@ impl PicturePrimitive {
                                     RenderTargetKind::Color,
                                     None,
                                     original_size.to_i32(),
+                                    edge_mode,
                                 )
                             }
                         );
@@ -6114,6 +6129,7 @@ impl PicturePrimitive {
                                     None,
                                     cmd_buffer_index,
                                     can_use_shared_surface,
+                                    None,
                                 ),
                             ).with_uv_rect_kind(surface_rects.uv_rect_kind)
                         );
@@ -6139,6 +6155,7 @@ impl PicturePrimitive {
                                 RenderTargetKind::Color,
                                 Some(&mut blur_tasks),
                                 device_rect.size().to_i32(),
+                                BlurEdgeMode::Duplicate,
                             );
                         }
 
@@ -6263,6 +6280,7 @@ impl PicturePrimitive {
                                             None,
                                             cmd_buffer_index,
                                             can_use_shared_surface,
+                                            None,
                                         )
                                     ).with_uv_rect_kind(surface_rects.uv_rect_kind)
                                 )
@@ -6301,6 +6319,7 @@ impl PicturePrimitive {
                                             None,
                                             cmd_buffer_index,
                                             can_use_shared_surface,
+                                            None,
                                         )
                                     ).with_uv_rect_kind(surface_rects.uv_rect_kind)
                                 )
@@ -6339,6 +6358,7 @@ impl PicturePrimitive {
                                             None,
                                             cmd_buffer_index,
                                             can_use_shared_surface,
+                                            None,
                                         )
                                     ).with_uv_rect_kind(surface_rects.uv_rect_kind)
                                 )
@@ -6378,6 +6398,7 @@ impl PicturePrimitive {
                                             None,
                                             cmd_buffer_index,
                                             can_use_shared_surface,
+                                            None,
                                         )
                                     ).with_uv_rect_kind(surface_rects.uv_rect_kind)
                                 )
@@ -6422,6 +6443,7 @@ impl PicturePrimitive {
                                             None,
                                             cmd_buffer_index,
                                             can_use_shared_surface,
+                                            None,
                                         )
                                     ).with_uv_rect_kind(surface_rects.uv_rect_kind)
                                 )
@@ -6453,6 +6475,7 @@ impl PicturePrimitive {
                                     None,
                                     cmd_buffer_index,
                                     can_use_shared_surface,
+                                    None,
                                 )
                             ).with_uv_rect_kind(surface_rects.uv_rect_kind)
                         );
@@ -6518,6 +6541,7 @@ impl PicturePrimitive {
                                     None,
                                     cmd_buffer_index,
                                     can_use_shared_surface,
+                                    None,
                                 )
                             )
                         );

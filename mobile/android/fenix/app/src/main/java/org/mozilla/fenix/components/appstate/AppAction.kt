@@ -70,8 +70,12 @@ sealed class AppAction : Action {
      * Updates the [SearchEngine] used for the current in-progress browser search.
      *
      * @property searchEngine The new [SearchEngine] to use for the current in-progress browser search.
+     * @property isUserSelected Whether the search engine was selected by the user or not.
      */
-    data class SearchEngineSelected(val searchEngine: SearchEngine) : AppAction()
+    data class SearchEngineSelected(
+        val searchEngine: SearchEngine,
+        val isUserSelected: Boolean,
+    ) : AppAction()
     data class AddNonFatalCrash(val crash: NativeCodeCrash) : AppAction()
     data class RemoveNonFatalCrash(val crash: NativeCodeCrash) : AppAction()
     object RemoveAllNonFatalCrashes : AppAction()
@@ -677,5 +681,35 @@ sealed class AppAction : Action {
          * @property downloadState The state object containing information about the failed download.
          */
         data class CannotOpenFile(val downloadState: DownloadState) : DownloadAction()
+    }
+
+    /**
+     * [AppAction]s related to prompting the user for a store review/rating.
+     */
+    sealed class ReviewPromptAction : AppAction() {
+        /**
+         * Dispatched to trigger review prompt eligibility checks.
+         */
+        data object CheckIfEligibleForReviewPrompt : ReviewPromptAction()
+
+        /**
+         * Dispatched when no triggers for showing the prompt are satisfied.
+         */
+        data object DoNotShowReviewPrompt : ReviewPromptAction()
+
+        /**
+         * Dispatched when a trigger to show the Play Store prompt is satisfied.
+         */
+        data object ShowPlayStorePrompt : ReviewPromptAction()
+
+        /**
+         * Dispatched when a trigger to show our custom review prompt is satisfied.
+         */
+        data object ShowCustomReviewPrompt : ReviewPromptAction()
+
+        /**
+         * Dispatched after a review prompt was shown.
+         */
+        data object ReviewPromptShown : ReviewPromptAction()
     }
 }

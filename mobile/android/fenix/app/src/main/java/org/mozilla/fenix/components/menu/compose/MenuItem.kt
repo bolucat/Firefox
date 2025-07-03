@@ -18,9 +18,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.Icon
-import androidx.compose.material.IconButton
-import androidx.compose.material.Text
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -299,6 +299,11 @@ enum class MenuItemState {
      * The menu item is highlighted to indicate the feature behind the menu item is destructive.
      */
     WARNING,
+
+    /**
+     * The menu item is highlighted to indicate the feature behind the menu item is critical.
+     */
+    CRITICAL,
 }
 
 @Composable
@@ -325,6 +330,7 @@ private fun getIconTint(state: MenuItemState): Color {
     return when (state) {
         MenuItemState.ACTIVE -> FirefoxTheme.colors.iconAccentViolet
         MenuItemState.WARNING -> FirefoxTheme.colors.iconCritical
+        MenuItemState.CRITICAL -> Color.Unspecified
         else -> FirefoxTheme.colors.iconPrimary
     }
 }

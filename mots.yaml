@@ -8,7 +8,7 @@
 # documentation and how to modify this file.
 repo: mozilla-central
 created_at: '2021-10-14T12:50:40.073465'
-updated_at: '2025-06-05T11:07:53.355698+00:00'
+updated_at: '2025-07-02T18:13:44.732197+00:00'
 export:
   path: ./docs/mots/index.rst
   format: rst
@@ -50,6 +50,10 @@ people:
     bmo_id: 693303
     name: Alex Hochheiden
     nick: ahochheiden
+  - &aleiserson
+    bmo_id: 713407
+    name: Andy Leiserson
+    nick: aleiserson
   - &allstarschh
     bmo_id: 434670
     name: Yoshi Cheng-Hao Huang
@@ -2890,8 +2894,7 @@ modules:
       - netwerk/protocol/http/**/*
     meta:
       group: dev-platform
-      url:
-        https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/User-Agent/Firefox
+      url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/User-Agent/Firefox
       components:
         - 'Core::Networking: HTTP'
     owners:
@@ -3021,6 +3024,7 @@ modules:
       - *jgilbert
       - *nical
       - *teoxoy
+      - *aleiserson
     machine_name: core_webgpu_graphics_submodule
 
   - name: 'Core: WebRTC'
@@ -3519,6 +3523,7 @@ modules:
           - *jules
           - *kcochrane
           - *sfoster
+          - *tgiles
         machine_name: desktop_theme
 
       - name: Desktop UI
@@ -3879,16 +3884,17 @@ modules:
           peers_emeritus:
             - Jared Wein
             - Matthew N
+            - *mconley
         owners:
           - *dao
         peers:
           - *mak
-          - *mconley
           - *dwalker
           - *nikkis
           - *niklas
           - *jswinarton
           - *sthompson
+          - *sclements
         machine_name: tabbed_browser
 
       - name: Windows Installer
@@ -4595,5 +4601,5 @@ modules:
         - Ryan Tilder
       group: dev-platform
 hashes:
-  config: 5238770d67e1dbb0f77c69094919d3875ca79bcb
-  export: 4a1cfbaad83e2605a8530f8da80c72c0abf58479
+  config: a1ccbc43003245cc89a1e69755612e2d8aafdecb
+  export: 110e13b33fbf8c627d8757596f98bcd8fd5f2025

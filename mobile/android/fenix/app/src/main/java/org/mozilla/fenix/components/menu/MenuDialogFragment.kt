@@ -48,6 +48,7 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
 import mozilla.components.browser.state.selector.findCustomTab
 import mozilla.components.browser.state.selector.selectedTab
 import mozilla.components.concept.engine.translate.TranslationSupport
@@ -82,6 +83,7 @@ import org.mozilla.fenix.components.menu.store.MenuStore
 import org.mozilla.fenix.components.menu.store.TranslationInfo
 import org.mozilla.fenix.components.menu.store.WebExtensionMenuItem
 import org.mozilla.fenix.ext.openSetDefaultBrowserOption
+import org.mozilla.fenix.ext.requireComponents
 import org.mozilla.fenix.ext.runIfFragmentIsAttached
 import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.nimbus.FxNimbus
@@ -99,6 +101,10 @@ import org.mozilla.fenix.utils.exitMenu
 import org.mozilla.fenix.utils.exitSubmenu
 import org.mozilla.fenix.utils.lastSavedFolderCache
 import org.mozilla.fenix.utils.slideDown
+import org.mozilla.fenix.webcompat.DefaultWebCompatReporterMoreInfoSender
+import org.mozilla.fenix.webcompat.middleware.DefaultNimbusExperimentsProvider
+import org.mozilla.fenix.webcompat.middleware.DefaultWebCompatReporterRetrievalService
+import org.mozilla.fenix.webcompat.middleware.WebCompatInfoDeserializer
 
 // EXPANDED_MIN_RATIO is used for BottomSheetBehavior.halfExpandedRatio().
 // That value needs to be less than the PEEK_HEIGHT.
@@ -119,6 +125,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
     private val args by navArgs<MenuDialogFragmentArgs>()
     private val webExtensionsMenuBinding = ViewBoundFeatureWrapper<WebExtensionsMenuBinding>()
     private var bottomSheetBehavior: BottomSheetBehavior<View>? = null
+    private var isPrivate: Boolean = false
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         Events.toolbarMenuVisible.record(NoExtras())
@@ -127,6 +134,8 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
             setOnShowListener {
                 val safeActivity = activity ?: return@setOnShowListener
                 val browsingModeManager = (safeActivity as HomeActivity).browsingModeManager
+
+                isPrivate = browsingModeManager.mode.isPrivate
 
                 val navigationBarColor = if (browsingModeManager.mode.isPrivate) {
                     ContextCompat.getColor(context, R.color.fx_mobile_private_layer_color_3)
@@ -197,6 +206,23 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                 val appLinksUseCases = components.useCases.appLinksUseCases
                 val webAppUseCases = components.useCases.webAppUseCases
 
+                val webCompatReporterMoreInfoSender =
+                    DefaultWebCompatReporterMoreInfoSender(
+                        webCompatReporterRetrievalService =
+                            DefaultWebCompatReporterRetrievalService(
+                                browserStore = requireComponents.core.store,
+                                webCompatInfoDeserializer = WebCompatInfoDeserializer(
+                                    json = Json {
+                                        ignoreUnknownKeys = true
+                                        useAlternativeNames = false
+                                    },
+                                ),
+                                nimbusExperimentsProvider = DefaultNimbusExperimentsProvider(
+                                    nimbusApi = requireComponents.nimbus.sdk,
+                                ),
+                            ),
+                    )
+
                 val coroutineScope = rememberCoroutineScope()
                 val scrollState = rememberScrollState()
 
@@ -259,6 +285,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                 lastSavedFolderCache = context.settings().lastSavedFolderCache,
                             ),
                             MenuNavigationMiddleware(
+                                browserStore = browserStore,
                                 navController = findNavController(),
                                 openToBrowser = ::openToBrowser,
                                 sessionUseCases = components.useCases.sessionUseCases,
@@ -271,6 +298,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                 },
                                 scope = coroutineScope,
                                 customTab = customTab,
+                                webCompatReporterMoreInfoSender = webCompatReporterMoreInfoSender,
                             ),
                             MenuTelemetryMiddleware(
                                 accessPoint = args.accesspoint,
@@ -424,10 +452,10 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
 
                     val contentState: Route by remember { mutableStateOf(initRoute) }
 
-                    var shouldShowDefaultBrowserBanner by
-                    remember { mutableStateOf(settings.shouldShowDefaultBrowserBanner) }
+                    var shouldShowMenuBanner by
+                    remember { mutableStateOf(settings.shouldShowMenuBanner) }
 
-                    var showBanner = shouldShowDefaultBrowserBanner && !defaultBrowser
+                    var showBanner = shouldShowMenuBanner && !defaultBrowser
 
                     BackHandler {
                         this@MenuDialogFragment.dismissAllowingStateLoss()
@@ -507,6 +535,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                     isBookmarked = isBookmarked,
                                     isDesktopMode = isDesktopMode,
                                     isPdf = isPdf,
+                                    isPrivate = isPrivate,
                                     isReaderViewActive = isReaderViewActive,
                                     canGoBack = selectedTab?.content?.canGoBack ?: true,
                                     canGoForward = selectedTab?.content?.canGoForward ?: true,
@@ -547,13 +576,14 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                         store.dispatch(MenuAction.FindInPage)
                                     },
                                     onBannerClick = {
+                                        store.dispatch(MenuAction.MenuBanner)
                                         (context as? Activity)?.openSetDefaultBrowserOption()
                                         showBanner = false
-                                        shouldShowDefaultBrowserBanner = false
+                                        shouldShowMenuBanner = false
                                     },
                                     onBannerDismiss = {
-                                        settings.shouldShowDefaultBrowserBanner = false
-                                        shouldShowDefaultBrowserBanner = false
+                                        store.dispatch(MenuAction.DismissMenuBanner)
+                                        shouldShowMenuBanner = false
                                     },
                                     onExtensionsMenuClick = {
                                         if (

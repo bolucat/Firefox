@@ -29,8 +29,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.Icon
-import androidx.compose.material.Text
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -67,6 +67,8 @@ import mozilla.components.service.fxa.manager.AccountState.NotAuthenticated
 import mozilla.components.service.fxa.store.Account
 import org.mozilla.fenix.R
 import org.mozilla.fenix.components.menu.MenuAccessPoint
+import org.mozilla.fenix.components.menu.MenuDialogTestTag.DESKTOP_SITE_OFF
+import org.mozilla.fenix.components.menu.MenuDialogTestTag.DESKTOP_SITE_ON
 import org.mozilla.fenix.components.menu.MenuDialogTestTag.EXTENSIONS
 import org.mozilla.fenix.components.menu.compose.header.MenuNavHeader
 import org.mozilla.fenix.components.menu.store.WebExtensionMenuItem
@@ -88,6 +90,7 @@ import org.mozilla.fenix.utils.DURATION_MS_MAIN_MENU_ITEM
  * @param isBookmarked Whether or not the current tab is bookmarked.
  * @param isDesktopMode Whether or not the desktop mode is enabled.
  * @param isPdf Whether or not the current tab is a PDF.
+ * @param isPrivate Whether or not the current browsing mode is private
  * @param isReaderViewActive Whether or not Reader View is active or not.
  * @param isExtensionsProcessDisabled Whether or not the extensions process is disabled due to extension errors.
  * @param allWebExtensionsDisabled Whether or not all web extensions are disabled.
@@ -137,6 +140,7 @@ fun MainMenu(
     isBookmarked: Boolean,
     isDesktopMode: Boolean,
     isPdf: Boolean,
+    isPrivate: Boolean,
     isReaderViewActive: Boolean,
     isExtensionsProcessDisabled: Boolean,
     allWebExtensionsDisabled: Boolean,
@@ -212,7 +216,7 @@ fun MainMenu(
         }
 
         if (accessPoint == MenuAccessPoint.Home && showBanner) {
-            DefaultBrowserBanner(
+            MenuBanner(
                 onDismiss = {
                     onBannerDismiss()
                 },
@@ -228,6 +232,7 @@ fun MainMenu(
                 onExtensionsMenuClick = onExtensionsMenuClick,
                 isExtensionsProcessDisabled = isExtensionsProcessDisabled,
                 isExtensionsExpanded = isExtensionsExpanded,
+                isPrivate = isPrivate,
                 webExtensionMenuCount = webExtensionMenuCount,
                 allWebExtensionsDisabled = allWebExtensionsDisabled,
                 extensionSubmenu = extensionSubmenu,
@@ -240,6 +245,7 @@ fun MainMenu(
                 isBookmarked = isBookmarked,
                 isDesktopMode = isDesktopMode,
                 isPdf = isPdf,
+                isPrivate = isPrivate,
                 isExtensionsProcessDisabled = isExtensionsProcessDisabled,
                 isExtensionsExpanded = isExtensionsExpanded,
                 moreMenuExpanded = isMoreMenuExpanded,
@@ -269,6 +275,7 @@ fun MainMenu(
                 account = account,
                 accountState = accountState,
                 onClick = onMozillaAccountButtonClick,
+                isPrivate = isPrivate,
             )
 
             MenuItem(
@@ -286,11 +293,13 @@ fun MainMenu(
     }
 }
 
+@Suppress("LongParameterList", "LongMethod")
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun ExtensionsMenuItem(
     isExtensionsProcessDisabled: Boolean,
     isExtensionsExpanded: Boolean,
+    isPrivate: Boolean,
     webExtensionMenuCount: Int,
     allWebExtensionsDisabled: Boolean,
     onExtensionsMenuClick: () -> Unit,
@@ -302,8 +311,10 @@ private fun ExtensionsMenuItem(
         MenuItem(
             label = stringResource(id = R.string.browser_menu_extensions),
             description = extensionsMenuItemDescription,
-            beforeIconPainter = if (isExtensionsProcessDisabled) {
-                painterResource(id = R.drawable.mozac_ic_extension_disabled_24)
+            beforeIconPainter = if (isExtensionsProcessDisabled && isPrivate) {
+                painterResource(id = R.drawable.mozac_ic_extension_warning_private_24)
+            } else if (isExtensionsProcessDisabled) {
+                painterResource(id = R.drawable.mozac_ic_extension_warning_24)
             } else {
                 painterResource(id = R.drawable.mozac_ic_extension_24)
             },
@@ -316,6 +327,11 @@ private fun ExtensionsMenuItem(
             modifier = Modifier.semantics {
                 testTag = EXTENSIONS
                 testTagsAsResourceId = true
+            },
+            state = if (isExtensionsProcessDisabled) {
+                MenuItemState.CRITICAL
+            } else {
+                MenuItemState.ENABLED
             },
         ) {
             if (extensionsMenuItemDescription == null) {
@@ -425,12 +441,14 @@ private fun QuitMenuGroup(
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Suppress("LongParameterList", "LongMethod")
 @Composable
 private fun ToolsAndActionsMenuGroup(
     isBookmarked: Boolean,
     isDesktopMode: Boolean,
     isPdf: Boolean,
+    isPrivate: Boolean,
     isExtensionsProcessDisabled: Boolean,
     isExtensionsExpanded: Boolean,
     moreMenuExpanded: Boolean,
@@ -484,11 +502,18 @@ private fun ToolsAndActionsMenuGroup(
         )
 
             MenuItem(
-                label = stringResource(id = labelId),
-                beforeIconPainter = painterResource(id = R.drawable.mozac_ic_device_mobile_24),
-                state = menuItemState,
-                onClick = onSwitchToDesktopSiteMenuClick,
-            ) {
+            modifier = Modifier.semantics {
+                testTagsAsResourceId = true
+                testTag = when (menuItemState) {
+                    MenuItemState.ACTIVE -> DESKTOP_SITE_ON
+                    else -> DESKTOP_SITE_OFF
+                }
+            },
+            label = stringResource(id = labelId),
+            beforeIconPainter = painterResource(id = R.drawable.mozac_ic_device_mobile_24),
+            state = menuItemState,
+            onClick = onSwitchToDesktopSiteMenuClick,
+        ) {
             if (menuItemState == MenuItemState.DISABLED) {
                 return@MenuItem
             }
@@ -503,6 +528,7 @@ private fun ToolsAndActionsMenuGroup(
         ExtensionsMenuItem(
             isExtensionsProcessDisabled = isExtensionsProcessDisabled,
             isExtensionsExpanded = isExtensionsExpanded,
+            isPrivate = isPrivate,
             webExtensionMenuCount = webExtensionMenuCount,
             allWebExtensionsDisabled = allWebExtensionsDisabled,
             onExtensionsMenuClick = onExtensionsMenuClick,
@@ -640,6 +666,7 @@ private fun LibraryMenuGroup(
 private fun HomepageMenuGroup(
     isExtensionsProcessDisabled: Boolean,
     isExtensionsExpanded: Boolean,
+    isPrivate: Boolean,
     webExtensionMenuCount: Int,
     allWebExtensionsDisabled: Boolean,
     onExtensionsMenuClick: () -> Unit,
@@ -657,6 +684,7 @@ private fun HomepageMenuGroup(
         ExtensionsMenuItem(
             isExtensionsProcessDisabled = isExtensionsProcessDisabled,
             isExtensionsExpanded = isExtensionsExpanded,
+            isPrivate = isPrivate,
             webExtensionMenuCount = webExtensionMenuCount,
             allWebExtensionsDisabled = allWebExtensionsDisabled,
             onExtensionsMenuClick = onExtensionsMenuClick,
@@ -671,6 +699,7 @@ internal fun MozillaAccountMenuItem(
     account: Account?,
     accountState: AccountState,
     onClick: () -> Unit,
+    isPrivate: Boolean,
 ) {
     val label: String
     val description: String?
@@ -700,17 +729,23 @@ internal fun MozillaAccountMenuItem(
 
     MenuItem(
         label = label,
-        beforeIconPainter = painterResource(id = R.drawable.mozac_ic_avatar_circle_24),
+        beforeIconPainter = if (accountState is AuthenticationProblem && isPrivate) {
+            painterResource(id = R.drawable.mozac_ic_avatar_warning_circle_fill_critical_private_24)
+        } else if (accountState is AuthenticationProblem) {
+            painterResource(id = R.drawable.mozac_ic_avatar_warning_circle_fill_critical_24)
+        } else {
+            painterResource(id = R.drawable.mozac_ic_avatar_circle_24)
+        },
         description = description,
+        state = if (accountState is AuthenticationProblem) {
+            MenuItemState.CRITICAL
+        } else {
+            MenuItemState.ENABLED
+        },
         descriptionState = if (accountState is AuthenticationProblem) {
             MenuItemState.WARNING
         } else {
             MenuItemState.ENABLED
-        },
-        afterIconPainter = if (accountState is AuthenticationProblem) {
-            painterResource(R.drawable.mozac_ic_warning_fill_24)
-        } else {
-            null
         },
         onClick = onClick,
     )
@@ -883,7 +918,8 @@ private fun MenuDialogPreview() {
             MainMenu(
                 accessPoint = MenuAccessPoint.Browser,
                 account = null,
-                accountState = NotAuthenticated,
+                accountState = AuthenticationProblem,
+                isPrivate = false,
                 showQuitMenu = true,
                 isSiteLoading = false,
                 isExtensionsExpanded = false,
@@ -943,7 +979,8 @@ private fun MenuDialogPrivatePreview(
             MainMenu(
                 accessPoint = MenuAccessPoint.Home,
                 account = null,
-                accountState = NotAuthenticated,
+                accountState = AuthenticationProblem,
+                isPrivate = false,
                 showQuitMenu = true,
                 isSiteLoading = isSiteLoading,
                 isExtensionsExpanded = true,

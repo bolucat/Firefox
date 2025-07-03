@@ -27,8 +27,6 @@ import org.mozilla.fenix.home.recentsyncedtabs.RecentSyncedTabState
 import org.mozilla.fenix.home.recenttabs.RecentTab
 import org.mozilla.fenix.home.recentvisits.RecentlyVisitedItem
 import org.mozilla.fenix.home.topsites.TopSiteColors
-import org.mozilla.fenix.nimbus.FxNimbus
-import org.mozilla.fenix.nimbus.HomeScreenSection
 import org.mozilla.fenix.search.SearchDialogFragment
 import org.mozilla.fenix.utils.Settings
 
@@ -91,6 +89,7 @@ internal sealed class HomepageState {
      * @property showBookmarks Whether to show bookmarks.
      * @property showRecentlyVisited Whether to show recent history section.
      * @property showPocketStories Whether to show the pocket stories section.
+     * @property showCollections Whether to show the collections section.
      * @property showPrivateBrowsingButton Whether to show the private browsing button.
      * @property showSearchBar Whether to show the middle search bar.
      * @property searchBarEnabled Whether the middle search bar is enabled or not.
@@ -119,6 +118,7 @@ internal sealed class HomepageState {
         val showBookmarks: Boolean,
         val showRecentlyVisited: Boolean,
         val showPocketStories: Boolean,
+        val showCollections: Boolean,
         override val showPrivateBrowsingButton: Boolean,
         val showSearchBar: Boolean,
         val searchBarEnabled: Boolean,
@@ -184,10 +184,11 @@ internal sealed class HomepageState {
                         showTopSites = settings.showTopSitesFeature && topSites.isNotEmpty(),
                         showRecentTabs = shouldShowRecentTabs(settings),
                         showBookmarks = settings.showBookmarksHomeFeature && bookmarks.isNotEmpty(),
-                        showRecentSyncedTab = shouldShowRecentSyncedTabs() && showSyncedTab,
+                        showRecentSyncedTab = shouldShowRecentSyncedTabs() && settings.showSyncedTabs,
                         showRecentlyVisited = settings.historyMetadataUIFeature && recentHistory.isNotEmpty(),
                         showPocketStories = settings.showPocketRecommendationsFeature &&
                             recommendationState.pocketStories.isNotEmpty(),
+                        showCollections = settings.collections,
                         showPrivateBrowsingButton = !settings.enableHomepageAsNewTab,
                         showSearchBar = shouldShowSearchBar(appState = appState),
                         searchBarEnabled = settings.enableHomepageSearchBar &&
@@ -206,9 +207,6 @@ internal sealed class HomepageState {
         }
     }
 }
-
-private val showSyncedTab: Boolean
-    get() = FxNimbus.features.homescreen.value().sectionsEnabled[HomeScreenSection.SYNCED_TABS] == true
 
 @Composable
 private fun getBottomSpace(): Dp {

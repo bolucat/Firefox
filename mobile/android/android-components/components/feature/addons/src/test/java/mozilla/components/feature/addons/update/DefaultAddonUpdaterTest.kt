@@ -308,7 +308,7 @@ class DefaultAddonUpdaterTest {
 
         val addonId = "addonId"
 
-        updater.updateAttempStorage = mock()
+        updater.updateAttemptStorage = mock()
 
         val workId = updater.getUniquePeriodicWorkName(addonId)
 
@@ -328,7 +328,7 @@ class DefaultAddonUpdaterTest {
 
         workData = workManager.getWorkInfosForUniqueWork(workId).await()
         assertEquals(WorkInfo.State.CANCELLED, workData.first().state)
-        verify(updater.updateAttempStorage).remove(addonId)
+        verify(updater.updateAttemptStorage).remove(addonId)
     }
 
     @Test
@@ -344,7 +344,7 @@ class DefaultAddonUpdaterTest {
         assertTrue(workRequest.tags.contains(workId))
         assertTrue(workRequest.tags.contains(WORK_TAG_PERIODIC))
 
-        assertEquals(updater.getWorkerConstrains(), workRequest.workSpec.constraints)
+        assertEquals(updater.getWorkerConstraints(), workRequest.workSpec.constraints)
 
         assertEquals(addonId, workRequest.workSpec.input.getString(KEY_DATA_EXTENSIONS_ID))
     }

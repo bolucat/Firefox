@@ -859,6 +859,8 @@
   <string name="preferences_category_account">账户</string>
   <!-- Preference for changing where the AddressBar is positioned -->
   <string name="preferences_toolbar_2">地址栏位置</string>
+  <!-- Preference for changing toolbar layout -->
+  <string name="preferences_toolbar_layout">工具栏布局</string>
   <!-- Preference for changing default theme to dark or light mode -->
   <string name="preferences_theme">主题</string>
   <!-- Preference for customizing the home screen -->
@@ -878,7 +880,7 @@
   <!-- Preference for translations -->
   <string name="preferences_translations">翻译</string>
   <!-- Preference for data choices -->
-  <string name="preferences_data_choices">数据反馈</string>
+  <string name="preferences_data_choices" tools:ignore="UnusedResources" moz:removedIn="141">数据反馈</string>
   <!-- Preference for data collection -->
   <string name="preferences_data_collection">数据收集</string>
   <!-- Preference for developers -->
@@ -943,7 +945,7 @@
   <string name="preferences_external_download_manager" tools:ignore="UnusedResources" moz:removedIn="141">外部下载管理器</string>
   <!-- Preference title for choosing an app to handle downloads -->
   <string name="preferences_choose_app_for_downloads">通过其他应用管理下载</string>
-  <!-- Title for the setting to automatically clean up downloaded files. %s is the brand of the phone (for example: Samsung). -->
+  <!-- Title for the setting to automatically clean up downloaded files. %s is the name of the app (for example "Firefox"). -->
   <string name="preferences_downloads_settings_clean_up_files_title">从 %s 和设备删除</string>
   <!-- Summary for the setting to automatically clean up downloaded files -->
   <string name="preferences_downloads_settings_clean_up_files_summary">将文件从下载管理器移除后，也会将其从设备移除</string>
@@ -1229,9 +1231,17 @@
   <!-- Preference switch for usage and technical data collection -->
   <string name="preference_usage_data_2">发送技术和交互数据</string>
   <!-- Preference switch for usage and technical learn more link -->
-  <string name="preference_usage_data_learn_more">详细了解</string>
+  <string name="preference_usage_data_learn_more" tools:ignore="UnusedResources" moz:removedIn="141">详细了解</string>
   <!-- Preference description for marketing data collection. Note: The words "Firefox" should NOT be translated -->
   <string name="preferences_usage_data_description_1" tools:ignore="BrandUsage">与您的设备、硬件配置、使用方式相关的数据，有助于我们改进 Firefox 的功能、性能、稳定性。</string>
+  <!-- Preference switch for daily usage ping data collection -->
+  <string name="preferences_daily_usage_ping_title">每日使用情况报告</string>
+  <string name="preferences_daily_usage_ping_description">此数据可帮助 Mozilla 估算活跃用户数量。</string>
+  <string name="preferences_daily_usage_ping_learn_more">详细了解每日使用情况报告</string>
+  <!-- Preference switch title for automatically submitting crash reports -->
+  <string name="preferences_automatically_send_crashes_title">自动发送崩溃报告</string>
+  <!-- Preference switch description for automatically submitting crash reports -->
+  <string name="preferences_automatically_send_crashes_description">这有助于我们诊断和修复浏览器的问题。报告中可能包含个人或敏感数据。</string>
   <!-- Preference switch for campaign measurement data (marketing data) collection -->
   <string name="preferences_marketing_data_2">活动衡量数据</string>
   <!--
@@ -1241,14 +1251,6 @@
   <string name="preferences_marketing_data_description_4" tools:ignore="BrandUsage">与 Mozilla 的营销技术合作伙伴分享您发现 Firefox 的途径及使用方式。</string>
   <!-- Learn more link for marketing data preference -->
   <string name="preferences_marketing_data_learn_more">详细了解营销数据</string>
-  <!-- Preference switch for daily usage ping data collection -->
-  <string name="preferences_daily_usage_ping_title">每日使用情况报告</string>
-  <string name="preferences_daily_usage_ping_description">此数据可帮助 Mozilla 估算活跃用户数量。</string>
-  <string name="preferences_daily_usage_ping_learn_more">详细了解每日使用情况报告</string>
-  <!-- Preference switch title for automatically submitting crash reports -->
-  <string name="preferences_automatically_send_crashes_title">自动发送崩溃报告</string>
-  <!-- Preference switch description for automatically submitting crash reports -->
-  <string name="preferences_automatically_send_crashes_description">这有助于我们诊断和修复浏览器的问题。报告中可能包含个人或敏感数据。</string>
   <!-- Learn more link for crash reporting preference -->
   <string name="onboarding_preferences_dialog_crash_reporting_learn_more">详细了解崩溃报告</string>
   <!-- Title for studies preferences -->
@@ -1279,6 +1281,10 @@
   <string name="preference_top_toolbar">顶部</string>
   <!-- Preference for using bottom toolbar -->
   <string name="preference_bottom_toolbar">底部</string>
+  <!-- Preference for using simple toolbar -->
+  <string name="preference_simple_toolbar">简单</string>
+  <!-- Preference for using expanded toolbar -->
+  <string name="preference_expanded_toolbar">展开</string>
   <!--
     Theme Preferences
 
@@ -1653,11 +1659,21 @@
   -->
   <string name="download_item_in_progress_description_pending">%1$s / %2$s • 测算中</string>
   <!--
+    Description of an in progress download item, displayed in the downloads list when the total download size is unknown. This results in the estimated download time remaining to be unknown also.
+    %1$s is the current file size that has been downloaded.
+  -->
+  <string name="download_item_in_progress_description_unknown_total_size">%1$s • 剩余时间未知</string>
+  <!--
     Description of a paused download item, displayed in the downloads list.
     %1$s is the current file size that has been downloaded.
     %2$s is the total size of the downloaded file.
   -->
   <string name="download_item_paused_description">%1$s / %2$s • 已暂停</string>
+  <!--
+    Description of a paused download item, displayed in the downloads list when the total download size is unknown.
+    %1$s is the current file size that has been downloaded.
+  -->
+  <string name="download_item_paused_description_unknown_total_size">%1$s • 已暂停</string>
   <!-- Text to indicate that an in progress download is paused. -->
   <string name="download_item_status_paused" moz:removedIn="141" tools:ignore="UnusedResources">已暂停</string>
   <!-- Text to indicate that the download speed of an in progress download is being calculated. -->
@@ -2635,6 +2651,14 @@
   <string name="saved_login_clear_username">清除用户名</string>
   <!-- Content Description (for screenreaders etc) read for the button to clear the hostname field while creating a login -->
   <string name="saved_login_clear_hostname">清除主机名</string>
+  <!-- Content description, used by tools like screenreaders, for the 3 dots button that shows commands related to the currently displayed login (edit, delete). -->
+  <string name="login_detail_menu_button_content_description">登录详细信息菜单</string>
+  <!-- Edit text for the login detail menu edit button -->
+  <string name="login_detail_menu_edit_button">编辑</string>
+  <!-- Delete text for the login detail menu delete button -->
+  <string name="login_detail_menu_delete_button">删除</string>
+  <!-- Content description, used by tools like screenreaders, to press on the save new login button. -->
+  <string name="add_login_save_new_login_button_content_description">保存新的登录信息</string>
   <!-- Content Description (for screenreaders etc) read for the button to open a site in logins -->
   <string name="saved_login_open_site">在浏览器中打开网站</string>
   <!-- Content Description (for screenreaders etc) read for the button to reveal a password in logins -->
@@ -2998,7 +3022,7 @@
     Search suggestions title for trending search suggestions.
     %s is a placeholder for the name of the search engine providing the trending search suggestions.
   -->
-  <string name="trending_searches_header_2">%s 热门搜索</string>
+  <string name="trending_searches_header_2">%s\u200a热门搜索</string>
   <!-- Title for search suggestions when Google is the default search suggestion engine. -->
   <string name="google_search_engine_suggestion_header">Google 搜索</string>
   <!-- Title for search suggestions when the default search suggestion engine is anything other than Google. %s is default search engine name. -->

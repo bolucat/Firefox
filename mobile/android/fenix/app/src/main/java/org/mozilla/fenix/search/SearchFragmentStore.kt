@@ -4,7 +4,10 @@
 
 package org.mozilla.fenix.search
 
+import android.content.Context
 import androidx.annotation.VisibleForTesting
+import androidx.lifecycle.LifecycleOwner
+import androidx.navigation.NavController
 import mozilla.components.browser.state.search.SearchEngine
 import mozilla.components.browser.state.selector.findTab
 import mozilla.components.browser.state.state.SearchState
@@ -20,9 +23,11 @@ import mozilla.components.lib.state.UiStore
 import org.mozilla.fenix.HomeActivity
 import org.mozilla.fenix.automotive.isAndroidAutomotiveAvailable
 import org.mozilla.fenix.browser.browsingmode.BrowsingMode
+import org.mozilla.fenix.browser.browsingmode.BrowsingModeManager
 import org.mozilla.fenix.components.Components
 import org.mozilla.fenix.components.metrics.MetricsUtils
 import org.mozilla.fenix.search.SearchFragmentAction.Init
+import org.mozilla.fenix.search.SearchFragmentStore.Environment
 import org.mozilla.fenix.utils.Settings
 
 /**
@@ -42,6 +47,24 @@ class SearchFragmentStore(
     init {
         dispatch(Init)
     }
+
+    /**
+     * The current environment of the search UX allowing access to various
+     * other application features that this integrates with.
+     *
+     * This is Activity/Fragment lifecycle dependent and should be handled carefully to avoid memory leaks.
+     *
+     * @property context Activity [Context] used for various system interactions.
+     * @property viewLifecycleOwner [LifecycleOwner] depending on which lifecycle related operations will be scheduled.
+     * @property browsingModeManager [BrowsingModeManager] for querying the current browsing mode.
+     * @property navController [NavController] used to navigate to other destinations.
+     */
+    data class Environment(
+        val context: Context,
+        val viewLifecycleOwner: LifecycleOwner,
+        val browsingModeManager: BrowsingModeManager,
+        val navController: NavController,
+    )
 }
 
 /**
@@ -166,7 +189,51 @@ data class SearchFragmentState(
     val pastedText: String? = null,
     val searchAccessPoint: MetricsUtils.Source,
     val clipboardHasUrl: Boolean = false,
-) : State
+) : State {
+    /**
+     * Static functionality of [SearchFragmentState].
+     */
+    companion object {
+        /**
+         * Default empty [SearchFragmentState].
+         */
+        val EMPTY = SearchFragmentState(
+            query = "",
+            url = "",
+            searchTerms = "",
+            searchEngineSource = SearchEngineSource.None,
+            defaultEngine = null,
+            searchSuggestionsProviders = emptyList(),
+            searchSuggestionsOrientedAtBottom = false,
+            shouldShowSearchSuggestions = false,
+            showSearchSuggestions = false,
+            showSearchSuggestionsHint = false,
+            showSearchShortcuts = false,
+            areShortcutsAvailable = false,
+            showSearchShortcutsSetting = false,
+            showClipboardSuggestions = false,
+            showSearchTermHistory = false,
+            showHistorySuggestionsForCurrentEngine = false,
+            showAllHistorySuggestions = false,
+            showBookmarksSuggestionsForCurrentEngine = false,
+            showAllBookmarkSuggestions = false,
+            showSyncedTabsSuggestionsForCurrentEngine = false,
+            showAllSyncedTabsSuggestions = false,
+            showSessionSuggestionsForCurrentEngine = false,
+            showAllSessionSuggestions = false,
+            showSponsoredSuggestions = false,
+            showNonSponsoredSuggestions = false,
+            showTrendingSearches = false,
+            showRecentSearches = false,
+            showShortcutsSuggestions = false,
+            showQrButton = false,
+            tabId = null,
+            pastedText = null,
+            searchAccessPoint = MetricsUtils.Source.NONE,
+            clipboardHasUrl = false,
+        )
+    }
+}
 
 /**
  * Creates the initial state for the search fragment.
@@ -250,10 +317,12 @@ sealed class SearchFragmentAction : Action {
      *
      * @property selectedSearchEngine The user selected search engine to use for the new search
      * or `null` if the default search engine should be used.
+     * @property isUserSelected Whether or not the search engine was selected by the user.
      * @property inPrivateMode Whether or not the search is started in private browsing mode.
      */
     data class SearchStarted(
         val selectedSearchEngine: SearchEngine?,
+        val isUserSelected: Boolean,
         val inPrivateMode: Boolean,
     ) : SearchFragmentAction()
 
@@ -352,6 +421,16 @@ sealed class SearchFragmentAction : Action {
     data class SuggestionSelected(
         val suggestion: Suggestion,
     ) : SearchFragmentAction()
+
+    /**
+     * Signals a new valid [Environment] has been set.
+     */
+    data class EnvironmentRehydrated(val environment: Environment) : SearchFragmentAction()
+
+    /**
+     * Signals the current [Environment] is not valid anymore.
+     */
+    data object EnvironmentCleared : SearchFragmentAction()
 }
 
 /**
@@ -543,6 +622,8 @@ private fun searchStateReducer(state: SearchFragmentState, action: SearchFragmen
             state.copy(shouldShowSearchSuggestions = action.visible)
         }
 
+        is SearchFragmentAction.EnvironmentRehydrated,
+        is SearchFragmentAction.EnvironmentCleared,
         is SearchFragmentAction.SearchStarted,
         is SearchFragmentAction.SuggestionClicked,
         is SearchFragmentAction.SuggestionSelected,

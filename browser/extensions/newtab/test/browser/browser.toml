@@ -22,6 +22,8 @@ prefs = [
 ]
 tags = "newtab"
 
+["browser_TrendingSearch.js"]
+
 ["browser_as_load_location.js"]
 
 ["browser_as_render.js"]
@@ -79,6 +81,8 @@ run-if = [
   "os == 'win'", # Test setup only implemented for OSX and Windows
   "os == 'mac'", # Test setup only implemented for OSX and Windows
 ]
+
+["browser_SmartShortcuts.js"]
 
 ["browser_topsites_annotation.js"]
 

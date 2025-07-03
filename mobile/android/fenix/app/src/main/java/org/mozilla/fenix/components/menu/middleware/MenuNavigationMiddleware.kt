@@ -10,8 +10,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import mozilla.appservices.places.BookmarkRoot
+import mozilla.components.browser.state.action.ShareResourceAction
 import mozilla.components.browser.state.ext.getUrl
+import mozilla.components.browser.state.selector.selectedTab
 import mozilla.components.browser.state.state.CustomTabSessionState
+import mozilla.components.browser.state.state.content.ShareResourceState
+import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.concept.engine.EngineSession.LoadUrlFlags
 import mozilla.components.concept.engine.prompt.ShareData
 import mozilla.components.feature.pwa.WebAppUseCases
@@ -22,6 +26,7 @@ import mozilla.components.service.fxa.manager.AccountState.Authenticated
 import mozilla.components.service.fxa.manager.AccountState.Authenticating
 import mozilla.components.service.fxa.manager.AccountState.AuthenticationProblem
 import mozilla.components.service.fxa.manager.AccountState.NotAuthenticated
+import mozilla.components.support.ktx.kotlin.isContentUrl
 import org.mozilla.fenix.R
 import org.mozilla.fenix.browser.BrowserFragmentDirections
 import org.mozilla.fenix.collections.SaveCollectionStep
@@ -37,11 +42,14 @@ import org.mozilla.fenix.settings.SupportUtils.AMO_HOMEPAGE_FOR_ANDROID
 import org.mozilla.fenix.settings.SupportUtils.SumoTopic
 import org.mozilla.fenix.utils.Settings
 import org.mozilla.fenix.webcompat.WEB_COMPAT_REPORTER_URL
+import org.mozilla.fenix.webcompat.WebCompatReporterMoreInfoSender
 
 /**
  * [Middleware] implementation for handling navigating events based on [MenuAction]s that are
  * dispatched to the [MenuStore].
  *
+ * @param browserStore [BrowserStore] used to dispatch actions related to the menu state and access
+ * the selected tab.
  * @param navController [NavController] used for navigation.
  * @param openToBrowser Callback to open the provided [BrowserNavigationParams]
  * in a new browser tab.
@@ -51,9 +59,12 @@ import org.mozilla.fenix.webcompat.WEB_COMPAT_REPORTER_URL
  * @param onDismiss Callback invoked to dismiss the menu dialog.
  * @param scope [CoroutineScope] used to launch coroutines.
  * @param customTab [CustomTabSessionState] used for sharing custom tab.
+ * @param webCompatReporterMoreInfoSender [WebCompatReporterMoreInfoSender] used
+ * to send WebCompat info to webcompat.com.
  */
 @Suppress("LongParameterList")
 class MenuNavigationMiddleware(
+    private val browserStore: BrowserStore,
     private val navController: NavController,
     private val openToBrowser: (params: BrowserNavigationParams) -> Unit,
     private val sessionUseCases: SessionUseCases,
@@ -62,6 +73,7 @@ class MenuNavigationMiddleware(
     private val onDismiss: suspend () -> Unit,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Main),
     private val customTab: CustomTabSessionState?,
+    private val webCompatReporterMoreInfoSender: WebCompatReporterMoreInfoSender,
 ) : Middleware<MenuState, MenuAction> {
 
     @Suppress("CyclomaticComplexMethod", "LongMethod")
@@ -205,26 +217,36 @@ class MenuNavigationMiddleware(
                     val url = customTab?.content?.url ?: currentState.browserMenuState?.selectedTab?.getUrl()
 
                     session?.let {
-                        val shareData = ShareData(title = it.content.title, url = url)
-                        val direction = MenuDialogFragmentDirections.actionGlobalShareFragment(
-                            sessionId = it.id,
-                            data = arrayOf(shareData),
-                            showPage = true,
-                        )
-
-                        val popUpToId = if (customTab != null) {
-                            R.id.externalAppBrowserFragment
+                        if (url?.isContentUrl() == true) {
+                            browserStore.dispatch(
+                                ShareResourceAction.AddShareAction(
+                                    session.id,
+                                    ShareResourceState.LocalResource(url),
+                                ),
+                            )
+                            onDismiss()
                         } else {
-                            R.id.browserFragment
-                        }
+                            val shareData = ShareData(title = it.content.title, url = url)
+                            val direction = MenuDialogFragmentDirections.actionGlobalShareFragment(
+                                sessionId = it.id,
+                                data = arrayOf(shareData),
+                                showPage = true,
+                            )
 
-                        navController.nav(
-                            R.id.menuDialogFragment,
-                            direction,
-                            navOptions = NavOptions.Builder()
-                                .setPopUpTo(popUpToId, false)
-                                .build(),
-                        )
+                            val popUpToId = if (customTab != null) {
+                                R.id.externalAppBrowserFragment
+                            } else {
+                                R.id.browserFragment
+                            }
+
+                            navController.nav(
+                                R.id.menuDialogFragment,
+                                direction,
+                                navOptions = NavOptions.Builder()
+                                    .setPopUpTo(popUpToId, false)
+                                    .build(),
+                            )
+                        }
                     }
                 }
 
@@ -260,6 +282,16 @@ class MenuNavigationMiddleware(
                                     ),
                             )
                         } else {
+                            val selectedTab = browserStore.state.selectedTab
+
+                            webCompatReporterMoreInfoSender.sendMoreWebCompatInfo(
+                                reason = null,
+                                problemDescription = null,
+                                enteredUrl = null,
+                                tabUrl = selectedTab?.getUrl(),
+                                engineSession = selectedTab?.engineState?.engineSession,
+                            )
+
                             openToBrowser(
                                 BrowserNavigationParams(url = "$WEB_COMPAT_REPORTER_URL$tabUrl"),
                             )

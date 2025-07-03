@@ -107,6 +107,7 @@ InspectorSearch.prototype = {
     if (res) {
       this.inspector.selection.setNodeFront(res.node, {
         reason: "inspectorsearch",
+        searchQuery: query,
       });
       searchContainer.classList.remove("devtools-searchbox-no-match");
       res.query = query;
@@ -136,6 +137,18 @@ InspectorSearch.prototype = {
     if (event.keyCode === KeyCodes.DOM_VK_G && modifierKey) {
       this._onSearch(event.shiftKey);
       event.preventDefault();
+    }
+
+    // The search box is a `<input type="search">`, which would clear on pressing Escape.
+    // Prevent the clear action from happening when the autocomplete popup is visible and
+    // only hide it. The preventDefault has to be called during keydown and not keypress
+    // to avoid the input clearance.
+    if (
+      event.keyCode === KeyCodes.DOM_VK_ESCAPE &&
+      this.autocompleter.searchPopup?.isOpen
+    ) {
+      event.preventDefault();
+      this.autocompleter.hidePopup();
     }
   },
 
@@ -533,6 +546,8 @@ class SelectorAutocompleter extends EventEmitter {
 
     if (
       // Hide the popup if:
+      // - the query is empty
+      !query ||
       // - the query ends with * (because we don't want to suggest all nodes)
       query.endsWith("*") ||
       // - if it is an attribute selector (because it would give a lot of useless results).

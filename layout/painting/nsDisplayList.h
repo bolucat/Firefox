@@ -1508,6 +1508,11 @@ class nsDisplayListBuilder {
   }
   bool ContainsBlendMode() const { return mContainsBlendMode; }
 
+  void SetContainsBackdropFilter(bool aContainsBackdropFilter) {
+    mContainsBackdropFilter = aContainsBackdropFilter;
+  }
+  bool ContainsBackdropFilter() const { return mContainsBackdropFilter; }
+
   DisplayListClipState& ClipState() { return mClipState; }
   const ActiveScrolledRoot* CurrentActiveScrolledRoot() {
     return mCurrentActiveScrolledRoot;
@@ -1900,6 +1905,7 @@ class nsDisplayListBuilder {
   uint32_t mNumActiveScrollframesEncountered = 0;
 
   bool mContainsBlendMode;
+  bool mContainsBackdropFilter;
   bool mIsBuildingScrollbar;
   bool mCurrentScrollbarWillHaveLayer;
   bool mBuildCaret;
@@ -5099,7 +5105,7 @@ class nsDisplayOpacity final : public nsDisplayWrapList {
                    nsDisplayList* aList,
                    const ActiveScrolledRoot* aActiveScrolledRoot,
                    bool aForEventsOnly, bool aNeedsActiveLayer,
-                   bool aWrapsBackdropFilter);
+                   bool aWrapsBackdropFilter, bool aForceBackdropRoot);
 
   nsDisplayOpacity(nsDisplayListBuilder* aBuilder,
                    const nsDisplayOpacity& aOther)
@@ -5108,7 +5114,8 @@ class nsDisplayOpacity final : public nsDisplayWrapList {
         mForEventsOnly(aOther.mForEventsOnly),
         mNeedsActiveLayer(aOther.mNeedsActiveLayer),
         mChildOpacityState(ChildOpacityState::Unknown),
-        mWrapsBackdropFilter(aOther.mWrapsBackdropFilter) {
+        mWrapsBackdropFilter(aOther.mWrapsBackdropFilter),
+        mForceBackdropRoot(aOther.mForceBackdropRoot) {
     MOZ_COUNT_CTOR(nsDisplayOpacity);
     // We should not try to merge flattened opacities.
     MOZ_ASSERT(aOther.mChildOpacityState != ChildOpacityState::Applied);
@@ -5218,6 +5225,7 @@ class nsDisplayOpacity final : public nsDisplayWrapList {
   ChildOpacityState mChildOpacityState;
 #endif
   bool mWrapsBackdropFilter;
+  bool mForceBackdropRoot;
 };
 
 class nsDisplayBlendMode : public nsDisplayWrapList {

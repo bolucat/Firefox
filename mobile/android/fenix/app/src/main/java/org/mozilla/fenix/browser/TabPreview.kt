@@ -37,11 +37,11 @@ import mozilla.components.compose.browser.toolbar.store.BrowserToolbarStore
 import mozilla.components.compose.browser.toolbar.store.DisplayState
 import mozilla.components.concept.base.images.ImageLoadRequest
 import mozilla.components.support.ktx.android.view.toScope
+import mozilla.components.support.ktx.kotlin.applyRegistrableDomainSpan
 import mozilla.components.support.ktx.kotlin.isContentUrl
 import mozilla.components.support.ktx.util.URLStringUtils
 import org.mozilla.fenix.R
 import org.mozilla.fenix.components.toolbar.ToolbarPosition
-import org.mozilla.fenix.components.toolbar.URLDomainHighlight.getRegistrableDomainOrHostIndexRange
 import org.mozilla.fenix.databinding.TabPreviewBinding
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.settings
@@ -187,6 +187,13 @@ class TabPreview @JvmOverloads constructor(
 
     private fun buildComposableToolbarStore(): BrowserToolbarStore {
         val tabsCount = currentOpenedTabsCount
+        val isPrivateMode = context.components.appStore.state.mode.isPrivate
+
+        val tabsCounterDescription = if (isPrivateMode) {
+            context.getString(R.string.mozac_tab_counter_private)
+        } else {
+            context.getString(R.string.mozac_tab_counter_open_tab_tray)
+        }
 
         return BrowserToolbarStore(
             BrowserToolbarState(
@@ -201,10 +208,8 @@ class TabPreview @JvmOverloads constructor(
                     browserActionsEnd = listOf(
                         TabCounterAction(
                             count = tabsCount,
-                            contentDescription = context.getString(
-                                R.string.mozac_tab_counter_open_tab_tray, tabsCount.toString(),
-                            ),
-                            showPrivacyMask = context.components.core.store.state.selectedTab?.content?.private == true,
+                            contentDescription = tabsCounterDescription,
+                            showPrivacyMask = isPrivateMode,
                             onClick = object : BrowserToolbarEvent {},
                         ),
                         ActionButtonRes(
@@ -247,16 +252,13 @@ class TabPreview @JvmOverloads constructor(
     }
 
     private suspend fun buildComposableToolbarPageOrigin(tab: TabSessionState): PageOrigin {
-        val displayUrl = URLStringUtils.toDisplayUrl(tab.content.url).toString()
-        val registrableDomainIndexRange = getRegistrableDomainOrHostIndexRange(
-            tab.content.url, displayUrl, context.components.publicSuffixList,
-        )
+        val url = tab.content.url.applyRegistrableDomainSpan(context.components.publicSuffixList)
+        val displayUrl = URLStringUtils.toDisplayUrl(url)
 
         return PageOrigin(
             hint = R.string.search_hint,
             title = null,
             url = displayUrl,
-            registrableDomainIndexRange = registrableDomainIndexRange,
             onClick = object : BrowserToolbarEvent {},
         )
     }
