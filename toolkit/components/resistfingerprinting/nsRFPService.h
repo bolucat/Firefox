@@ -416,6 +416,10 @@ class nsRFPService final : public nsIObserver, public nsIRFPService {
 
   static uint64_t GetSpoofedStorageLimit();
 
+  static bool ExposeWebCodecsAPI(JSContext* aCx, JSObject* aObj);
+  static bool ExposeWebCodecsAPIImageDecoder(JSContext* aCx, JSObject* aObj);
+  static bool IsWebCodecsRFPTargetEnabled(JSContext* aCx);
+
  private:
   nsresult Init();
 

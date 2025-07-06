@@ -1797,6 +1797,69 @@ int32_t nsContentUtils::ParseHTMLInteger(const char* aStart, const char* aEnd,
   return ParseHTMLIntegerImpl(aStart, aEnd, aResult);
 }
 
+Maybe<double> nsContentUtils::ParseHTMLFloatingPointNumber(
+    const nsAString& aString) {
+  // Check if it is a valid floating-point number first since the result of
+  // nsString.ToDouble() is more lenient than the spec,
+  // https://html.spec.whatwg.org/#valid-floating-point-number
+  nsAString::const_iterator iter, end;
+  aString.BeginReading(iter);
+  aString.EndReading(end);
+
+  if (iter == end) {
+    return {};
+  }
+
+  if (*iter == char16_t('-') && ++iter == end) {
+    return {};
+  }
+
+  if (IsAsciiDigit(*iter)) {
+    for (; iter != end && IsAsciiDigit(*iter); ++iter);
+  } else if (*iter == char16_t('.')) {
+    // Do nothing, jumps to fraction part
+  } else {
+    return {};
+  }
+
+  // Fraction
+  if (*iter == char16_t('.')) {
+    ++iter;
+    if (iter == end || !IsAsciiDigit(*iter)) {
+      // U+002E FULL STOP character (.) must be followed by one or more ASCII
+      // digits
+      return {};
+    }
+
+    for (; iter != end && IsAsciiDigit(*iter); ++iter);
+  }
+
+  if (iter != end && (*iter == char16_t('e') || *iter == char16_t('E'))) {
+    ++iter;
+    if (*iter == char16_t('-') || *iter == char16_t('+')) {
+      ++iter;
+    }
+
+    if (iter == end || !IsAsciiDigit(*iter)) {
+      // Should have one or more ASCII digits
+      return {};
+    }
+
+    for (; iter != end && IsAsciiDigit(*iter); ++iter);
+  }
+
+  if (iter != end) {
+    return {};
+  }
+
+  nsresult rv;
+  double result = PromiseFlatString(aString).ToDouble(&rv);
+  if (NS_FAILED(rv)) {
+    return {};
+  }
+  return Some(result);
+}
+
 #define SKIP_WHITESPACE(iter, end_iter, end_res)                 \
   while ((iter) != (end_iter) && nsCRT::IsAsciiSpace(*(iter))) { \
     ++(iter);                                                    \
@@ -2845,7 +2908,7 @@ bool nsContentUtils::ShouldResistFingerprinting_dangerous(
   }
 
   // Web extension principals are also excluded
-  if (BasePrincipal::Cast(aPrincipal)->AddonPolicy()) {
+  if (NS_IsMainThread() && BasePrincipal::Cast(aPrincipal)->AddonPolicy()) {
     MOZ_LOG(nsContentUtils::ResistFingerprintingLog(), LogLevel::Debug,
             ("Inside ShouldResistFingerprinting(nsIPrincipal*)"
              " and AddonPolicy said false"));
@@ -3132,10 +3195,11 @@ nsresult nsContentUtils::GetInclusiveAncestors(nsINode* aNode,
 }
 
 // static
-template <typename GetParentFunc>
+template <typename GetParentFunc, typename ComputeChildIndexFunc>
 nsresult static GetInclusiveAncestorsAndOffsetsHelper(
     nsINode* aNode, uint32_t aOffset, nsTArray<nsIContent*>& aAncestorNodes,
-    nsTArray<Maybe<uint32_t>>& aAncestorOffsets, GetParentFunc aGetParentFunc) {
+    nsTArray<Maybe<uint32_t>>& aAncestorOffsets, GetParentFunc aGetParentFunc,
+    ComputeChildIndexFunc aComputeChildIndexFunc) {
   NS_ENSURE_ARG_POINTER(aNode);
 
   if (!aNode->IsContent()) {
@@ -3162,7 +3226,7 @@ nsresult static GetInclusiveAncestorsAndOffsetsHelper(
   nsIContent* parent = aGetParentFunc(child);
   while (parent) {
     aAncestorNodes.AppendElement(parent->AsContent());
-    aAncestorOffsets.AppendElement(parent->ComputeIndexOf(child));
+    aAncestorOffsets.AppendElement(aComputeChildIndexFunc(parent, child));
     child = parent;
     parent = aGetParentFunc(child);
   }
@@ -3175,17 +3239,23 @@ nsresult nsContentUtils::GetInclusiveAncestorsAndOffsets(
     nsTArray<Maybe<uint32_t>>& aAncestorOffsets) {
   return GetInclusiveAncestorsAndOffsetsHelper(
       aNode, aOffset, aAncestorNodes, aAncestorOffsets,
-      [](nsIContent* aContent) { return aContent->GetParent(); });
+      [](nsIContent* aContent) { return aContent->GetParent(); },
+      [](nsIContent* aParent, nsIContent* aChild) {
+        return aParent->ComputeIndexOf(aChild);
+      });
 }
 
-nsresult nsContentUtils::GetShadowIncludingAncestorsAndOffsets(
+nsresult nsContentUtils::GetFlattenedTreeAncestorsAndOffsets(
     nsINode* aNode, uint32_t aOffset, nsTArray<nsIContent*>& aAncestorNodes,
     nsTArray<Maybe<uint32_t>>& aAncestorOffsets) {
   return GetInclusiveAncestorsAndOffsetsHelper(
       aNode, aOffset, aAncestorNodes, aAncestorOffsets,
       [](nsIContent* aContent) -> nsIContent* {
         return nsIContent::FromNodeOrNull(
-            aContent->GetParentOrShadowHostNode());
+            GetParentFuncForComparison<TreeKind::Flat>(aContent));
+      },
+      [](nsIContent* aParent, nsIContent* aChild) {
+        return aParent->ComputeFlatTreeIndexOf(aChild);
       });
 }
 
@@ -3675,6 +3745,8 @@ Maybe<int32_t> nsContentUtils::ComparePoints(
   if (!aBoundary1.IsSet() || !aBoundary2.IsSet()) {
     return Nothing{};
   }
+  MOZ_ASSERT(aBoundary1.GetTreeKind() == aBoundary2.GetTreeKind());
+
   const auto kValidOrInvalidOffsets1 =
       RangeBoundaryBase<PT1, RT1>::OffsetFilter::kValidOrInvalidOffsets;
   const auto kValidOrInvalidOffsets2 =
@@ -4286,7 +4358,7 @@ bool nsContentUtils::IsCustomElementName(nsAtom* aName, uint32_t aNameSpaceID) {
   //  font-face-name
   //  missing-glyph
   return aName != nsGkAtoms::annotation_xml &&
-         aName != nsGkAtoms::colorProfile && aName != nsGkAtoms::font_face &&
+         aName != nsGkAtoms::color_profile && aName != nsGkAtoms::font_face &&
          aName != nsGkAtoms::font_face_src &&
          aName != nsGkAtoms::font_face_uri &&
          aName != nsGkAtoms::font_face_format &&

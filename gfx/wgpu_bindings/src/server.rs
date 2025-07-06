@@ -3,9 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 use crate::{
-    error::{
-        error_to_string, ErrMsg, ErrorBuffer, ErrorBufferType, HasErrorBufferType, OwnedErrorBuffer,
-    },
+    error::{error_to_string, ErrMsg, ErrorBuffer, ErrorBufferType, OwnedErrorBuffer},
     make_byte_buf, wgpu_string, AdapterInformation, BufferMapResult, ByteBuf, CommandEncoderAction,
     DeviceAction, FfiLUID, FfiSlice, Message, PipelineError, QueueWriteAction,
     QueueWriteDataSource, ServerMessage, ShaderModuleCompilationMessage, SwapChainId,
@@ -18,6 +16,7 @@ use wgc::id;
 use wgc::{pipeline::CreateShaderModuleError, resource::BufferAccessError};
 #[allow(unused_imports)]
 use wgh::Instance;
+use wgt::error::{ErrorType, WebGpuError};
 
 use std::borrow::Cow;
 #[allow(unused_imports)]
@@ -232,7 +231,7 @@ impl NSOperatingSystemVersion {
 
 #[allow(unreachable_code)]
 #[allow(unused_variables)]
-fn support_use_external_texture_in_swap_chain(
+fn support_use_shared_texture_in_swap_chain(
     global: &Global,
     self_id: id::AdapterId,
     backend: wgt::Backend,
@@ -242,14 +241,14 @@ fn support_use_external_texture_in_swap_chain(
     {
         if backend != wgt::Backend::Dx12 {
             log::info!(concat!(
-                "WebGPU: disabling ExternalTexture swapchain: \n",
+                "WebGPU: disabling SharedTexture swapchain: \n",
                 "wgpu backend is not Dx12"
             ));
             return false;
         }
         if !is_hardware {
             log::info!(concat!(
-                "WebGPU: disabling ExternalTexture swapchain: \n",
+                "WebGPU: disabling SharedTexture swapchain: \n",
                 "Dx12 backend is not hardware"
             ));
             return false;
@@ -261,7 +260,7 @@ fn support_use_external_texture_in_swap_chain(
     {
         let support = if backend != wgt::Backend::Vulkan {
             log::info!(concat!(
-                "WebGPU: disabling ExternalTexture swapchain: \n",
+                "WebGPU: disabling SharedTexture swapchain: \n",
                 "wgpu backend is not Vulkan"
             ));
             false
@@ -289,7 +288,7 @@ fn support_use_external_texture_in_swap_chain(
                         if !supported {
                             log::info!(
                                 concat!(
-                                    "WebGPU: disabling ExternalTexture swapchain: \n",
+                                    "WebGPU: disabling SharedTexture swapchain: \n",
                                     "Vulkan extension not supported: {:?}",
                                 ),
                                 extension.to_string_lossy()
@@ -307,14 +306,14 @@ fn support_use_external_texture_in_swap_chain(
     {
         if backend != wgt::Backend::Metal {
             log::info!(concat!(
-                "WebGPU: disabling ExternalTexture swapchain: \n",
+                "WebGPU: disabling SharedTexture swapchain: \n",
                 "wgpu backend is not Metal"
             ));
             return false;
         }
         if !is_hardware {
             log::info!(concat!(
-                "WebGPU: disabling ExternalTexture swapchain: \n",
+                "WebGPU: disabling SharedTexture swapchain: \n",
                 "Metal backend is not hardware"
             ));
             return false;
@@ -328,7 +327,7 @@ fn support_use_external_texture_in_swap_chain(
 
         if !version.at_least((10, 14), (12, 0), /* os_is_mac */ true) {
             log::info!(concat!(
-                "WebGPU: disabling ExternalTexture swapchain:\n",
+                "WebGPU: disabling SharedTexture swapchain:\n",
                 "operating system version is not at least 10.14 (macOS) or 12.0 (iOS)\n",
                 "shared event not supported"
             ));
@@ -1241,17 +1240,17 @@ extern "C" {
     #[allow(dead_code)]
     fn gfx_critical_note(msg: *const c_char);
     #[allow(dead_code)]
-    fn wgpu_server_use_external_texture_for_swap_chain(
+    fn wgpu_server_use_shared_texture_for_swap_chain(
         param: *mut c_void,
         swap_chain_id: SwapChainId,
     ) -> bool;
     #[allow(dead_code)]
-    fn wgpu_server_disable_external_texture_for_swap_chain(
+    fn wgpu_server_disable_shared_texture_for_swap_chain(
         param: *mut c_void,
         swap_chain_id: SwapChainId,
     );
     #[allow(dead_code)]
-    fn wgpu_server_ensure_external_texture_for_swap_chain(
+    fn wgpu_server_ensure_shared_texture_for_swap_chain(
         param: *mut c_void,
         swap_chain_id: SwapChainId,
         device_id: id::DeviceId,
@@ -1262,7 +1261,7 @@ extern "C" {
         usage: wgt::TextureUsages,
     ) -> bool;
     #[allow(dead_code)]
-    fn wgpu_server_ensure_external_texture_for_readback(
+    fn wgpu_server_ensure_shared_texture_for_readback(
         param: *mut c_void,
         swap_chain_id: SwapChainId,
         device_id: id::DeviceId,
@@ -1273,7 +1272,7 @@ extern "C" {
         usage: wgt::TextureUsages,
     );
     #[allow(dead_code)]
-    fn wgpu_server_get_external_texture_handle(
+    fn wgpu_server_get_shared_texture_handle(
         param: *mut c_void,
         id: id::TextureId,
     ) -> *mut c_void;
@@ -1289,7 +1288,7 @@ extern "C" {
     #[allow(dead_code)]
     fn wgpu_server_get_external_io_surface_id(param: *mut c_void, id: id::TextureId) -> u32;
     #[allow(dead_code)]
-    fn wgpu_server_remove_external_texture(param: *mut c_void, id: id::TextureId);
+    fn wgpu_server_remove_shared_texture(param: *mut c_void, id: id::TextureId);
     #[allow(dead_code)]
     fn wgpu_server_dealloc_buffer_shmem(param: *mut c_void, id: id::BufferId);
     #[allow(dead_code)]
@@ -1341,7 +1340,7 @@ extern "C" {
         buffer_ids: *const id::BufferId,
         buffer_ids_length: usize,
         remote_texture_owner_id: crate::RemoteTextureOwnerId,
-        use_external_texture_in_swap_chain: bool,
+        use_shared_texture_in_swap_chain: bool,
     );
     #[allow(dead_code)]
     fn wgpu_parent_swap_chain_present(
@@ -1474,7 +1473,7 @@ impl VkImageHolder {
 
 impl Global {
     #[cfg(target_os = "windows")]
-    fn create_texture_with_external_texture_d3d11(
+    fn create_texture_with_shared_texture_d3d11(
         &self,
         device_id: id::DeviceId,
         texture_id: id::TextureId,
@@ -1503,7 +1502,7 @@ impl Global {
 
         let dx12_device = dx12_device.unwrap();
         let ret = unsafe {
-            wgpu_server_ensure_external_texture_for_swap_chain(
+            wgpu_server_ensure_shared_texture_for_swap_chain(
                 self.webgpu_parent,
                 swap_chain_id.unwrap(),
                 device_id,
@@ -1515,7 +1514,7 @@ impl Global {
             )
         };
         if ret != true {
-            let msg = c"Failed to create external texture";
+            let msg = c"Failed to create shared texture";
             unsafe {
                 gfx_critical_note(msg.as_ptr());
             }
@@ -1523,9 +1522,9 @@ impl Global {
         }
 
         let handle =
-            unsafe { wgpu_server_get_external_texture_handle(self.webgpu_parent, texture_id) };
+            unsafe { wgpu_server_get_shared_texture_handle(self.webgpu_parent, texture_id) };
         if handle.is_null() {
-            let msg = c"Failed to get external texture handle";
+            let msg = c"Failed to get shared texture handle";
             unsafe {
                 gfx_critical_note(msg.as_ptr());
             }
@@ -1568,7 +1567,7 @@ impl Global {
 
     #[allow(dead_code)]
     #[cfg(target_os = "linux")]
-    fn create_texture_with_external_texture_dmabuf(
+    fn create_texture_with_shared_texture_dmabuf(
         &self,
         device_id: id::DeviceId,
         texture_id: id::TextureId,
@@ -1576,7 +1575,7 @@ impl Global {
         swap_chain_id: Option<SwapChainId>,
     ) -> bool {
         let ret = unsafe {
-            wgpu_server_ensure_external_texture_for_swap_chain(
+            wgpu_server_ensure_shared_texture_for_swap_chain(
                 self.webgpu_parent,
                 swap_chain_id.unwrap(),
                 device_id,
@@ -1588,7 +1587,7 @@ impl Global {
             )
         };
         if ret != true {
-            let msg = c"Failed to create external texture";
+            let msg = c"Failed to create shared texture";
             unsafe {
                 gfx_critical_note(msg.as_ptr());
             }
@@ -1768,7 +1767,7 @@ impl Global {
     }
 
     #[cfg(target_os = "macos")]
-    fn create_texture_with_external_texture_iosurface(
+    fn create_texture_with_shared_texture_iosurface(
         &self,
         device_id: id::DeviceId,
         texture_id: id::TextureId,
@@ -1776,7 +1775,7 @@ impl Global {
         swap_chain_id: Option<SwapChainId>,
     ) -> bool {
         let ret = unsafe {
-            wgpu_server_ensure_external_texture_for_swap_chain(
+            wgpu_server_ensure_shared_texture_for_swap_chain(
                 self.webgpu_parent,
                 swap_chain_id.unwrap(),
                 device_id,
@@ -1788,7 +1787,7 @@ impl Global {
             )
         };
         if ret != true {
-            let msg = c"Failed to create external texture";
+            let msg = c"Failed to create shared texture";
             unsafe {
                 gfx_critical_note(msg.as_ptr());
             }
@@ -1925,8 +1924,8 @@ impl Global {
                 if shmem_allocation_failed || desc.size > MAX_BUFFER_SIZE {
                     error_buf.init(
                         ErrMsg {
-                            message: "Out of memory",
-                            r#type: ErrorBufferType::OutOfMemory,
+                            message: "Out of memory".into(),
+                            r#type: ErrorType::OutOfMemory,
                         },
                         device_id,
                     );
@@ -1967,8 +1966,8 @@ impl Global {
                     self.create_texture_error(Some(id), &desc);
                     error_buf.init(
                         ErrMsg {
-                            message: "Out of memory",
-                            r#type: ErrorBufferType::OutOfMemory,
+                            message: "Out of memory".into(),
+                            r#type: ErrorType::OutOfMemory,
                         },
                         device_id,
                     );
@@ -1985,23 +1984,23 @@ impl Global {
                     self.create_texture_error(Some(id), &desc);
                     error_buf.init(
                         ErrMsg {
-                            message: "size is zero",
-                            r#type: ErrorBufferType::Validation,
+                            message: "size is zero".into(),
+                            r#type: ErrorType::Validation,
                         },
                         device_id,
                     );
                     return;
                 }
 
-                let use_external_texture = if let Some(id) = swap_chain_id {
+                let use_shared_texture = if let Some(id) = swap_chain_id {
                     unsafe {
-                        wgpu_server_use_external_texture_for_swap_chain(self.webgpu_parent, id)
+                        wgpu_server_use_shared_texture_for_swap_chain(self.webgpu_parent, id)
                     }
                 } else {
                     false
                 };
 
-                if use_external_texture {
+                if use_shared_texture {
                     let limits = self.device_limits(device_id);
                     if desc.size.width > limits.max_texture_dimension_2d
                         || desc.size.height > limits.max_texture_dimension_2d
@@ -2009,8 +2008,8 @@ impl Global {
                         self.create_texture_error(Some(id), &desc);
                         error_buf.init(
                             ErrMsg {
-                                message: "size exceeds limits.max_texture_dimension_2d",
-                                r#type: ErrorBufferType::Validation,
+                                message: "size exceeds limits.max_texture_dimension_2d".into(),
+                                r#type: ErrorType::Validation,
                             },
                             device_id,
                         );
@@ -2023,19 +2022,23 @@ impl Global {
                         && !features.contains(wgt::Features::BGRA8UNORM_STORAGE)
                     {
                         self.create_texture_error(Some(id), &desc);
-                        error_buf.init(ErrMsg {
-                            message: concat!(
-                                "Bgra8Unorm with GPUStorageBinding usage ",
-                                "with BGRA8UNORM_STORAGE disabled"
-                            ),
-                            r#type: ErrorBufferType::Validation,
-                        }, device_id);
+                        error_buf.init(
+                            ErrMsg {
+                                message: concat!(
+                                    "Bgra8Unorm with GPUStorageBinding usage ",
+                                    "with BGRA8UNORM_STORAGE disabled"
+                                )
+                                .into(),
+                                r#type: ErrorType::Validation,
+                            },
+                            device_id,
+                        );
                         return;
                     }
 
                     #[cfg(target_os = "windows")]
                     {
-                        let is_created = self.create_texture_with_external_texture_d3d11(
+                        let is_created = self.create_texture_with_shared_texture_d3d11(
                             device_id,
                             id,
                             &desc,
@@ -2048,7 +2051,7 @@ impl Global {
 
                     #[cfg(target_os = "linux")]
                     {
-                        let is_created = self.create_texture_with_external_texture_dmabuf(
+                        let is_created = self.create_texture_with_shared_texture_dmabuf(
                             device_id,
                             id,
                             &desc,
@@ -2061,7 +2064,7 @@ impl Global {
 
                     #[cfg(target_os = "macos")]
                     {
-                        let is_created = self.create_texture_with_external_texture_iosurface(
+                        let is_created = self.create_texture_with_shared_texture_iosurface(
                             device_id,
                             id,
                             &desc,
@@ -2073,7 +2076,7 @@ impl Global {
                     }
 
                     unsafe {
-                        wgpu_server_disable_external_texture_for_swap_chain(
+                        wgpu_server_disable_shared_texture_for_swap_chain(
                             self.webgpu_parent,
                             swap_chain_id.unwrap(),
                         )
@@ -2082,7 +2085,7 @@ impl Global {
 
                 if let Some(swap_chain_id) = swap_chain_id {
                     unsafe {
-                        wgpu_server_ensure_external_texture_for_readback(
+                        wgpu_server_ensure_shared_texture_for_readback(
                             self.webgpu_parent,
                             swap_chain_id,
                             device_id,
@@ -2162,8 +2165,8 @@ impl Global {
 
                     error_buf.init(
                         ErrMsg {
-                            message: &format!("Shader module creation failed: {message}"),
-                            r#type: err.error_type(),
+                            message: format!("Shader module creation failed: {message}"),
+                            r#type: err.webgpu_error_type(),
                         },
                         device_id,
                     );
@@ -2189,10 +2192,10 @@ impl Global {
 
                 if is_async {
                     let error = error
-                        .filter(|e| !matches!(e.error_type(), crate::ErrorBufferType::DeviceLost))
+                        .filter(|e| !matches!(e.webgpu_error_type(), ErrorType::DeviceLost))
                         .map(|e| -> _ {
                             let is_validation_error =
-                                matches!(e.error_type(), crate::ErrorBufferType::Validation);
+                                matches!(e.webgpu_error_type(), ErrorType::Validation);
                             PipelineError {
                                 is_validation_error,
                                 error: error_to_string(e),
@@ -2222,10 +2225,10 @@ impl Global {
 
                 if is_async {
                     let error = error
-                        .filter(|e| !matches!(e.error_type(), crate::ErrorBufferType::DeviceLost))
+                        .filter(|e| !matches!(e.webgpu_error_type(), ErrorType::DeviceLost))
                         .map(|e| -> _ {
                             let is_validation_error =
-                                matches!(e.error_type(), crate::ErrorBufferType::Validation);
+                                matches!(e.webgpu_error_type(), ErrorType::Validation);
                             PipelineError {
                                 is_validation_error,
                                 error: error_to_string(e),
@@ -2268,13 +2271,7 @@ impl Global {
                 }
             }
             DeviceAction::Error { message, r#type } => {
-                error_buf.init(
-                    ErrMsg {
-                        message: &message,
-                        r#type,
-                    },
-                    device_id,
-                );
+                error_buf.init(ErrMsg { message, r#type }, device_id);
             }
             DeviceAction::PushErrorScope(filter) => {
                 unsafe {
@@ -2520,7 +2517,7 @@ unsafe fn process_message(
 
             // Prefer to use the dx12 backend, if one exists, and use the same DXGI adapter as WebRender.
             // If wgpu uses a different adapter than WebRender, textures created by
-            // webgpu::ExternalTexture do not work with wgpu.
+            // webgpu::SharedTexture do not work with wgpu.
             #[cfg(target_os = "windows")]
             {
                 let mut adapter_luid = core::mem::MaybeUninit::<FfiLUID>::uninit();
@@ -2560,12 +2557,12 @@ unsafe fn process_message(
                 }
             }
 
+            let desc = wgt::RequestAdapterOptions {
+                power_preference,
+                force_fallback_adapter,
+                compatible_surface: None,
+            };
             if result.is_none() {
-                let desc = wgt::RequestAdapterOptions {
-                    power_preference,
-                    force_fallback_adapter,
-                    compatible_surface: None,
-                };
                 let created =
                     match global.request_adapter(&desc, wgt::Backends::PRIMARY, Some(adapter_id)) {
                         Ok(_) => true,
@@ -2593,7 +2590,9 @@ unsafe fn process_message(
                     _ => false,
                 };
 
-                if static_prefs::pref!("dom.webgpu.testing.assert-hardware-adapter") {
+                if static_prefs::pref!("dom.webgpu.testing.assert-hardware-adapter")
+                    && !desc.force_fallback_adapter
+                {
                     assert!(
                         is_hardware,
                         "Expected a hardware gpu adapter, got {:?}",
@@ -2601,8 +2600,8 @@ unsafe fn process_message(
                     );
                 }
 
-                let support_use_external_texture_in_swap_chain =
-                    support_use_external_texture_in_swap_chain(
+                let support_use_shared_texture_in_swap_chain =
+                    support_use_shared_texture_in_swap_chain(
                         global,
                         adapter_id,
                         backend,
@@ -2620,7 +2619,7 @@ unsafe fn process_message(
                     driver: Cow::Owned(driver),
                     driver_info: Cow::Owned(driver_info),
                     backend,
-                    support_use_external_texture_in_swap_chain,
+                    support_use_shared_texture_in_swap_chain,
                 };
                 Some(info)
             } else {
@@ -2710,8 +2709,8 @@ unsafe fn process_message(
                     );
                     error_buf.init(
                         ErrMsg {
-                            message,
-                            r#type: ErrorBufferType::Validation,
+                            message: message.into(),
+                            r#type: ErrorType::Validation,
                         },
                         device_id,
                     );
@@ -2776,7 +2775,7 @@ unsafe fn process_message(
             format,
             buffer_ids,
             remote_texture_owner_id,
-            use_external_texture_in_swap_chain,
+            use_shared_texture_in_swap_chain,
         } => {
             wgpu_parent_create_swap_chain(
                 global.webgpu_parent,
@@ -2788,7 +2787,7 @@ unsafe fn process_message(
                 buffer_ids.as_ptr(),
                 buffer_ids.len(),
                 remote_texture_owner_id,
-                use_external_texture_in_swap_chain,
+                use_shared_texture_in_swap_chain,
             );
         }
         Message::SwapChainPresent {
@@ -2823,7 +2822,7 @@ unsafe fn process_message(
             global.buffer_destroy(id)
         }
         Message::DestroyTexture(id) => {
-            wgpu_server_remove_external_texture(global.webgpu_parent, id);
+            wgpu_server_remove_shared_texture(global.webgpu_parent, id);
             global.texture_destroy(id)
         }
         Message::DestroyDevice(id) => global.device_destroy(id),
@@ -2863,7 +2862,7 @@ unsafe fn process_message(
             }
         }
         Message::DropTexture(id) => {
-            wgpu_server_remove_external_texture(global.webgpu_parent, id);
+            wgpu_server_remove_shared_texture(global.webgpu_parent, id);
             global.texture_drop(id);
         }
         Message::DropTextureView(id) => global.texture_view_drop(id).unwrap(),

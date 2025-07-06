@@ -178,6 +178,9 @@ support-files = [
 ]
 tags = "vertical-tabs"
 fail-if =  ["vertical_tab"] # Bug 1932786, fails in the "vertical-tabs" variant
+skip-if = [
+  "os == 'mac' && os_version == '15.00' && processor == 'aarch64'", # Bug 1904826
+]
 
 ["browser_long_data_url_label_truncation.js"]
 tags = "vertical-tabs"
@@ -521,6 +524,9 @@ tags = "vertical-tabs"
 ["browser_tab_groups_a11y.js"]
 tags = "vertical-tabs"
 
+["browser_tab_groups_insertAfterCurrent.js"]
+tags = "vertical-tabs"
+
 ["browser_tab_groups_keyboard_focus.js"]
 tags = "vertical-tabs"
 
@@ -592,6 +598,7 @@ skip-if = [
 tags = "vertical-tabs"
 skip-if = [
   "os == 'linux'&& os_version == '24.04' && processor == 'x86_64' && display == 'x11' && tsan", # Bug 1775653
+  "os == 'linux'&& os_version == '18.04' && processor == 'x86_64' && tsan", # Bug 1775653
   "os == 'mac' && os_version == '10.15' && processor == 'x86_64' && vertical_tab", # Bug 1928146
   "os == 'mac' && os_version == '11.20' && arch == 'aarch64' && vertical_tab", # Bug 1928146
   "os == 'mac' && os_version == '15.30' && arch == 'aarch64' && vertical_tab", # Bug 1928146

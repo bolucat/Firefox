@@ -190,7 +190,7 @@ nsRange::~nsRange() {
 }
 
 nsRange::nsRange(nsINode* aNode)
-    : AbstractRange(aNode, /* aIsDynamicRange = */ true),
+    : AbstractRange(aNode, /* aIsDynamicRange = */ true, TreeKind::DOM),
       mNextStartRef(nullptr),
       mNextEndRef(nullptr) {
   // printf("Size of nsRange: %zu\n", sizeof(nsRange));
@@ -216,6 +216,8 @@ already_AddRefed<nsRange> nsRange::Create(
     const RangeBoundaryBase<SPT, SRT>& aStartBoundary,
     const RangeBoundaryBase<EPT, ERT>& aEndBoundary, ErrorResult& aRv,
     AllowRangeCrossShadowBoundary aAllowCrossShadowBoundary) {
+  MOZ_ASSERT(aStartBoundary.GetTreeKind() == aEndBoundary.GetTreeKind());
+
   // If we fail to initialize the range a lot, nsRange should have a static
   // initializer since the allocation cost is not cheap in hot path.
   RefPtr<nsRange> range = nsRange::Create(aStartBoundary.GetContainer());
@@ -241,7 +243,8 @@ already_AddRefed<nsRange> nsRange::Create(
  */
 static RangeBehaviour GetRangeBehaviour(
     const nsRange* aRange, const nsINode* aNewRoot,
-    const RawRangeBoundary& aNewBoundary, const bool aIsSetStart,
+    const RawRangeBoundary& aNewBoundaryInDOM,
+    const Maybe<RawRangeBoundary>& aNewBoundaryInFlat, const bool aIsSetStart,
     AllowRangeCrossShadowBoundary aAllowCrossShadowBoundary) {
   if (!aRange->IsPositioned()) {
     return RangeBehaviour::CollapseDefaultRangeAndCrossShadowBoundaryRanges;
@@ -268,16 +271,17 @@ static RangeBehaviour GetRangeBehaviour(
             aRange->GetCrossShadowBoundaryRange()) {
       // Check if the existing-other-side boundary in
       // aRange::mCrossShadowBoundaryRange has the same root
-      // as aNewRoot. If this is the case, it means default range
-      // is good enough to represent this range, so that we can
-      // merge the cross-shadow-boundary range and the default range.
+      // as aNewRoot. If this is the case, it means
+      // aRange::mCrossShadowBoundaryRange can be used to represent this
+      // cross-boundary selection, meanwhile we collapse the default range since
+      // this is a cross-boundary selection.
       const RangeBoundary& otherSideExistingBoundary =
           aIsSetStart ? crossShadowBoundaryRange->EndRef()
                       : crossShadowBoundaryRange->StartRef();
       const nsINode* otherSideRoot =
           RangeUtils::ComputeRootNode(otherSideExistingBoundary.GetContainer());
       if (aNewRoot == otherSideRoot) {
-        return RangeBehaviour::MergeDefaultRangeAndCrossShadowBoundaryRanges;
+        return RangeBehaviour::CollapseDefaultRange;
       }
     }
 
@@ -289,7 +293,7 @@ static RangeBehaviour GetRangeBehaviour(
                      CollapseDefaultRangeAndCrossShadowBoundaryRanges;
   }
 
-  const RangeBoundary& otherSideExistingBoundary =
+  const RangeBoundary& otherSideExistingBoundaryInDOM =
       aIsSetStart ? aRange->EndRef() : aRange->StartRef();
 
   auto ComparePoints = [aAllowCrossShadowBoundary](
@@ -302,11 +306,41 @@ static RangeBehaviour GetRangeBehaviour(
     return nsContentUtils::ComparePoints<TreeKind::ShadowIncludingDOM>(
         aBoundary1, aBoundary2);
   };
-  // Both bondaries are in the same root, now check for their position
+
+  auto CompareFlatTreeBoundaries = [&aNewBoundaryInFlat, aIsSetStart, &aRange,
+                                    &ComparePoints]() {
+    MOZ_ASSERT(aRange->GetCrossShadowBoundaryRange());
+    MOZ_ASSERT(aNewBoundaryInFlat.isSome() &&
+               aNewBoundaryInFlat->IsSetAndValid());
+    const RangeBoundary& otherSideExistingCrossShadowBoundaryBoundaryInFlat =
+        aIsSetStart ? aRange->GetCrossShadowBoundaryRange()->EndRef()
+                    : aRange->GetCrossShadowBoundaryRange()->StartRef();
+    const Maybe<int32_t> withCrossShadowBoundaryOrder =
+        aIsSetStart
+            ? ComparePoints(
+                  aNewBoundaryInFlat.ref(),
+                  otherSideExistingCrossShadowBoundaryBoundaryInFlat.AsRaw())
+            : ComparePoints(
+                  otherSideExistingCrossShadowBoundaryBoundaryInFlat.AsRaw(),
+                  aNewBoundaryInFlat.ref());
+    if (withCrossShadowBoundaryOrder && *withCrossShadowBoundaryOrder != 1) {
+      return RangeBehaviour::CollapseDefaultRange;
+    }
+
+    // Not valid to both existing boundaries.
+    return RangeBehaviour::CollapseDefaultRangeAndCrossShadowBoundaryRanges;
+  };
+
+  if (!aNewBoundaryInDOM.IsSetAndValid()) {
+    return CompareFlatTreeBoundaries();
+  }
+
+  // Both boundaries are in the same root, now check for their position
   const Maybe<int32_t> order =
-      aIsSetStart
-          ? ComparePoints(aNewBoundary, otherSideExistingBoundary.AsRaw())
-          : ComparePoints(otherSideExistingBoundary.AsRaw(), aNewBoundary);
+      aIsSetStart ? ComparePoints(aNewBoundaryInDOM,
+                                  otherSideExistingBoundaryInDOM.AsRaw())
+                  : ComparePoints(otherSideExistingBoundaryInDOM.AsRaw(),
+                                  aNewBoundaryInDOM);
 
   if (order) {
     if (*order != 1) {
@@ -329,31 +363,7 @@ static RangeBehaviour GetRangeBehaviour(
       return RangeBehaviour::CollapseDefaultRangeAndCrossShadowBoundaryRanges;
     }
 
-    const RangeBoundary& otherSideExistingCrossShadowBoundaryBoundary =
-        aIsSetStart ? aRange->MayCrossShadowBoundaryEndRef()
-                    : aRange->MayCrossShadowBoundaryStartRef();
-
-    // Please see the comment for (*order != 1) to see what "valid" means.
-    //
-    // We reach to this line when (*order == 1), it means aNewBoundary is
-    // at an invalid position, so we need to collapse aNewBoundary with
-    // otherSideExistingBoundary. However, it's possible that aNewBoundary
-    // is valid with the otherSideExistingCrossShadowBoundaryBoundary.
-    const Maybe<int32_t> withCrossShadowBoundaryOrder =
-        aIsSetStart ? ComparePoints(
-                          aNewBoundary,
-                          otherSideExistingCrossShadowBoundaryBoundary.AsRaw())
-                    : ComparePoints(
-                          otherSideExistingCrossShadowBoundaryBoundary.AsRaw(),
-                          aNewBoundary);
-
-    // Valid to the cross boundary boundary.
-    if (withCrossShadowBoundaryOrder && *withCrossShadowBoundaryOrder != 1) {
-      return RangeBehaviour::CollapseDefaultRange;
-    }
-
-    // Not valid to both existing boundaries.
-    return RangeBehaviour::CollapseDefaultRangeAndCrossShadowBoundaryRanges;
+    return CompareFlatTreeBoundaries();
   }
 
   MOZ_ASSERT_UNREACHABLE();
@@ -879,7 +889,12 @@ int16_t nsRange::ComparePoint(const nsINode& aContainer, uint32_t aOffset,
     return 0;
   }
 
-  const RawRangeBoundary point{const_cast<nsINode*>(&aContainer), aOffset};
+  const auto& startRef =
+      aAllowCrossShadowBoundary ? MayCrossShadowBoundaryStartRef() : StartRef();
+
+  const RawRangeBoundary point{const_cast<nsINode*>(&aContainer), aOffset,
+                               RangeBoundaryIsMutationObserved::Yes,
+                               startRef.GetTreeKind()};
 
   MOZ_ASSERT(point.IsSetAndValid());
 
@@ -1024,6 +1039,8 @@ void nsRange::AssertIfMismatchRootAndRangeBoundaries(
 
   MOZ_ASSERT(aStartBoundary.IsSet());
   MOZ_ASSERT(aEndBoundary.IsSet());
+  MOZ_ASSERT(aStartBoundary.GetTreeKind() == aEndBoundary.GetTreeKind());
+
   if (!aNotInsertedYet) {
     // Compute temporary root for given range boundaries.  If a range in native
     // anonymous subtree is being removed, tempRoot may return the fragment's
@@ -1067,6 +1084,8 @@ void nsRange::
   MOZ_ASSERT_IF(!mIsPositioned, !aStartBoundary.IsSet());
   MOZ_ASSERT_IF(!mIsPositioned, !aEndBoundary.IsSet());
   MOZ_ASSERT_IF(!mIsPositioned, !aRootNode);
+  MOZ_ASSERT(aStartBoundary.GetTreeKind() == aEndBoundary.GetTreeKind());
+  MOZ_ASSERT(aStartBoundary.GetTreeKind() == TreeKind::DOM);
 
   nsRange::AssertIfMismatchRootAndRangeBoundaries(aStartBoundary, aEndBoundary,
                                                   aRootNode, aNotInsertedYet);
@@ -1168,14 +1187,33 @@ void nsRange::SetStart(
     return;
   }
 
-  if (!aPoint.IsSetAndValid()) {
+  // PointInFlat is necessary when the aPoint looks like
+  // RangeBoundary(<slot>, an arbitary offset), here aPoint
+  // is not a valid RangeBoundary in DOM tree (when the <slot>
+  // doesn't have light DOM children), however it could be
+  // a valid RangeBoundary in Flat tree. SetStart should
+  // still work for this case.
+
+  // It also makes more sense to have CrossShadowBoundaryRange
+  // always use PointInFlat because this is the composed range
+  // that we care about, and we care it in Flat tree.
+  // It's error prone if we mix the usage of DOM RangeBoundary
+  // versus Flat RangeBoundary.
+  auto pointInFlat =
+      aAllowCrossShadowBoundary == AllowRangeCrossShadowBoundary::Yes
+          ? Some(aPoint.AsRangeBoundaryInFlatTree())
+          : Nothing();
+
+  if (!aPoint.IsSetAndValid() &&
+      (!pointInFlat || !pointInFlat->IsSetAndValid())) {
     aRv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
     return;
   }
 
+  MOZ_ASSERT_IF(pointInFlat, aPoint.IsSet());
   RangeBehaviour behaviour =
-      GetRangeBehaviour(this, newRoot, aPoint, true /* aIsSetStart= */,
-                        aAllowCrossShadowBoundary);
+      GetRangeBehaviour(this, newRoot, aPoint, pointInFlat,
+                        true /* aIsSetStart= */, aAllowCrossShadowBoundary);
 
   switch (behaviour) {
     case RangeBehaviour::KeepDefaultRangeAndCrossShadowBoundaryRanges:
@@ -1185,28 +1223,28 @@ void nsRange::SetStart(
       if (aAllowCrossShadowBoundary == AllowRangeCrossShadowBoundary::Yes) {
         if (MayCrossShadowBoundaryEndRef() != mEnd) {
           CreateOrUpdateCrossShadowBoundaryRangeIfNeeded(
-              aPoint, MayCrossShadowBoundaryEndRef());
-        } else {
-          // The normal range is good enough for this case, just use that.
-          ResetCrossShadowBoundaryRange();
+              pointInFlat.ref(),
+              MayCrossShadowBoundaryEndRef().AsRangeBoundaryInFlatTree());
         }
       }
-      DoSetRange(aPoint, mEnd, mRoot, false, behaviour);
+      if (aPoint.IsSetAndValid()) {
+        DoSetRange(aPoint, mEnd, mRoot, false, behaviour);
+      }
       break;
     case RangeBehaviour::CollapseDefaultRangeAndCrossShadowBoundaryRanges:
-      DoSetRange(aPoint, aPoint, newRoot, false, behaviour);
+      if (aPoint.IsSetAndValid()) {
+        DoSetRange(aPoint, aPoint, newRoot, false, behaviour);
+      }
       break;
     case RangeBehaviour::CollapseDefaultRange:
       MOZ_ASSERT(aAllowCrossShadowBoundary ==
                  AllowRangeCrossShadowBoundary::Yes);
       CreateOrUpdateCrossShadowBoundaryRangeIfNeeded(
-          aPoint, MayCrossShadowBoundaryEndRef());
-      DoSetRange(aPoint, aPoint, newRoot, false, behaviour);
-      break;
-    case RangeBehaviour::MergeDefaultRangeAndCrossShadowBoundaryRanges:
-      DoSetRange(aPoint, MayCrossShadowBoundaryEndRef(), newRoot, false,
-                 behaviour);
-      ResetCrossShadowBoundaryRange();
+          pointInFlat.ref(),
+          MayCrossShadowBoundaryEndRef().AsRangeBoundaryInFlatTree());
+      if (aPoint.IsSetAndValid()) {
+        DoSetRange(aPoint, aPoint, newRoot, false, behaviour);
+      }
       break;
     default:
       MOZ_ASSERT_UNREACHABLE();
@@ -1285,14 +1323,33 @@ void nsRange::SetEnd(const RawRangeBoundary& aPoint, ErrorResult& aRv,
     return;
   }
 
-  if (!aPoint.IsSetAndValid()) {
+  // PointInFlat is necessary when the aPoint looks like
+  // RangeBoundary(<slot>, an arbitary offset), here aPoint
+  // is not a valid RangeBoundary in DOM tree (when the <slot>
+  // doesn't have light DOM children), however it could be
+  // a valid RangeBoundary in Flat tree. SetEnd should
+  // still work for this case.
+
+  // It also makes more sense to have CrossShadowBoundaryRange
+  // always use PointInFlat because this is the composed range
+  // that we care about, and we care it in Flat tree.
+  // It's error prone if we mix the usage of DOM RangeBoundary
+  // versus Flat RangeBoundary.
+  auto pointInFlat =
+      aAllowCrossShadowBoundary == AllowRangeCrossShadowBoundary::Yes
+          ? Some(aPoint.AsRangeBoundaryInFlatTree())
+          : Nothing();
+
+  if (!aPoint.IsSetAndValid() &&
+      (!pointInFlat || !pointInFlat->IsSetAndValid())) {
     aRv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
     return;
   }
 
+  MOZ_ASSERT_IF(pointInFlat, aPoint.IsSet());
   RangeBehaviour policy =
-      GetRangeBehaviour(this, newRoot, aPoint, false /* aIsStartStart */,
-                        aAllowCrossShadowBoundary);
+      GetRangeBehaviour(this, newRoot, aPoint, pointInFlat,
+                        false /* aIsStartStart */, aAllowCrossShadowBoundary);
 
   switch (policy) {
     case RangeBehaviour::KeepDefaultRangeAndCrossShadowBoundaryRanges:
@@ -1302,28 +1359,28 @@ void nsRange::SetEnd(const RawRangeBoundary& aPoint, ErrorResult& aRv,
       if (aAllowCrossShadowBoundary == AllowRangeCrossShadowBoundary::Yes) {
         if (MayCrossShadowBoundaryStartRef() != mStart) {
           CreateOrUpdateCrossShadowBoundaryRangeIfNeeded(
-              MayCrossShadowBoundaryStartRef(), aPoint);
-        } else {
-          // The normal range is good enough for this case, just use that.
-          ResetCrossShadowBoundaryRange();
+              MayCrossShadowBoundaryStartRef().AsRangeBoundaryInFlatTree(),
+              pointInFlat.ref());
         }
       }
-      DoSetRange(mStart, aPoint, mRoot, false, policy);
+      if (aPoint.IsSetAndValid()) {
+        DoSetRange(mStart, aPoint, mRoot, false, policy);
+      }
       break;
     case RangeBehaviour::CollapseDefaultRangeAndCrossShadowBoundaryRanges:
-      DoSetRange(aPoint, aPoint, newRoot, false, policy);
+      if (aPoint.IsSetAndValid()) {
+        DoSetRange(aPoint, aPoint, newRoot, false, policy);
+      }
       break;
     case RangeBehaviour::CollapseDefaultRange:
       MOZ_ASSERT(aAllowCrossShadowBoundary ==
                  AllowRangeCrossShadowBoundary::Yes);
       CreateOrUpdateCrossShadowBoundaryRangeIfNeeded(
-          MayCrossShadowBoundaryStartRef(), aPoint);
-      DoSetRange(aPoint, aPoint, newRoot, false, policy);
-      break;
-    case RangeBehaviour::MergeDefaultRangeAndCrossShadowBoundaryRanges:
-      DoSetRange(MayCrossShadowBoundaryStartRef(), aPoint, newRoot, false,
-                 policy);
-      ResetCrossShadowBoundaryRange();
+          MayCrossShadowBoundaryStartRef().AsRangeBoundaryInFlatTree(),
+          pointInFlat.ref());
+      if (aPoint.IsSetAndValid()) {
+        DoSetRange(aPoint, aPoint, newRoot, false, policy);
+      }
       break;
     default:
       MOZ_ASSERT_UNREACHABLE();
@@ -1795,7 +1852,15 @@ static bool ValidateCurrentNode(nsRange* aRange, RangeSubtreeIterator& aIter) {
   return !before && !after;
 }
 
-void nsRange::CutContents(DocumentFragment** aFragment, ErrorResult& aRv) {
+void nsRange::CutContents(DocumentFragment** aFragment,
+                          ElementHandler aElementHandler, ErrorResult& aRv) {
+  if (aFragment && aElementHandler) {
+    // Theoretically no reason it can't be handled, but not plumbed in enough to
+    // test.
+    MOZ_ASSERT_UNREACHABLE("Not handling both aFragment and aElementHandler");
+    aRv.Throw(NS_ERROR_UNEXPECTED);
+    return;
+  }
   if (aFragment) {
     *aFragment = nullptr;
   }
@@ -2042,9 +2107,27 @@ void nsRange::CutContents(DocumentFragment** aFragment, ErrorResult& aRv) {
     }
 
     if (!handled) {
-      // node was not handled above, so it must be completely contained
-      // within the range. Just remove it from the tree!
-      nodeToResult = node;
+      // Node was not handled above, so it must be completely contained
+      // within the range.
+      if (aElementHandler && node->IsElement()) {
+        // This is an element, and the caller specified a handler for it, so use
+        // it.
+        MOZ_ASSERT(!aFragment, "Fragment requested when ElementHandler given?");
+        nsMutationGuard guard;
+        auto* element = node->AsElement();
+        aElementHandler(element);
+        // No need to validate - we know this node is an element, so any case
+        // that may cause the node to fail to validate is covered by the
+        // mutation guard.
+        if (guard.Mutated(0)) {
+          aRv.Throw(NS_ERROR_UNEXPECTED);
+          return;
+        }
+        handled = true;
+      } else {
+        // Otherwise, just remove it from the tree.
+        nodeToResult = node;
+      }
     }
 
     uint32_t parentCount = 0;
@@ -2144,11 +2227,13 @@ void nsRange::CutContents(DocumentFragment** aFragment, ErrorResult& aRv) {
   }
 }
 
-void nsRange::DeleteContents(ErrorResult& aRv) { CutContents(nullptr, aRv); }
+void nsRange::DeleteContents(ErrorResult& aRv) {
+  CutContents(nullptr, nullptr, aRv);
+}
 
 already_AddRefed<DocumentFragment> nsRange::ExtractContents(ErrorResult& rv) {
   RefPtr<DocumentFragment> fragment;
-  CutContents(getter_AddRefs(fragment), rv);
+  CutContents(getter_AddRefs(fragment), nullptr, rv);
   return fragment.forget();
 }
 
@@ -3190,6 +3275,20 @@ nsINode* nsRange::GetRegisteredClosestCommonInclusiveAncestor() {
   return mRegisteredClosestCommonInclusiveAncestor;
 }
 
+void nsRange::SuppressContentsForPrintSelection(ErrorResult& aRv) {
+  CutContents(
+      nullptr,
+      [](Element* aElement) {
+        // Elements need to be left as-is when we're deleting nodes for
+        // printing, to preserve the style matches containing tree-structural
+        // pseudo-classes, such as :first-child. Partial texts are still deleted
+        // since we don't have a good way to suppress partial texts, but that'd
+        // preserve e.g. ::first-letter.
+        aElement->AddStates(ElementState::SUPPRESS_FOR_PRINT_SELECTION);
+      },
+      aRv);
+}
+
 /* static */
 bool nsRange::AutoInvalidateSelection::sIsNested;
 
@@ -3572,6 +3671,8 @@ void nsRange::CreateOrUpdateCrossShadowBoundaryRangeIfNeeded(
   }
 
   MOZ_ASSERT(aStartBoundary.IsSetAndValid() && aEndBoundary.IsSetAndValid());
+  MOZ_ASSERT(aStartBoundary.GetTreeKind() == aEndBoundary.GetTreeKind());
+  MOZ_ASSERT(aStartBoundary.GetTreeKind() == TreeKind::Flat);
 
   nsINode* startNode = aStartBoundary.GetContainer();
   nsINode* endNode = aEndBoundary.GetContainer();

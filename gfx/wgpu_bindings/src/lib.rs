@@ -3,7 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 use crate::command::{RecordedComputePass, RecordedRenderPass};
-use crate::error::ErrorBufferType;
 use wgc::id;
 
 pub mod client;
@@ -118,7 +117,7 @@ pub struct AdapterInformation<S> {
     driver: S,
     driver_info: S,
     backend: wgt::Backend,
-    support_use_external_texture_in_swap_chain: bool,
+    support_use_shared_texture_in_swap_chain: bool,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -210,7 +209,7 @@ enum Message<'a> {
         format: SurfaceFormat,
         buffer_ids: Cow<'a, [id::BufferId]>,
         remote_texture_owner_id: RemoteTextureOwnerId,
-        use_external_texture_in_swap_chain: bool,
+        use_shared_texture_in_swap_chain: bool,
     },
     SwapChainPresent {
         texture_id: id::TextureId,
@@ -298,7 +297,7 @@ enum DeviceAction<'a> {
     ),
     Error {
         message: String,
-        r#type: ErrorBufferType,
+        r#type: wgt::error::ErrorType,
     },
     PushErrorScope(u8 /* dom::GPUErrorFilter */),
     PopErrorScope,

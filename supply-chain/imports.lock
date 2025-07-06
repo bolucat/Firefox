@@ -19,13 +19,6 @@ user-id = 6743
 user-login = "epage"
 user-name = "Ed Page"
 
-[[publisher.arbitrary]]
-version = "1.3.2"
-when = "2023-10-30"
-user-id = 696
-user-login = "fitzgen"
-user-name = "Nick Fitzgerald"
-
 [[publisher.async-trait]]
 version = "0.1.68"
 when = "2023-03-24"
@@ -181,11 +174,11 @@ user-login = "jrmuizel"
 user-name = "Jeff Muizelaar"
 
 [[publisher.derive_arbitrary]]
-version = "1.3.2"
-when = "2023-10-30"
-user-id = 696
-user-login = "fitzgen"
-user-name = "Nick Fitzgerald"
+version = "1.4.1"
+when = "2024-11-05"
+user-id = 1139
+user-login = "Manishearth"
+user-name = "Manish Goregaokar"
 
 [[publisher.derive_more]]
 version = "2.0.1"
@@ -911,28 +904,12 @@ user-id = 48
 user-login = "badboy"
 user-name = "Jan-Erik Rediger"
 
-[[audits.bytecode-alliance.wildcard-audits.arbitrary]]
-who = "Nick Fitzgerald <fitzgen@gmail.com>"
-criteria = "safe-to-deploy"
-user-id = 696 # Nick Fitzgerald (fitzgen)
-start = "2020-01-14"
-end = "2025-07-30"
-notes = "I am an author of this crate."
-
 [[audits.bytecode-alliance.wildcard-audits.bumpalo]]
 who = "Nick Fitzgerald <fitzgen@gmail.com>"
 criteria = "safe-to-deploy"
 user-id = 696 # Nick Fitzgerald (fitzgen)
 start = "2019-03-16"
 end = "2025-07-30"
-
-[[audits.bytecode-alliance.wildcard-audits.derive_arbitrary]]
-who = "Nick Fitzgerald <fitzgen@gmail.com>"
-criteria = "safe-to-deploy"
-user-id = 696 # Nick Fitzgerald (fitzgen)
-start = "2020-01-14"
-end = "2025-07-30"
-notes = "I am an author of this crate"
 
 [[audits.bytecode-alliance.wildcard-audits.wasmparser]]
 who = "Alex Crichton <alex@alexcrichton.com>"
@@ -972,6 +949,11 @@ notes = """
 The changes appear to be reasonable updates from Rust's stdlib imported into
 `allocator-api2`'s copy of this code.
 """
+
+[[audits.bytecode-alliance.audits.arbitrary]]
+who = "Nick Fitzgerald <fitzgen@gmail.com>"
+criteria = "safe-to-deploy"
+version = "1.4.1"
 
 [[audits.bytecode-alliance.audits.arrayref]]
 who = "Nick Fitzgerald <fitzgen@gmail.com>"
@@ -1156,16 +1138,20 @@ criteria = "safe-to-deploy"
 version = "0.1.1"
 
 [[audits.bytecode-alliance.audits.futures-channel]]
-who = "Pat Hickey <phickey@fastly.com>"
+who = "Joel Dice <joel.dice@gmail.com>"
 criteria = "safe-to-deploy"
-version = "0.3.27"
-notes = "build.rs is just detecting the target and setting cfg. unsafety is for implementing a concurrency primitives using atomics and unsafecell, and is not obviously incorrect (this is the sort of thing I wouldn't certify as correct without formal methods)"
+version = "0.3.31"
 
 [[audits.bytecode-alliance.audits.futures-core]]
 who = "Pat Hickey <phickey@fastly.com>"
 criteria = "safe-to-deploy"
 version = "0.3.27"
 notes = "Unsafe used to implement a concurrency primitive AtomicWaker. Well-commented and not obviously incorrect. Like my other audits of these concurrency primitives inside the futures family, I couldn't certify that it is correct without formal methods, but that is out of scope for this vetting."
+
+[[audits.bytecode-alliance.audits.futures-core]]
+who = "Pat Hickey <pat@moreproductive.org>"
+criteria = "safe-to-deploy"
+delta = "0.3.28 -> 0.3.31"
 
 [[audits.bytecode-alliance.audits.futures-executor]]
 who = "Pat Hickey <phickey@fastly.com>"
@@ -1174,14 +1160,35 @@ version = "0.3.27"
 notes = "Unsafe used to implement the unpark mutex, which is well commented and not obviously incorrect. Like with futures-channel I wouldn't be able to certify it as correct without formal methods."
 
 [[audits.bytecode-alliance.audits.futures-io]]
-who = "Pat Hickey <phickey@fastly.com>"
+who = "Joel Dice <joel.dice@gmail.com>"
 criteria = "safe-to-deploy"
-version = "0.3.27"
+version = "0.3.31"
+
+[[audits.bytecode-alliance.audits.futures-macro]]
+who = "Joel Dice <joel.dice@gmail.com>"
+criteria = "safe-to-deploy"
+version = "0.3.31"
 
 [[audits.bytecode-alliance.audits.futures-sink]]
 who = "Pat Hickey <phickey@fastly.com>"
 criteria = "safe-to-deploy"
 version = "0.3.27"
+
+[[audits.bytecode-alliance.audits.futures-sink]]
+who = "Pat Hickey <pat@moreproductive.org>"
+criteria = "safe-to-deploy"
+delta = "0.3.28 -> 0.3.31"
+
+[[audits.bytecode-alliance.audits.futures-task]]
+who = "Pat Hickey <pat@moreproductive.org>"
+criteria = "safe-to-deploy"
+delta = "0.3.27 -> 0.3.31"
+
+[[audits.bytecode-alliance.audits.futures-util]]
+who = "Pat Hickey <pat@moreproductive.org>"
+criteria = "safe-to-deploy"
+delta = "0.3.27 -> 0.3.31"
+notes = "New waker_ref module contains \"FIXME: panics on Arc::clone / refcount changes could wreak havoc...\" comment, but this corner case feels low risk."
 
 [[audits.bytecode-alliance.audits.gimli]]
 who = "Alex Crichton <alex@alexcrichton.com>"
@@ -2199,6 +2206,12 @@ Just bumping up the version number in `lib.rs`.
 Config-related changes in `test_size.rs`.
 """
 aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
+[[audits.google.audits.quick-xml]]
+who = "Matthew DeVore <matvore@chromium.org>"
+criteria = "safe-to-run"
+version = "0.30.0"
+aggregated-from = "https://chromium.googlesource.com/chromiumos/third_party/rust_crates/+/refs/heads/main/cargo-vet/audits.toml?format=TEXT"
 
 [[audits.google.audits.rand]]
 who = "Lukasz Anforowicz <lukasza@chromium.org>"

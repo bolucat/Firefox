@@ -41,6 +41,7 @@
 using namespace mozilla;
 
 using AbsPosReflowFlags = nsAbsoluteContainingBlock::AbsPosReflowFlags;
+using AlignJustifyFlag = CSSAlignUtils::AlignJustifyFlag;
 using AlignJustifyFlags = CSSAlignUtils::AlignJustifyFlags;
 using GridItemCachedBAxisMeasurement =
     nsGridContainerFrame::CachedBAxisMeasurement;
@@ -4421,7 +4422,8 @@ static void AlignJustifySelf(StyleAlignFlags aAlignment, LogicalAxis aAxis,
   if (offset != 0) {
     WritingMode wm = aRI.GetWritingMode();
     nscoord& pos = aAxis == LogicalAxis::Block ? aPos->B(wm) : aPos->I(wm);
-    pos += MOZ_LIKELY(aFlags & AlignJustifyFlags::SameSide) ? offset : -offset;
+    pos += MOZ_LIKELY(aFlags.contains(AlignJustifyFlag::SameSide)) ? offset
+                                                                   : -offset;
   }
 }
 
@@ -4432,18 +4434,18 @@ static void AlignSelf(const nsGridContainerFrame::GridItemInfo& aGridItem,
                       LogicalPoint* aPos) {
   AlignJustifyFlags flags = aFlags;
   if (aAlignSelf & StyleAlignFlags::SAFE) {
-    flags |= AlignJustifyFlags::OverflowSafe;
+    flags += AlignJustifyFlag::OverflowSafe;
   }
   aAlignSelf &= ~StyleAlignFlags::FLAG_BITS;
 
   WritingMode childWM = aRI.GetWritingMode();
   if (aCBWM.ParallelAxisStartsOnSameSide(LogicalAxis::Block, childWM)) {
-    flags |= AlignJustifyFlags::SameSide;
+    flags += AlignJustifyFlag::SameSide;
   }
 
   if (aGridItem.mState[LogicalAxis::Block] &
       GridItemInfo::eLastBaselineSharingGroup) {
-    flags |= AlignJustifyFlags::LastBaselineSharingGroup;
+    flags += AlignJustifyFlag::LastBaselineSharingGroup;
   }
 
   // Grid's 'align-self' axis is never parallel to the container's inline axis.
@@ -4475,18 +4477,18 @@ static void JustifySelf(const nsGridContainerFrame::GridItemInfo& aGridItem,
                         LogicalPoint* aPos) {
   AlignJustifyFlags flags = aFlags;
   if (aJustifySelf & StyleAlignFlags::SAFE) {
-    flags |= AlignJustifyFlags::OverflowSafe;
+    flags += AlignJustifyFlag::OverflowSafe;
   }
   aJustifySelf &= ~StyleAlignFlags::FLAG_BITS;
 
   WritingMode childWM = aRI.GetWritingMode();
   if (aCBWM.ParallelAxisStartsOnSameSide(LogicalAxis::Inline, childWM)) {
-    flags |= AlignJustifyFlags::SameSide;
+    flags += AlignJustifyFlag::SameSide;
   }
 
   if (aGridItem.mState[LogicalAxis::Inline] &
       GridItemInfo::eLastBaselineSharingGroup) {
-    flags |= AlignJustifyFlags::LastBaselineSharingGroup;
+    flags += AlignJustifyFlag::LastBaselineSharingGroup;
   }
 
   if (MOZ_LIKELY(aJustifySelf == StyleAlignFlags::NORMAL)) {
@@ -5988,7 +5990,6 @@ static nscoord ContentContribution(const GridItemInfo& aGridItem,
       size = 0;
     } else {
       // We need to reflow the child to find its BSize contribution.
-      // XXX this will give mostly correct results for now (until bug 1300366).
       nscoord availISize = INFINITE_ISIZE_COORD;
       nscoord availBSize = NS_UNCONSTRAINEDSIZE;
       // The next two variables are MinSizeClamp values in the child's axes.
@@ -8274,7 +8275,7 @@ void nsGridContainerFrame::ReflowInFlowChild(
       auto align =
           childRI.mStylePosition->UsedSelfAlignment(aAxis, containerSC);
       auto state = aGridItemInfo->mState[aAxis];
-      auto flags = AlignJustifyFlags::NoFlags;
+      AlignJustifyFlags flags;
       if (IsMasonry(aAxis)) {
         // In a masonry axis, we inhibit applying 'stretch' and auto-margins
         // here since AlignJustifyTracksInMasonryAxis deals with that.
@@ -8291,7 +8292,7 @@ void nsGridContainerFrame::ReflowInFlowChild(
                         .mSizes[itemStart]
                         .mBaselineSubtreeSize[group];
         }
-        flags = AlignJustifyFlags::IgnoreAutoMargins;
+        flags += AlignJustifyFlag::IgnoreAutoMargins;
       } else if (state & ItemState::eContentBaseline) {
         align = {(state & ItemState::eFirstBaseline)
                      ? StyleAlignFlags::SELF_START

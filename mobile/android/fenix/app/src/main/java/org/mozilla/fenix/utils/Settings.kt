@@ -36,6 +36,7 @@ import mozilla.components.support.utils.BrowsersCache
 import org.mozilla.fenix.BuildConfig
 import org.mozilla.fenix.Config
 import org.mozilla.fenix.FeatureFlags
+import org.mozilla.fenix.GleanMetrics.TopSites
 import org.mozilla.fenix.R
 import org.mozilla.fenix.browser.browsingmode.BrowsingMode
 import org.mozilla.fenix.browser.tabstrip.isTabStripEnabled
@@ -255,6 +256,15 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         get() = FxNimbus.features.homescreen.value().sectionsEnabled[HomeScreenSection.COLLECTIONS] == true
 
     /**
+     * Indicates whether or not the homepage header should be shown.
+     */
+    var showHomepageHeader by lazyFeatureFlagPreference(
+        appContext.getPreferenceKey(R.string.pref_key_enable_homepage_header),
+        featureFlag = true,
+        default = { homescreenSections[HomeScreenSection.HEADER] == true },
+    )
+
+    /**
      * Indicates whether or not top sites should be shown on the home screen.
      */
     val showTopSitesFeature: Boolean
@@ -365,7 +375,8 @@ class Settings(private val appContext: Context) : PreferencesHolder {
 
     var contileContextId by stringPreference(
         appContext.getPreferenceKey(R.string.pref_key_contile_context_id),
-        default = "",
+        default = TopSites.contextId.generateAndSet().toString(),
+        persistDefaultIfNotExists = true,
     )
 
     var currentWallpaperName by stringPreference(
@@ -1869,15 +1880,6 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     var pocketSponsoredStoriesCity by stringPreference(
         appContext.getPreferenceKey(R.string.pref_key_custom_sponsored_stories_city),
         default = "",
-    )
-
-    /**
-     * Indicates if the MARS API integration is used for sponsored content.
-     */
-    var marsAPIEnabled by lazyFeatureFlagPreference(
-        key = appContext.getPreferenceKey(R.string.pref_key_mars_api_enabled),
-        default = { FxNimbus.features.mars.value().enabled },
-        featureFlag = true,
     )
 
     /**

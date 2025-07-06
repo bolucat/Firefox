@@ -3135,11 +3135,27 @@ void MacroAssembler::enterFakeExitFrameForWasm(Register cxreg, Register scratch,
 }
 CodeOffset MacroAssembler::sub32FromMemAndBranchIfNegativeWithPatch(
     Address address, Label* label) {
-  MOZ_CRASH("needs to be implemented on this platform");
+  ScratchRegisterScope scratch(asMasm());
+  MOZ_ASSERT(scratch != address.base);
+  ma_load(scratch, address);
+  addiw(scratch, scratch, 128);
+  CodeOffset patchPoint = CodeOffset(currentOffset());
+  ma_store(scratch, address);
+  ma_b(scratch, scratch, label, Assembler::Signed);
+  return patchPoint;
 }
 void MacroAssembler::patchSub32FromMemAndBranchIfNegative(CodeOffset offset,
                                                           Imm32 imm) {
-  MOZ_CRASH("needs to be implemented on this platform");
+  int32_t val = imm.value;
+  MOZ_RELEASE_ASSERT(val >= 1 && val <= 127);
+  auto* inst = m_buffer.getInst(BufferOffset(offset.offset() - 4));
+  inst->InstructionOpcodeType();
+  MOZ_ASSERT(IsAddiw(inst->InstructionBits()));
+  /*
+   * | imm[11:0] | rs1 | 000 | rd | 0011011 |
+   */
+  inst->SetInstructionBits(((uint32_t)inst->InstructionBits() & ~kImm12Mask) |
+                           (((uint32_t)(-val) & 0xfff) << kImm12Shift));
 }
 void MacroAssembler::flexibleDivMod32(Register rhs, Register srcDest,
                                       Register remOutput, bool isUnsigned,

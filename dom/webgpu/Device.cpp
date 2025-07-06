@@ -67,8 +67,8 @@ Device::Device(Adapter* const aParent, RawId aDeviceId, RawId aQueueId,
       mFeatures(std::move(aFeatures)),
       mLimits(std::move(aLimits)),
       mAdapterInfo(std::move(aAdapterInfo)),
-      mSupportExternalTextureInSwapChain(
-          aParent->SupportExternalTextureInSwapChain()),
+      mSupportSharedTextureInSwapChain(
+          aParent->SupportSharedTextureInSwapChain()),
       mBridge(aParent->mBridge),
       mQueue(new class Queue(this, aParent->mBridge, aQueueId)) {
   mBridge->RegisterDevice(this);
@@ -107,6 +107,7 @@ dom::Promise* Device::GetLost(ErrorResult& aRv) {
     mLostPromise = dom::Promise::Create(GetParentObject(), aRv);
     if (mLostPromise && !mBridge->CanSend()) {
       auto info = MakeRefPtr<DeviceLostInfo>(GetParentObject(),
+                                             dom::GPUDeviceLostReason::Unknown,
                                              u"WebGPUChild destroyed"_ns);
       mLostPromise->MaybeResolve(info);
     }
@@ -114,7 +115,7 @@ dom::Promise* Device::GetLost(ErrorResult& aRv) {
   return mLostPromise;
 }
 
-void Device::ResolveLost(Maybe<dom::GPUDeviceLostReason> aReason,
+void Device::ResolveLost(dom::GPUDeviceLostReason aReason,
                          const nsAString& aMessage) {
   IgnoredErrorResult rv;
   dom::Promise* lostPromise = GetLost(rv);
@@ -130,12 +131,8 @@ void Device::ResolveLost(Maybe<dom::GPUDeviceLostReason> aReason,
     // lostPromise was already resolved or rejected.
     return;
   }
-  RefPtr<DeviceLostInfo> info;
-  if (aReason.isSome()) {
-    info = MakeRefPtr<DeviceLostInfo>(GetParentObject(), *aReason, aMessage);
-  } else {
-    info = MakeRefPtr<DeviceLostInfo>(GetParentObject(), aMessage);
-  }
+  RefPtr<DeviceLostInfo> info =
+      MakeRefPtr<DeviceLostInfo>(GetParentObject(), aReason, aMessage);
   lostPromise->MaybeResolve(info);
 }
 
@@ -947,7 +944,7 @@ already_AddRefed<dom::Promise> Device::CreateRenderPipelineAsync(
 already_AddRefed<Texture> Device::InitSwapChain(
     const dom::GPUCanvasConfiguration* const aConfig,
     const layers::RemoteTextureOwnerId aOwnerId,
-    mozilla::Span<RawId const> aBufferIds, bool aUseExternalTextureInSwapChain,
+    mozilla::Span<RawId const> aBufferIds, bool aUseSharedTextureInSwapChain,
     gfx::SurfaceFormat aFormat, gfx::IntSize aCanvasSize) {
   MOZ_ASSERT(aConfig);
 
@@ -963,7 +960,7 @@ already_AddRefed<Texture> Device::InitSwapChain(
   ffi::wgpu_client_create_swap_chain(
       mBridge->GetClient(), mId, mQueue->mId, rgbDesc.size().Width(),
       rgbDesc.size().Height(), (int8_t)rgbDesc.format(), aBufferIds.Elements(),
-      aBufferIds.Length(), aOwnerId.mId, aUseExternalTextureInSwapChain);
+      aBufferIds.Length(), aOwnerId.mId, aUseSharedTextureInSwapChain);
 
   // TODO: `mColorSpace`: <https://bugzilla.mozilla.org/show_bug.cgi?id=1846608>
   // TODO: `mAlphaMode`: <https://bugzilla.mozilla.org/show_bug.cgi?id=1846605>
@@ -998,7 +995,7 @@ void Device::Destroy() {
   // always leads to device loss. This is guaranteeing the same result
   // as if we went through the bridge (device lost promise resolves,
   // then the device is cycle collected).
-  ResolveLost(Some(dom::GPUDeviceLostReason::Destroyed), u""_ns);
+  ResolveLost(dom::GPUDeviceLostReason::Destroyed, u""_ns);
 }
 
 void Device::PushErrorScope(const dom::GPUErrorFilter& aFilter) {

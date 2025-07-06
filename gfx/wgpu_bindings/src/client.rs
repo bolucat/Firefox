@@ -3,16 +3,17 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 use crate::{
-    cow_label, error::HasErrorBufferType, wgpu_string, AdapterInformation, ByteBuf,
-    CommandEncoderAction, DeviceAction, ImplicitLayout, QueueWriteAction, RawString,
-    TexelCopyBufferLayout, TextureAction,
+    cow_label, wgpu_string, AdapterInformation, ByteBuf, CommandEncoderAction, DeviceAction,
+    ImplicitLayout, QueueWriteAction, RawString, TexelCopyBufferLayout, TextureAction,
 };
 
 use crate::{BufferMapResult, Message, QueueWriteDataSource, ServerMessage, SwapChainId};
 
 use wgc::naga::front::wgsl::ImplementedLanguageExtension;
 use wgc::{command::RenderBundleEncoder, id, identity::IdentityManager};
-use wgt::{BufferAddress, BufferSize, DynamicOffset, IndexFormat, TextureFormat};
+use wgt::{
+    error::WebGpuError, BufferAddress, BufferSize, DynamicOffset, IndexFormat, TextureFormat,
+};
 
 use wgc::id::markers;
 
@@ -671,7 +672,7 @@ pub extern "C" fn wgpu_client_receive_server_message(
                 limits,
                 name,
                 vendor,
-                support_use_external_texture_in_swap_chain,
+                support_use_shared_texture_in_swap_chain,
             }) = adapter_information
             {
                 let nss = |s: &str| {
@@ -690,7 +691,7 @@ pub extern "C" fn wgpu_client_receive_server_message(
                     limits,
                     name: nss(&name),
                     vendor,
-                    support_use_external_texture_in_swap_chain,
+                    support_use_shared_texture_in_swap_chain,
                 };
                 resolve_request_adapter_promise(client.owner, &adapter_info);
             } else {
@@ -872,7 +873,7 @@ pub extern "C" fn wgpu_client_create_swap_chain(
     buffer_ids: *const id::BufferId,
     buffer_ids_length: usize,
     remote_texture_owner_id: crate::RemoteTextureOwnerId,
-    use_external_texture_in_swap_chain: bool,
+    use_shared_texture_in_swap_chain: bool,
 ) {
     let buffer_ids = unsafe { core::slice::from_raw_parts(buffer_ids, buffer_ids_length) };
     let message = Message::CreateSwapChain {
@@ -883,7 +884,7 @@ pub extern "C" fn wgpu_client_create_swap_chain(
         format,
         buffer_ids: Cow::Borrowed(buffer_ids),
         remote_texture_owner_id,
-        use_external_texture_in_swap_chain,
+        use_shared_texture_in_swap_chain,
     };
     client.queue_message(&message);
 }
@@ -1171,7 +1172,7 @@ pub extern "C" fn wgpu_device_create_render_bundle_encoder(
             let message = format!("Error in `Device::create_render_bundle_encoder`: {}", e);
             let action = DeviceAction::Error {
                 message,
-                r#type: e.error_type(),
+                r#type: e.webgpu_error_type(),
             };
             let message = Message::Device(device_id, action);
             client.queue_message(&message);
@@ -1888,7 +1889,7 @@ pub unsafe extern "C" fn wgpu_report_validation_error(
             .to_str()
             .unwrap()
             .to_string(),
-        r#type: crate::error::ErrorBufferType::Validation,
+        r#type: wgt::error::ErrorType::Validation,
     };
     let message = Message::Device(device_id, action);
     client.queue_message(&message);
@@ -2003,9 +2004,7 @@ pub extern "C" fn wgpu_texture_format_get_block_info(
 }
 
 #[no_mangle]
-pub extern "C" fn wgpu_client_use_external_texture_in_swapChain(
-    format: wgt::TextureFormat,
-) -> bool {
+pub extern "C" fn wgpu_client_use_shared_texture_in_swapChain(format: wgt::TextureFormat) -> bool {
     let supported = match format {
         wgt::TextureFormat::Bgra8Unorm => true,
         _ => false,

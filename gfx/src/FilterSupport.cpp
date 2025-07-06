@@ -860,7 +860,8 @@ static already_AddRefed<FilterNode> FilterNodeFromPrimitiveDescription(
                            aConvolveMatrix.mDivisor);
       filter->SetAttribute(ATT_CONVOLVE_MATRIX_BIAS, aConvolveMatrix.mBias);
       filter->SetAttribute(ATT_CONVOLVE_MATRIX_TARGET, aConvolveMatrix.mTarget);
-      filter->SetAttribute(ATT_CONVOLVE_MATRIX_SOURCE_RECT, mSourceRegions[0]);
+      filter->SetAttribute(ATT_CONVOLVE_MATRIX_RENDER_RECT,
+                           mDescription.PrimitiveSubregion());
       uint32_t edgeMode = aConvolveMatrix.mEdgeMode;
       static const uint8_t edgeModes[SVG_EDGEMODE_NONE + 1] = {
           EDGE_MODE_NONE,       // SVG_EDGEMODE_UNKNOWN
@@ -1328,27 +1329,14 @@ already_AddRefed<FilterNode> FilterNodeGraphFromDescription(
 
 void FilterSupport::RenderFilterDescription(
     DrawTarget* aDT, const FilterDescription& aFilter, const Rect& aRenderRect,
-    SourceSurface* aSourceGraphic, const IntRect& aSourceGraphicRect,
-    SourceSurface* aFillPaint, const IntRect& aFillPaintRect,
-    SourceSurface* aStrokePaint, const IntRect& aStrokePaintRect,
+    RefPtr<FilterNode> aSourceGraphic, const IntRect& aSourceGraphicRect,
+    RefPtr<FilterNode> aFillPaint, const IntRect& aFillPaintRect,
+    RefPtr<FilterNode> aStrokePaint, const IntRect& aStrokePaintRect,
     nsTArray<RefPtr<SourceSurface>>& aAdditionalImages, const Point& aDestPoint,
     const DrawOptions& aOptions) {
-  RefPtr<FilterNode> sourceGraphic, fillPaint, strokePaint;
-  if (aSourceGraphic) {
-    sourceGraphic = FilterWrappers::ForSurface(aDT, aSourceGraphic,
-                                               aSourceGraphicRect.TopLeft());
-  }
-  if (aFillPaint) {
-    fillPaint =
-        FilterWrappers::ForSurface(aDT, aFillPaint, aFillPaintRect.TopLeft());
-  }
-  if (aStrokePaint) {
-    strokePaint = FilterWrappers::ForSurface(aDT, aStrokePaint,
-                                             aStrokePaintRect.TopLeft());
-  }
   RefPtr<FilterNode> resultFilter = FilterNodeGraphFromDescription(
-      aDT, aFilter, aRenderRect, sourceGraphic, aSourceGraphicRect, fillPaint,
-      strokePaint, aAdditionalImages);
+      aDT, aFilter, aRenderRect, aSourceGraphic, aSourceGraphicRect, aFillPaint,
+      aStrokePaint, aAdditionalImages);
   if (!resultFilter) {
     gfxWarning() << "Filter is NULL.";
     return;
@@ -1639,6 +1627,9 @@ nsIntRegion FilterSupport::PostFilterExtentsForPrimitive(
     }
 
     nsIntRegion operator()(const ConvolveMatrixAttributes& aConvolveMatrix) {
+      if (!aConvolveMatrix.mPreserveAlpha && aConvolveMatrix.mBias > 0) {
+        return mDescription.PrimitiveSubregion();
+      }
       return ResultChangeRegionForPrimitive(mDescription, mInputExtents);
     }
 

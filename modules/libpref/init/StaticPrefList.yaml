@@ -4968,7 +4968,7 @@
 
 - name: dom.text_fragments.create_text_fragment.enabled
   type: bool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 - name: dom.text_fragments.create_text_fragment.timeout_seconds
@@ -12003,6 +12003,7 @@
   value: false
   mirror: always
 
+#ifdef MOZ_WEBSPEECH
 - name: media.webspeech.synth.force_global_queue
   type: bool
   value: false
@@ -12023,19 +12024,11 @@
   value: false
   mirror: always
 
-#ifdef MOZ_WEBSPEECH
 -   name: media.webspeech.recognition.enable
     type: bool
     value: false
     mirror: always
-#endif
 
-- name: media.webspeech.recognition.force_enable
-  type: bool
-  value: false
-  mirror: always
-
-#ifdef MOZ_WEBSPEECH
 -   name: media.webspeech.synth.enabled
     type: bool
     value: true
@@ -14237,6 +14230,25 @@
   type: RelaxedAtomicBool
   value: true
   mirror: always
+
+# This preference specifies a comma seperated list of URL/IPAddress:Port that will be treated as public IPAddressSpace.
+- name: network.lna.address_space.public.override
+  type: String
+  type: String
+  value: ""
+  mirror: never
+
+# This preference specifies a comma seperated list of URL/IPAddress:Port that will be treated as private IPAddressSpace.
+- name: network.lna.address_space.private.override
+  type: String
+  value: ""
+  mirror: never
+
+# This preference specifies a comma seperated list of URL/IPAddress:Port that will be treated as local IPAddressSpace.
+- name: network.lna.address_space.local.override
+  type: String
+  value: ""
+  mirror: never
 
 # This preference controls Local Network Access (LNA) feature.
 - name: network.lna.enabled
@@ -17281,6 +17293,11 @@
 - name: security.integrity_policy.enabled
   type: RelaxedAtomicBool
   value: false
+  mirror: always
+
+- name: security.integrity_policy.stylesheet.enabled
+  type: RelaxedAtomicBool
+  value: true
   mirror: always
 
 # Which mechanism the secret decoder ring should use for encryption. Decryption
