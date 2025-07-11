@@ -174,7 +174,6 @@ class nsLookAndFeel final : public nsXPLookAndFeel {
     float mCaretRatio = 0.0f;
     int32_t mTitlebarRadius = 0;
     int32_t mTooltipRadius = 0;
-    int32_t mTitlebarButtonSpacing = 0;
     char16_t mInvisibleCharacter = 0;
     bool mMenuSupportsDrag = false;
 
@@ -183,6 +182,15 @@ class nsLookAndFeel final : public nsXPLookAndFeel {
     bool GetFont(FontID, nsString& aFontName, gfxFontStyle&,
                  float aTextScaleFactor) const;
     void InitCellHighlightColors();
+    void RestoreColorOverrides();
+    void ApplyColorOverride(nscolor* aMember, nscolor aNewColor);
+    void ApplyColorOverride(ColorPair* aMember, const ColorPair& aNewPair);
+
+    struct ColorOverride {
+      uint32_t mByteOffset;
+      nscolor mOriginalColor;
+    };
+    nsTArray<ColorOverride> mOverrides;
   };
 
   PerThemeData mSystemTheme;

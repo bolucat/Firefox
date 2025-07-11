@@ -92,9 +92,10 @@ tls:
       - https://bugzilla.mozilla.org/1933879
     data_reviews:
       - https://bugzilla.mozilla.org/1874963
+      - https://bugzilla.mozilla.org/1974141
     notification_emails:
       - jschanck@mozilla.com
-    expires: 143
+    expires: 149
     labels:
       - PR_CONNECT_RESET_ERROR
       - PR_END_OF_FILE_ERROR
@@ -484,6 +485,35 @@ security:
       - seceng-telemetry@mozilla.com
     expires: never
     telemetry_mirror: CONTENT_SIGNATURE_VERIFICATION_STATUS
+
+  content_signature_verification_errors:
+    type: dual_labeled_counter
+    description: >
+      Result of the content signature verification keyed by application
+      (certificate fingerprint).
+    dual_labels:
+      key:
+        description: application (certificate fingerprint).
+      category:
+        labels:
+          - invalid
+          - otherError
+          - expiredCert
+          - certNotValidYet
+          - buildCertChainFailed
+          - eeCertForWrongHost
+          - extractKeyError
+          - vfyContextError
+        description: Possible signature verification errors.
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1435713
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1862062
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1435713
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1862062
+    notification_emails:
+      - seceng-telemetry@mozilla.com
+    expires: never
 
   ntlm_module_used:
     type: custom_distribution
@@ -1583,19 +1613,17 @@ ssl:
     description: >
       Verification status of Signed Certificate Timestamps received (0=Decoding
       error, 1=Valid SCT, 2=SCT from unknown log, 3=Invalid SCT signature, 4=SCT
-      timestamp is in the future, 5=Valid SCT from a disqualified log)
-
-      This metric was generated to correspond to the Legacy Telemetry enumerated
-      histogram SSL_SCTS_VERIFICATION_STATUS.
+      timestamp is in the future, 5=Valid SCT from a disqualified log 6=SCT
+      timestamp is after the root's distrustAfter time).
     range_min: 0
     range_max: 10
     bucket_count: 11
     histogram_type: linear
     bugs:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1293231
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1953221
     data_reviews:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1293231
     notification_emails:
       - seceng-telemetry@mozilla.com
     expires: never
-    telemetry_mirror: SSL_SCTS_VERIFICATION_STATUS

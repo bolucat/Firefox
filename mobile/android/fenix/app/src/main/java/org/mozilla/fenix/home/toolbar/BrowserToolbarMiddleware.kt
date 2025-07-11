@@ -17,6 +17,7 @@ import mozilla.components.browser.state.selector.getNormalOrPrivateTabs
 import mozilla.components.browser.state.state.selectedOrDefaultSearchEngine
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.compose.browser.toolbar.concept.Action
+import mozilla.components.compose.browser.toolbar.concept.Action.ActionButton
 import mozilla.components.compose.browser.toolbar.concept.Action.ActionButtonRes
 import mozilla.components.compose.browser.toolbar.concept.Action.TabCounterAction
 import mozilla.components.compose.browser.toolbar.concept.PageOrigin
@@ -25,6 +26,7 @@ import mozilla.components.compose.browser.toolbar.concept.PageOrigin.Companion.C
 import mozilla.components.compose.browser.toolbar.concept.PageOrigin.Companion.PageOriginContextualMenuInteractions.LoadFromClipboardClicked
 import mozilla.components.compose.browser.toolbar.concept.PageOrigin.Companion.PageOriginContextualMenuInteractions.PasteFromClipboardClicked
 import mozilla.components.compose.browser.toolbar.store.BrowserDisplayToolbarAction.BrowserActionsEndUpdated
+import mozilla.components.compose.browser.toolbar.store.BrowserDisplayToolbarAction.NavigationActionsUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserDisplayToolbarAction.PageActionsStartUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserDisplayToolbarAction.PageOriginUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarAction
@@ -59,7 +61,9 @@ import org.mozilla.fenix.components.AppStore
 import org.mozilla.fenix.components.UseCases
 import org.mozilla.fenix.components.menu.MenuAccessPoint
 import org.mozilla.fenix.ext.nav
+import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.home.HomeFragmentDirections
+import org.mozilla.fenix.home.toolbar.DisplayActions.FakeClicked
 import org.mozilla.fenix.home.toolbar.DisplayActions.MenuClicked
 import org.mozilla.fenix.home.toolbar.PageOriginInteractions.OriginClicked
 import org.mozilla.fenix.home.toolbar.TabCounterInteractions.AddNewPrivateTab
@@ -68,13 +72,16 @@ import org.mozilla.fenix.home.toolbar.TabCounterInteractions.TabCounterClicked
 import org.mozilla.fenix.home.toolbar.TabCounterInteractions.TabCounterLongClicked
 import org.mozilla.fenix.search.BrowserToolbarSearchMiddleware
 import org.mozilla.fenix.search.ext.searchEngineShortcuts
+import org.mozilla.fenix.tabstray.DefaultTabManagementFeatureHelper
 import org.mozilla.fenix.tabstray.Page
+import org.mozilla.fenix.tabstray.TabManagementFeatureHelper
 import mozilla.components.lib.state.Action as MVIAction
 import mozilla.components.ui.icons.R as iconsR
 
 @VisibleForTesting
 internal sealed class DisplayActions : BrowserToolbarEvent {
     data object MenuClicked : DisplayActions()
+    data object FakeClicked : DisplayActions()
 }
 
 @VisibleForTesting
@@ -96,12 +103,14 @@ internal sealed class PageOriginInteractions : BrowserToolbarEvent {
  * @param browserStore [BrowserStore] to sync from.
  * @param clipboard [ClipboardHandler] to use for reading from device's clipboard.
  * @param useCases [UseCases] helping this integrate with other features of the applications.
+ * @param tabManagementFeatureHelper Feature flag helper for the tab management UI.
  */
 class BrowserToolbarMiddleware(
     private val appStore: AppStore,
     private val browserStore: BrowserStore,
     private val clipboard: ClipboardHandler,
     private val useCases: UseCases,
+    private val tabManagementFeatureHelper: TabManagementFeatureHelper = DefaultTabManagementFeatureHelper,
 ) : Middleware<BrowserToolbarState, BrowserToolbarAction> {
     @VisibleForTesting
     internal var environment: HomeToolbarEnvironment? = null
@@ -130,6 +139,7 @@ class BrowserToolbarMiddleware(
                     observeSearchStateUpdates(context.store)
                 }
                 updateEndBrowserActions(context.store)
+                updateNavigationActions(context.store)
                 updateToolbarActionsBasedOnOrientation(context.store)
                 updateTabsCount(context.store)
             }
@@ -164,15 +174,27 @@ class BrowserToolbarMiddleware(
                 Events.browserToolbarAction.record(Events.BrowserToolbarActionExtra("tabs_tray"))
 
                 runWithinEnvironment {
-                    navController.nav(
-                        R.id.homeFragment,
-                        NavGraphDirections.actionGlobalTabsTrayFragment(
-                            page = when (browsingModeManager.mode) {
-                                Normal -> Page.NormalTabs
-                                Private -> Page.PrivateTabs
-                            },
-                        ),
-                    )
+                    if (tabManagementFeatureHelper.enhancementsEnabled) {
+                        navController.nav(
+                            R.id.homeFragment,
+                            NavGraphDirections.actionGlobalTabManagementFragment(
+                                page = when (browsingModeManager.mode) {
+                                    Normal -> Page.NormalTabs
+                                    Private -> Page.PrivateTabs
+                                },
+                            ),
+                        )
+                    } else {
+                        navController.nav(
+                            R.id.homeFragment,
+                            NavGraphDirections.actionGlobalTabsTrayFragment(
+                                page = when (browsingModeManager.mode) {
+                                    Normal -> Page.NormalTabs
+                                    Private -> Page.PrivateTabs
+                                },
+                            ),
+                        )
+                    }
                 }
             }
             is TabCounterLongClicked -> {
@@ -298,14 +320,40 @@ class BrowserToolbarMiddleware(
         val environment = environment ?: return emptyList()
 
         return listOf(
-            HomeToolbarActionConfig(HomeToolbarAction.TabCounter) { !environment.context.isTabStripEnabled() },
-            HomeToolbarActionConfig(HomeToolbarAction.Menu),
+            HomeToolbarActionConfig(HomeToolbarAction.TabCounter) {
+                !environment.context.isTabStripEnabled() &&
+                        environment.context.settings().shouldUseSimpleToolbar
+            },
+            HomeToolbarActionConfig(HomeToolbarAction.Menu) {
+                environment.context.settings().shouldUseSimpleToolbar
+            },
         ).filter { config ->
             config.isVisible()
         }.map { config ->
             buildHomeAction(config.action)
         }
     }
+
+    private fun updateNavigationActions(store: Store<BrowserToolbarState, BrowserToolbarAction>) {
+        store.dispatch(
+            NavigationActionsUpdated(
+                buildNavigationActions(),
+            ),
+        )
+    }
+
+    private fun buildNavigationActions(): List<Action> =
+        listOf(
+            HomeToolbarActionConfig(HomeToolbarAction.FakeBookmark),
+            HomeToolbarActionConfig(HomeToolbarAction.FakeShare),
+            HomeToolbarActionConfig(HomeToolbarAction.NewTab),
+            HomeToolbarActionConfig(HomeToolbarAction.TabCounter),
+            HomeToolbarActionConfig(HomeToolbarAction.Menu),
+        ).filter { config ->
+            config.isVisible()
+        }.map { config ->
+            buildHomeAction(config.action)
+        }
 
     private fun buildTabCounterMenu(): CombinedEventAndMenu? {
         val environment = environment ?: return null
@@ -338,6 +386,7 @@ class BrowserToolbarMiddleware(
             distinctUntilChangedBy { it.orientation }
                 .collect {
                     updateEndBrowserActions(store)
+                    updateNavigationActions(store)
                 }
         }
     }
@@ -347,6 +396,7 @@ class BrowserToolbarMiddleware(
             distinctUntilChangedBy { it.tabs.size }
                 .collect {
                     updateEndBrowserActions(store)
+                    updateNavigationActions(store)
                 }
         }
     }
@@ -367,6 +417,9 @@ class BrowserToolbarMiddleware(
     internal enum class HomeToolbarAction {
         TabCounter,
         Menu,
+        FakeBookmark,
+        FakeShare,
+        NewTab,
     }
 
     private data class HomeToolbarActionConfig(
@@ -408,6 +461,34 @@ class BrowserToolbarMiddleware(
             drawableResId = R.drawable.mozac_ic_ellipsis_vertical_24,
             contentDescription = R.string.content_description_menu,
             onClick = MenuClicked,
+        )
+
+        HomeToolbarAction.FakeBookmark -> ActionButtonRes(
+            drawableResId = R.drawable.mozac_ic_bookmark_24,
+            contentDescription = R.string.browser_menu_bookmark_this_page_2,
+            state = ActionButton.State.DISABLED,
+            onClick = FakeClicked,
+        )
+
+        HomeToolbarAction.FakeShare -> ActionButtonRes(
+            drawableResId = R.drawable.mozac_ic_share_android_24,
+            contentDescription = R.string.browser_menu_share,
+            state = ActionButton.State.DISABLED,
+            onClick = FakeClicked,
+        )
+
+        HomeToolbarAction.NewTab -> ActionButtonRes(
+            drawableResId = R.drawable.mozac_ic_plus_24,
+            contentDescription = if (environment?.browsingModeManager?.mode == Private) {
+                R.string.home_screen_shortcut_open_new_private_tab_2
+            } else {
+                R.string.home_screen_shortcut_open_new_tab_2
+            },
+            onClick = if (environment?.browsingModeManager?.mode == Private) {
+                AddNewPrivateTab
+            } else {
+                AddNewTab
+            },
         )
     }
 }

@@ -344,7 +344,11 @@
   <!-- Content description (not visible, for screen readers etc.): Back button for all menu redesign sub-menu -->
   <string name="browser_menu_back_button_content_description" moz:removedIn="141" tools:ignore="UnusedResources">Nôl i\'r brif ddewislen</string>
   <!-- Content description (not visible, for screen readers etc.) for bottom sheet handlebar main menu. -->
-  <string name="browser_main_menu_handlebar_content_description">Caewch ddalen y brif ddewislen</string>
+  <string name="browser_main_menu_handlebar_content_description" moz:removedIn="142" tools:ignore="UnusedResources">Caewch ddalen y brif ddewislen</string>
+  <!-- Content description (not visible, for screen readers etc.) for the handle used to drag the main menu at the bottom of the screen. -->
+  <string name="browser_close_main_menu_handlebar_content_description">Cau\'r ddewislen</string>
+  <!-- Content description (not visible, for screen readers etc.) for main menu navigation header. -->
+  <string name="browser_main_menu_content_description_navigation_header">Llywio</string>
   <!-- Content description (not visible, for screen readers etc.) for main menu help button. -->
   <string name="browser_main_menu_content_description_help_button">Cymorth</string>
   <!-- Content description (not visible, for screen readers etc.) for main menu settings button. -->
@@ -420,7 +424,11 @@
   <!-- Label text within the set as default banner -->
   <string name="browser_menu_default_banner_subtitle">Dim ond yn cymryd eiliadau. Ei newid unrhyw bryd.</string>
   <!-- Content description for the button that dismisses the set as default banner in the menu -->
-  <string name="browser_menu_default_banner_dismiss">Cau</string>
+  <string name="browser_menu_default_banner_dismiss" moz:removedIn="142" tools:ignore="UnusedResources">Cau</string>
+  <!-- Content description (not visible, for screen readers etc.) for the button that dismisses the set as default banner in the menu -->
+  <string name="browser_menu_default_banner_dismiss_promotion">Diystyru dyrchafiad</string>
+  <!-- Content description (not visible, for screen readers etc.) for recommended extensions in main menu -->
+  <string name="browser_menu_recommended_extensions_content_description">Rhagor o wybodaeth</string>
   <!--
     Menu "contextual feature recommendation" (CFR)
 
@@ -867,6 +875,8 @@
   <string name="preferences_theme">Thema</string>
   <!-- Preference for customizing the home screen -->
   <string name="preferences_home_2">Tudalen Cartref</string>
+  <!-- Preference for customizing the app icon -->
+  <string name="preferences_app_icon">Eicon ap</string>
   <!-- Preference for gestures based actions -->
   <string name="preferences_gestures">Ystumiau</string>
   <!-- Preference for settings related to visual options -->
@@ -1243,9 +1253,9 @@
   <string name="preferences_daily_usage_ping_description">Mae hyn yn helpu Mozilla i amcangyfrif defnyddwyr gweithredol.</string>
   <string name="preferences_daily_usage_ping_learn_more">Dysgwch fwy am ping defnydd dyddiol</string>
   <!-- Preference switch title for automatically submitting crash reports -->
-  <string name="preferences_automatically_send_crashes_title">Yn anfon adroddiadau chwalu\'n awtomatig</string>
+  <string name="preferences_automatically_send_crashes_title" tools:ignore="UnusedResources" moz:removedIn="142">Yn anfon adroddiadau chwalu\'n awtomatig</string>
   <!-- Preference switch description for automatically submitting crash reports -->
-  <string name="preferences_automatically_send_crashes_description">Mae hyn yn ein helpu i wneud diagnosis a thrwsio problemau gyda\'r porwr. Gall adroddiadau gynnwys data personol neu sensitif.</string>
+  <string name="preferences_automatically_send_crashes_description" tools:ignore="UnusedResources" moz:removedIn="142">Mae hyn yn ein helpu i wneud diagnosis a thrwsio problemau gyda\'r porwr. Gall adroddiadau gynnwys data personol neu sensitif.</string>
   <!-- Text for sumo link to learn more about crash reports in data collection screen -->
   <string name="preferences_crashes_learn_more">Darllen rhagor am adroddiadau chwalu</string>
   <!-- Title Headers for data collection settings screen -->
@@ -1266,7 +1276,7 @@
   <!-- Learn more link for marketing data preference -->
   <string name="preferences_marketing_data_learn_more">Dysgwch fwy am ddata marchnata</string>
   <!-- Learn more link for crash reporting preference -->
-  <string name="onboarding_preferences_dialog_crash_reporting_learn_more">Darllen rhagor am adroddiadau chwalu</string>
+  <string name="onboarding_preferences_dialog_crash_reporting_learn_more" tools:ignore="UnusedResources" moz:removedIn="142">Darllen rhagor am adroddiadau chwalu</string>
   <!-- Title for studies preferences -->
   <string name="preference_experiments_2">Astudiaethau</string>
   <!-- Summary for studies preferences -->
@@ -1299,6 +1309,12 @@
   <string name="preference_simple_toolbar">Syml</string>
   <!-- Preference for using expanded toolbar -->
   <string name="preference_expanded_toolbar">Estynnwyd</string>
+  <!--
+    App icon Preferences
+
+    Title for the preference that lets the user pick a new app icon
+  -->
+  <string name="preference_select_app_icon_title">Dewiswch Eicon App</string>
   <!--
     Theme Preferences
 
@@ -1723,7 +1739,11 @@
   -->
   <string name="webcompat_reporter_screen_title">Adrodd ar wefan wedi torri</string>
   <!-- The description of the Web Compat Reporter feature. %1$s is the name of the app (for example "Firefox"). -->
-  <string name="webcompat_reporter_description">Helpwch i wneud %1$s yn well i bawb. Mae gweithwyr Mozilla yn defnyddio\'r wybodaeth rydych chi\'n ei hanfon i ddatrys problemau gwefannau.</string>
+  <string name="webcompat_reporter_description" moz:removedIn="142" tools:ignore="UnusedResources">Helpwch i wneud %1$s yn well i bawb. Mae gweithwyr Mozilla yn defnyddio\'r wybodaeth rydych chi\'n ei hanfon i ddatrys problemau gwefannau.</string>
+  <!-- The description of the Web Compat Reporter feature, which has a "learn more" button text for navigating to a SUMO link to learn more about reporting a broken site. %1$s is the name of the app (for example "Firefox"). -->
+  <string name="webcompat_reporter_description_2">Mae eich adroddiad yn ein helpu i ddeall a thrwsio problemau yn %1$s i\'w wneud yn well i bawb. Dysgwch fwy</string>
+  <!-- The button text for navigating to the SUMO link to learn more about reporting a broken site. -->
+  <string name="webcompat_reporter_learn_more">Dysgu rhagor</string>
   <!-- The text field label of the URL text field. This is displayed above the user-inputted URL. -->
   <string name="webcompat_reporter_label_url">URL</string>
   <!-- The error message of the URL text field when an invalid URL has been entered. -->
@@ -1731,7 +1751,9 @@
   <!-- The label/title of a field in the Web Compat Reporter feature for explaining a high-level reason why the site is broken. -->
   <string name="webcompat_reporter_label_whats_broken_2">Beth sydd wedi torri?</string>
   <!-- The placeholder text for the dropdown where a user selects a high-level reason why the site is broken. -->
-  <string name="webcompat_reporter_choose_reason">Dewiswch reswm</string>
+  <string name="webcompat_reporter_choose_reason" moz:removedIn="142" tools:ignore="UnusedResources">Dewiswch reswm</string>
+  <!-- The placeholder text for the dropdown where a user selects a high-level reason why the site is broken. -->
+  <string name="webcompat_reporter_choose_reason_2">Dewiswch reswm</string>
   <!-- The error message of the dropdown, prompting the user to select a high-level reason why the site is broken. -->
   <string name="webcompat_reporter_choose_reason_error">Dewiswch reswm</string>
   <!-- The label/title of an optional field in the Web Compat Reporter feature for adding additional information. -->
@@ -1746,6 +1768,8 @@
   <string name="webcompat_reporter_success_snackbar_text">Anfonwyd eich adroddiad</string>
   <!-- Button text for closing or dismissing the snackbar shown after successfully submitting a WebCompat report. -->
   <string name="webcompat_reporter_dismiss_success_snackbar_text">Cau</string>
+  <!-- Placeholder text for the description field to prompt the user on what they should type. -->
+  <string name="webcompat_reporter_problem_description_placeholder_text">Beth ddigwyddodd? Beth ddylai fod wedi digwydd?</string>
   <!--
     These reason strings are dropdown options on a WebCompat reporter form, indicating what is broken on the site.
 
@@ -2240,6 +2264,8 @@
   <string name="preference_accessibility_text_size_summary">Gwneud testun ar wefannau yn fwy neu’n llai</string>
   <!-- Title for Accessibility Text Size Scaling Preference -->
   <string name="preference_accessibility_font_size_title">Maint Ffont</string>
+  <!-- %d is the percentage of the slide bar for setting the text font size and %% will be announced as "percent". -->
+  <string name="a11y_preference_accessibility_font_size_percentage">%d %%.</string>
   <!-- Title for Accessibility Text Automatic Size Scaling Preference -->
   <string name="preference_accessibility_auto_size_2">Newid maint ffont awtomatig</string>
   <!-- Summary for Accessibility Text Automatic Size Scaling Preference -->
@@ -2977,8 +3003,10 @@
   <!--
     Top Sites
 
-    Title text displayed in the dialog when shortcuts limit is reached.
+    Title text displayed for the shortcuts home screen section.
   -->
+  <string name="homepage_shortcuts_title">Llwybrau Byr</string>
+  <!-- Title text displayed in the dialog when shortcuts limit is reached. -->
   <string name="shortcut_max_limit_title">Cyrhaeddwyd terfyn llwybr byr</string>
   <!-- Content description text displayed in the dialog when shortcut limit is reached. -->
   <string name="shortcut_max_limit_content">I ychwanegu llwybr byr newydd, tynnwch un. Cyffyrddwch a daliwch y wefan a dewiswch dileu.</string>
@@ -3370,9 +3398,9 @@
 
     Text for the protection panel header when the site is secure.
   -->
-  <string name="protection_panel_header_secure">Diogel</string>
+  <string name="protection_panel_header_secure" moz:removedIn="142" tools:ignore="UnusedResources">Diogel</string>
   <!-- Text for the protection panel header when the site is not secure. -->
-  <string name="protection_panel_header_not_secure">Ddim yn ddiogel</string>
+  <string name="protection_panel_header_not_secure" moz:removedIn="142" tools:ignore="UnusedResources">Ddim yn ddiogel</string>
   <!-- Title text for the protection panel banner when the site is not secure. -->
   <string name="protection_panel_banner_not_secure_title">Byddwch yn ofalus ar y wefan hon</string>
   <!-- Description text for the protection panel banner when the site is not secure. -->
@@ -3393,10 +3421,18 @@
   <string name="protection_panel_banner_protected_description">Rydych wedi\'ch diogelu. Os byddwn yn sylwi ar rywbeth, byddwn yn rhoi gwybod ichi.</string>
   <!-- Label text for the Enhanced Tracking Protection toggle. -->
   <string name="protection_panel_etp_toggle_label">Diogelwch Uwch Rhag Tracio</string>
+  <!-- Toggle if Enhanced Tracking Protection is turned on -->
+  <string name="protection_panel_etp_toggle_on">Ymlaen</string>
+  <!-- Toggle if Enhanced Tracking Protection is turned off -->
+  <string name="protection_panel_etp_toggle_off">Diffodd</string>
   <!-- Description text for the Enhanced Tracking Protection toggle when tracking protection is enabled. -->
-  <string name="protection_panel_etp_toggle_enabled_description">Os yw rhywbeth yn edrych wedi torri ar y wefan hon, ceisiwch ddiffodd eich diogelwch.</string>
+  <string name="protection_panel_etp_toggle_enabled_description" moz:removedIn="142" tools:ignore="UnusedResources">Os yw rhywbeth yn edrych wedi torri ar y wefan hon, ceisiwch ddiffodd eich diogelwch.</string>
+  <!-- Description text for the Enhanced Tracking Protection toggle when tracking protection is enabled. -->
+  <string name="protection_panel_etp_toggle_enabled_description_2">Os yw rhywbeth yn edrych wedi torri ar y wefan hon, ceisiwch ei ddiffodd.</string>
   <!-- Description text for the Enhanced Tracking Protection toggle when tracking protection is disabled. -->
-  <string name="protection_panel_etp_toggle_disabled_description">Mae\'r mesurau diogelwch wedi\'u DIFFODD. Rydym yn awgrymu eu troi yn ôl ymlaen.</string>
+  <string name="protection_panel_etp_toggle_disabled_description" moz:removedIn="142" tools:ignore="UnusedResources">Mae\'r mesurau diogelwch wedi\'u DIFFODD. Rydym yn awgrymu eu troi yn ôl ymlaen.</string>
+  <!-- Description text for the Enhanced Tracking Protection toggle when tracking protection is disabled. -->
+  <string name="protection_panel_etp_toggle_disabled_description_2">Argymhellir troi amddiffyniad olrhain ymlaen.</string>
   <!--
     Text for displaying the total number of trackers blocked in the protection panel.
     %d is a placeholder for the number of trackers blocked.
@@ -3405,7 +3441,9 @@
   <!-- Text for when no trackers have been blocked. -->
   <string name="protection_panel_no_trackers_blocked">Heb ganfod tracwyr</string>
   <!-- Link text to navigate to privacy and security settings from the protection panel. -->
-  <string name="protection_panel_privacy_and_security_settings">Gosodiadau preifatrwydd a diogelwch</string>
+  <string name="protection_panel_privacy_and_security_settings" moz:removedIn="142" tools:ignore="UnusedResources">Gosodiadau preifatrwydd a diogelwch</string>
+  <!-- Link text to navigate to privacy and security settings from the protection panel. -->
+  <string name="protection_panel_privacy_and_security_settings_2">Gosodiadau Preifatrwydd</string>
   <!-- Title text for the protection panel permissions section. -->
   <string name="protection_panel_permissions_title">Caniatâd</string>
   <!--
@@ -3436,7 +3474,7 @@
   <string name="connection_security_panel_not_secure">Nid yw’r cysylltiad yn ddiogel</string>
   <!--
     Text for the connection security panel to indicate who the certificate was verified by.
-    %s is a placeholder for the name of the certificate authority that verified the ticket
+    %s is a placeholder for the name of the certificate authority that issued the certificate.
   -->
   <string name="connection_security_panel_verified_by">Wedi\'i wirio gan %s</string>
   <!--
@@ -3615,6 +3653,14 @@
   <string name="debug_drawer_override_region">Diystyru\'r cartref a\'r rhanbarth cyfredol</string>
   <!-- The title of the button for overriding home region permanently. -->
   <string name="debug_drawer_override_home_region_permanently">Diystyru\'r rhanbarth cartref yn barhaol</string>
+  <!--
+    Add-ons debug tools
+
+    The description of the Add-ons Tools in the Debug Drawer
+  -->
+  <string name="debug_drawer_addons_tools_title">Offer Ychwanegion</string>
+  <!-- The title of the button used to check for add-on updates. -->
+  <string name="addons_debug_tools_check_for_updates_button">Gwirio am ddiweddariadau</string>
   <!--
     Messages explaining how to exit fullscreen mode
 

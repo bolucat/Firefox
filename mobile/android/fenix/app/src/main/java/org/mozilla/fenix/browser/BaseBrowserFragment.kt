@@ -176,6 +176,7 @@ import org.mozilla.fenix.components.appstate.AppAction.MessagingAction.Microsurv
 import org.mozilla.fenix.components.metrics.MetricsUtils
 import org.mozilla.fenix.components.toolbar.BottomToolbarContainerIntegration
 import org.mozilla.fenix.components.toolbar.BottomToolbarContainerView
+import org.mozilla.fenix.components.toolbar.BrowserNavigationBar
 import org.mozilla.fenix.components.toolbar.BrowserToolbarComposable
 import org.mozilla.fenix.components.toolbar.BrowserToolbarMenuController
 import org.mozilla.fenix.components.toolbar.BrowserToolbarView
@@ -224,6 +225,7 @@ import org.mozilla.fenix.settings.SupportUtils
 import org.mozilla.fenix.settings.biometric.BiometricPromptFeature
 import org.mozilla.fenix.snackbar.FenixSnackbarDelegate
 import org.mozilla.fenix.snackbar.SnackbarBinding
+import org.mozilla.fenix.tabstray.DefaultTabManagementFeatureHelper
 import org.mozilla.fenix.tabstray.Page
 import org.mozilla.fenix.tabstray.ext.toDisplayTitle
 import org.mozilla.fenix.theme.FirefoxTheme
@@ -271,6 +273,8 @@ abstract class BaseBrowserFragment :
     @VisibleForTesting
     internal val browserToolbarView: FenixBrowserToolbarView
         get() = _browserToolbarView!!
+
+    private var browserNavigationBar: BrowserNavigationBar? = null
 
     @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
     @Suppress("VariableNaming")
@@ -1034,11 +1038,6 @@ abstract class BaseBrowserFragment :
                         password = password,
                     )
                 },
-                onSaveLogin = { isUpdate ->
-                    showSnackbarAfterLoginChange(
-                        isUpdate,
-                    )
-                },
                 passwordGeneratorColorsProvider = passwordGeneratorColorsProvider,
                 hideUpdateFragmentAfterSavingGeneratedPassword = { username, password ->
                     hideUpdateFragmentAfterSavingGeneratedPassword(
@@ -1314,6 +1313,22 @@ abstract class BaseBrowserFragment :
             )
         }
 
+        browserNavigationBar = if (context?.settings()?.shouldUseSimpleToolbar == false) {
+             BrowserNavigationBar(
+                context = activity,
+                lifecycleOwner = this,
+                container = binding.browserLayout,
+                appStore = activity.components.appStore,
+                browserScreenStore = browserScreenStore,
+                browserStore = store,
+                components = activity.components,
+                settings = activity.settings(),
+                customTabSession = customTabSessionId?.let { store.state.findCustomTab(it) },
+            )
+        } else {
+           null
+        }
+
         return BrowserToolbarComposable(
             activity = activity,
             lifecycleOwner = this,
@@ -1330,6 +1345,7 @@ abstract class BaseBrowserFragment :
             settings = activity.settings(),
             customTabSession = customTabSessionId?.let { store.state.findCustomTab(it) },
             tabStripContent = buildTabStrip(activity),
+            navigationBarContent = browserNavigationBar?.asComposable(),
         )
     }
 
@@ -1414,22 +1430,6 @@ abstract class BaseBrowserFragment :
                 duration = LENGTH_LONG,
             )
         }
-    }
-
-    /**
-     * Show a [Snackbar] when credentials are saved or updated.
-     */
-    private fun showSnackbarAfterLoginChange(isUpdate: Boolean) {
-        val snackbarText = if (isUpdate) {
-            R.string.mozac_feature_prompt_login_snackbar_username_updated
-        } else {
-            R.string.mozac_feature_prompts_suggest_strong_password_saved_snackbar_title
-        }
-        ContextMenuSnackbarDelegate().show(
-            snackBarParentView = binding.dynamicSnackbarContainer,
-            text = snackbarText,
-            duration = LENGTH_LONG,
-        )
     }
 
     /**
@@ -1557,15 +1557,27 @@ abstract class BaseBrowserFragment :
 
     private fun onTabCounterClicked(browsingMode: BrowsingMode) {
         thumbnailsFeature.get()?.requestScreenshot()
-        findNavController().nav(
-            R.id.browserFragment,
-            BrowserFragmentDirections.actionGlobalTabsTrayFragment(
-                page = when (browsingMode) {
-                    BrowsingMode.Normal -> Page.NormalTabs
-                    BrowsingMode.Private -> Page.PrivateTabs
-                },
-            ),
-        )
+        if (DefaultTabManagementFeatureHelper.enhancementsEnabled) {
+            findNavController().nav(
+                R.id.browserFragment,
+                BrowserFragmentDirections.actionGlobalTabManagementFragment(
+                    page = when (browsingMode) {
+                        BrowsingMode.Normal -> Page.NormalTabs
+                        BrowsingMode.Private -> Page.PrivateTabs
+                    },
+                ),
+            )
+        } else {
+            findNavController().nav(
+                R.id.browserFragment,
+                BrowserFragmentDirections.actionGlobalTabsTrayFragment(
+                    page = when (browsingMode) {
+                        BrowsingMode.Normal -> Page.NormalTabs
+                        BrowsingMode.Private -> Page.PrivateTabs
+                    },
+                ),
+            )
+        }
     }
 
     @VisibleForTesting
@@ -2312,7 +2324,7 @@ abstract class BaseBrowserFragment :
 
     override fun onAccessibilityStateChanged(enabled: Boolean) {
         if (_browserToolbarView != null) {
-            browserToolbarView.setToolbarBehavior(enabled)
+            browserToolbarView.setToolbarBehavior(requireContext().settings().toolbarPosition, enabled)
         }
     }
 

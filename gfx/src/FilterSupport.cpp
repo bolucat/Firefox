@@ -1037,13 +1037,7 @@ static already_AddRefed<FilterNode> FilterNodeFromPrimitiveDescription(
     }
 
     already_AddRefed<FilterNode> operator()(
-        const SpecularLightingAttributes& aLighting) {
-      return operator()(
-          *(static_cast<const DiffuseLightingAttributes*>(&aLighting)));
-    }
-
-    already_AddRefed<FilterNode> operator()(
-        const DiffuseLightingAttributes& aLighting) {
+        const LightingAttributes& aLighting) {
       bool isSpecular =
           mDescription.Attributes().is<SpecularLightingAttributes>();
 
@@ -1082,6 +1076,8 @@ static already_AddRefed<FilterNode> FilterNodeFromPrimitiveDescription(
       filter->SetAttribute(ATT_LIGHTING_SURFACE_SCALE, aLighting.mSurfaceScale);
       filter->SetAttribute(ATT_LIGHTING_KERNEL_UNIT_LENGTH,
                            aLighting.mKernelUnitLength);
+      filter->SetAttribute(ATT_LIGHTING_RENDER_RECT,
+                           mDescription.PrimitiveSubregion());
 
       if (isSpecular) {
         filter->SetAttribute(ATT_SPECULAR_LIGHTING_SPECULAR_CONSTANT,
@@ -1468,12 +1464,7 @@ static nsIntRegion ResultChangeRegionForPrimitive(
       return blurRegion;
     }
 
-    nsIntRegion operator()(const SpecularLightingAttributes& aLighting) {
-      return operator()(
-          *(static_cast<const DiffuseLightingAttributes*>(&aLighting)));
-    }
-
-    nsIntRegion operator()(const DiffuseLightingAttributes& aLighting) {
+    nsIntRegion operator()(const LightingAttributes& aLighting) {
       Size kernelUnitLength = aLighting.mKernelUnitLength;
       int32_t dx = ceil(kernelUnitLength.width);
       int32_t dy = ceil(kernelUnitLength.height);
@@ -1688,12 +1679,7 @@ nsIntRegion FilterSupport::PostFilterExtentsForPrimitive(
       return ResultChangeRegionForPrimitive(mDescription, mInputExtents);
     }
 
-    nsIntRegion operator()(const DiffuseLightingAttributes& aDiffuseLighting) {
-      return mDescription.PrimitiveSubregion();
-    }
-
-    nsIntRegion operator()(
-        const SpecularLightingAttributes& aSpecularLighting) {
+    nsIntRegion operator()(const LightingAttributes& aLighting) {
       return mDescription.PrimitiveSubregion();
     }
 
@@ -1855,12 +1841,7 @@ static nsIntRegion SourceNeededRegionForPrimitive(
       return blurRegion;
     }
 
-    nsIntRegion operator()(const SpecularLightingAttributes& aLighting) {
-      return operator()(
-          *(static_cast<const DiffuseLightingAttributes*>(&aLighting)));
-    }
-
-    nsIntRegion operator()(const DiffuseLightingAttributes& aLighting) {
+    nsIntRegion operator()(const LightingAttributes& aLighting) {
       Size kernelUnitLength = aLighting.mKernelUnitLength;
       int32_t dx = ceil(kernelUnitLength.width);
       int32_t dy = ceil(kernelUnitLength.height);

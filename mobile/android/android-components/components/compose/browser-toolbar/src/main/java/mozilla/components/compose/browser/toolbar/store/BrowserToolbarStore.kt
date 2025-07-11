@@ -6,6 +6,7 @@ package mozilla.components.compose.browser.toolbar.store
 
 import mozilla.components.compose.browser.toolbar.store.BrowserDisplayToolbarAction.BrowserActionsEndUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserDisplayToolbarAction.BrowserActionsStartUpdated
+import mozilla.components.compose.browser.toolbar.store.BrowserDisplayToolbarAction.NavigationActionsUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserDisplayToolbarAction.PageActionsEndUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserDisplayToolbarAction.PageActionsStartUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserDisplayToolbarAction.PageOriginUpdated
@@ -37,6 +38,7 @@ open class BrowserToolbarStore(
     }
 }
 
+@Suppress("LongMethod")
 private fun reduce(state: BrowserToolbarState, action: BrowserToolbarAction): BrowserToolbarState {
     return when (action) {
         is BrowserToolbarAction.Init -> BrowserToolbarState(
@@ -84,6 +86,12 @@ private fun reduce(state: BrowserToolbarState, action: BrowserToolbarAction): Br
             ),
         )
 
+        is NavigationActionsUpdated -> state.copy(
+            displayState = state.displayState.copy(
+                navigationActions = action.actions,
+            ),
+        )
+
         is BrowserEditToolbarAction.SearchQueryUpdated -> state.copy(
             editState = state.editState.copy(
                 query = action.query,
@@ -124,5 +132,8 @@ private fun reduce(state: BrowserToolbarState, action: BrowserToolbarAction): Br
             // Expected to be handled in middlewares set by integrators.
             state
         }
+
+        is BrowserEditToolbarAction.HintUpdated ->
+            state.copy(editState = state.editState.copy(hint = action.hint))
     }
 }

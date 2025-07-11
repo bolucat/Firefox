@@ -13,6 +13,7 @@
 #include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/dom/WorkerCommon.h"
 #include "mozilla/dom/WorkerPrivate.h"
+#include "mozilla/dom/PolicyContainer.h"
 #include "nsComponentManagerUtils.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsIChannel.h"
@@ -114,6 +115,12 @@ bool nsContentSecurityUtils::IsConsideredSameOriginForUIR(
       MakeHTTPPrincipalHTTPS(aResultPrincipal);
 
   return compareTriggeringPrincipal->Equals(compareResultPrincipal);
+}
+
+/* static */
+bool nsContentSecurityUtils::IsTrustedScheme(nsIURI* aURI) {
+  return aURI->SchemeIs("resource") || aURI->SchemeIs("chrome") ||
+         aURI->SchemeIs("moz-src");
 }
 
 /*
@@ -742,7 +749,7 @@ bool nsContentSecurityUtils::IsEvalAllowed(JSContext* cx,
   MOZ_CRASH_UNSAFE_PRINTF("%s", crashString.get());
 #endif
 
-#ifdef MOZ_WIDGET_ANDROID
+#if defined(MOZ_WIDGET_ANDROID) && !defined(NIGHTLY_BUILD)
   // TODO(bug 1895823)
   return true;
 #else
@@ -1753,7 +1760,8 @@ void nsContentSecurityUtils::AssertAboutPageHasCSP(Document* aDocument) {
     return;
   }
 
-  nsCSPContext* csp = static_cast<nsCSPContext*>(aDocument->GetCsp());
+  nsCSPContext* csp = nsCSPContext::Cast(
+      PolicyContainer::GetCSP(aDocument->GetPolicyContainer()));
   bool foundDefaultSrc = false;
   uint32_t policyCount = 0;
   if (csp) {
@@ -1908,7 +1916,8 @@ void nsContentSecurityUtils::AssertChromePageHasCSP(Document* aDocument) {
   nsAutoCString spec;
   documentURI->GetSpec(spec);
 
-  nsCOMPtr<nsIContentSecurityPolicy> csp = aDocument->GetCsp();
+  nsCOMPtr<nsIContentSecurityPolicy> csp =
+      PolicyContainer::GetCSP(aDocument->GetPolicyContainer());
   uint32_t count = 0;
   if (csp) {
     static_cast<nsCSPContext*>(csp.get())->GetPolicyCount(&count);
@@ -1971,7 +1980,7 @@ void nsContentSecurityUtils::AssertChromePageHasCSP(Document* aDocument) {
     return;
   }
 
-  // TODO These are injecting scripts so it cannot be blocked without
+  // Bug 1963356: These are injecting scripts so it cannot be blocked without
   // further coordination.
   if (StringBeginsWith(spec, "chrome://remote/content/marionette/"_ns)) {
     return;

@@ -28,7 +28,6 @@ import mozilla.components.browser.state.selector.findTab
 import mozilla.components.browser.state.state.BrowserState
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.compose.base.Divider
-import mozilla.components.compose.base.theme.AcornTheme
 import mozilla.components.compose.browser.toolbar.BrowserToolbar
 import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction.SearchQueryUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarAction.ToggleEditMode
@@ -48,6 +47,7 @@ import org.mozilla.fenix.databinding.FragmentHomeBinding
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.search.BrowserToolbarSearchMiddleware
 import org.mozilla.fenix.search.BrowserToolbarSearchStatusSyncMiddleware
+import org.mozilla.fenix.theme.FirefoxTheme
 import org.mozilla.fenix.utils.Settings
 
 /**
@@ -66,6 +66,7 @@ import org.mozilla.fenix.utils.Settings
  * @param tabStripContent [Composable] as the tab strip content to be displayed together with this toolbar.
  * @param searchSuggestionsContent [Composable] as the search suggestions content to be displayed
  * together with this toolbar.
+ * @param navigationBarContent Composable content for the navigation bar.
  */
 @Suppress("LongParameterList")
 internal class HomeToolbarComposable(
@@ -80,6 +81,7 @@ internal class HomeToolbarComposable(
     private val directToSearchConfig: DirectToSearchConfig,
     private val tabStripContent: @Composable () -> Unit,
     private val searchSuggestionsContent: @Composable (BrowserToolbarStore, Modifier) -> Unit,
+    private val navigationBarContent: (@Composable () -> Unit)?,
 ) : FenixHomeToolbar {
     private var showDivider by mutableStateOf(true)
 
@@ -91,7 +93,7 @@ internal class HomeToolbarComposable(
         setContent {
             val shouldShowTabStrip: Boolean = remember { context.isTabStripEnabled() }
 
-            AcornTheme {
+            FirefoxTheme {
                 Column {
                     if (shouldShowTabStrip) {
                         tabStripContent()
@@ -101,6 +103,9 @@ internal class HomeToolbarComposable(
                         searchSuggestionsContent(store, Modifier.weight(1f))
                     }
                     BrowserToolbar(showDivider, settings.shouldUseBottomToolbar)
+                    if (settings.toolbarPosition == BOTTOM) {
+                        navigationBarContent?.invoke()
+                    }
                     if (!settings.shouldUseBottomToolbar) {
                         searchSuggestionsContent(store, Modifier.weight(1f))
                     }

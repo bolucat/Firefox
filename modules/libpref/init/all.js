@@ -1792,7 +1792,11 @@ pref("extensions.browser_style_mv3.same_as_mv2", false);
 
 // If set to true, browser.cookies.set() will throw exceptions if the cookie is
 // invalid. Otherwise, a warning message will be shown in the console.
+#ifdef NIGHTLY_BUILD
+pref("extensions.cookie.rejectWhenInvalid", true);
+#else
 pref("extensions.cookie.rejectWhenInvalid", false);
+#endif
 
 // Experimental Inference API
 pref("extensions.ml.enabled", true);
@@ -3744,11 +3748,7 @@ pref("toolkit.legacyUserProfileCustomizations.stylesheets", false);
   pref("datareporting.policy.minimumPolicyVersion", 1);
   pref("datareporting.policy.minimumPolicyVersion.channel-beta", 2);
   pref("datareporting.policy.firstRunURL", "https://www.mozilla.org/privacy/firefox/");
-  #ifdef MOZILLA_OFFICIAL
-    pref("datareporting.policy.dataSubmissionPolicyBypassNotification", false);
-  #else
-    pref("datareporting.policy.dataSubmissionPolicyBypassNotification", true);
-  #endif
+  pref("datareporting.policy.dataSubmissionPolicyBypassNotification", false);
 #endif
 
 #ifdef MOZ_SERVICES_HEALTHREPORT

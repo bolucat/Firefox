@@ -4,6 +4,7 @@
 
 package mozilla.components.compose.browser.toolbar.store
 
+import androidx.annotation.StringRes
 import mozilla.components.compose.browser.toolbar.concept.PageOrigin
 import mozilla.components.concept.toolbar.AutocompleteProvider
 import mozilla.components.lib.state.Action
@@ -92,6 +93,13 @@ sealed class BrowserDisplayToolbarAction : BrowserToolbarAction {
      * @property config The new configuration for what progress bar to show.
      */
     data class UpdateProgressBarConfig(val config: ProgressBarConfig?) : BrowserDisplayToolbarAction()
+
+    /**
+     * Replaces the currently displayed list of navigation actions with the provided list of actions.
+     *
+     * @property actions The new list of [ToolbarAction]s.
+     */
+    data class NavigationActionsUpdated(val actions: List<ToolbarAction>) : BrowserDisplayToolbarAction()
 }
 
 /**
@@ -137,4 +145,9 @@ sealed class BrowserEditToolbarAction : BrowserToolbarAction {
      * @property actions The new list of [ToolbarAction]s.
      */
     data class SearchActionsEndUpdated(val actions: List<ToolbarAction>) : BrowserEditToolbarAction()
+
+    /**
+     * Update the placeholder hint resource ID in edit mode.
+     */
+    data class HintUpdated(@param:StringRes val hint: Int) : BrowserEditToolbarAction()
 }

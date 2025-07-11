@@ -48,6 +48,7 @@
 #include "mozilla/dom/nsCSPUtils.h"
 #include "mozilla/dom/Performance.h"
 #include "mozilla/dom/PerformanceStorageWorker.h"
+#include "mozilla/dom/PolicyContainer.h"
 #include "mozilla/dom/PromiseDebugging.h"
 #include "mozilla/dom/PRemoteWorkerDebuggerParent.h"
 #include "mozilla/dom/ReferrerInfo.h"
@@ -552,6 +553,24 @@ class ChangePlaybackStateRunnable final : public WorkerControlRunnable {
     return aWorkerPrivate->ChangePlaybackStateInternal(mIsPlayingAudio);
   }
   bool mIsPlayingAudio = false;
+};
+
+class ChangeActivePeerConnectionsRunnable final : public WorkerControlRunnable {
+ public:
+  ChangeActivePeerConnectionsRunnable() = delete;
+  explicit ChangeActivePeerConnectionsRunnable(WorkerPrivate* aWorkerPrivate) =
+      delete;
+  ChangeActivePeerConnectionsRunnable(WorkerPrivate* aWorkerPrivate,
+                                      bool aHasPeerConnections)
+      : WorkerControlRunnable("ChangeActivePeerConnectionsRunnable"),
+        mConnections(aHasPeerConnections) {}
+
+ private:
+  virtual bool WorkerRun(JSContext* aCx,
+                         WorkerPrivate* aWorkerPrivate) override {
+    return aWorkerPrivate->ChangePeerConnectionsInternal(mConnections);
+  }
+  bool mConnections = false;
 };
 
 class PropagateStorageAccessPermissionGrantedRunnable final
@@ -1561,8 +1580,10 @@ void WorkerPrivate::StoreCSPOnClient() {
   auto data = mWorkerThreadAccessible.Access();
   MOZ_ASSERT(data->mScope);
   if (mLoadInfo.mCSPContext) {
-    data->mScope->MutableClientSourceRef().SetCspInfo(
-        mLoadInfo.mCSPContext->CSPInfo());
+    mozilla::ipc::PolicyContainerArgs policyContainerArgs;
+    policyContainerArgs.csp() = Some(mLoadInfo.mCSPContext->CSPInfo());
+    data->mScope->MutableClientSourceRef().SetPolicyContainerArgs(
+        policyContainerArgs);
   }
 }
 
@@ -2497,6 +2518,12 @@ void WorkerPrivate::OfflineStatusChangeEventInternal(bool aIsOffline) {
     return;
   }
 
+  if (ShouldResistFingerprinting(RFPTarget::NetworkConnection)) {
+    // We always report the worker as online if resistFingerprinting is
+    // enabled, regardless of the actual network status.
+    return;
+  }
+
   for (uint32_t index = 0; index < data->mChildWorkers.Length(); ++index) {
     data->mChildWorkers[index]->OfflineStatusChangeEvent(aIsOffline);
   }
@@ -2903,6 +2930,10 @@ WorkerPrivate::WorkerPrivate(
       mIsPlayingAudio = true;
     }
 
+    if (aParent->HasActivePeerConnections()) {
+      mHasActivePeerConnections = true;
+    }
+
     mIsPrivilegedAddonGlobal = aParent->mIsPrivilegedAddonGlobal;
   } else {
     AssertIsOnMainThread();
@@ -2984,6 +3015,11 @@ WorkerPrivate::WorkerPrivate(
     if (mLoadInfo.mWindow &&
         nsGlobalWindowInner::Cast(mLoadInfo.mWindow)->IsPlayingAudio()) {
       SetIsPlayingAudio(true);
+    }
+
+    if (mLoadInfo.mWindow && nsGlobalWindowInner::Cast(mLoadInfo.mWindow)
+                                 ->HasActivePeerConnections()) {
+      SetActivePeerConnections(true);
     }
   }
 
@@ -3263,6 +3299,18 @@ void WorkerPrivate::SetIsPlayingAudio(bool aIsPlayingAudio) {
 
   AUTO_PROFILER_MARKER_UNTYPED("WorkerPrivate::SetIsPlayingAudio", DOM, {});
   LOG(WorkerLog(), ("SetIsPlayingAudio [%p]", this));
+}
+
+void WorkerPrivate::SetActivePeerConnections(bool aHasPeerConnections) {
+  AssertIsOnParentThread();
+
+  RefPtr<ChangeActivePeerConnectionsRunnable> runnable =
+      new ChangeActivePeerConnectionsRunnable(this, aHasPeerConnections);
+  runnable->Dispatch(this);
+
+  AUTO_PROFILER_MARKER_UNTYPED("WorkerPrivate::SetActivePeerConnections", DOM,
+                               {});
+  LOG(WorkerLog(), ("SetActivePeerConnections [%p]", this));
 }
 
 nsresult WorkerPrivate::SetIsDebuggerReady(bool aReady) {
@@ -4849,6 +4897,17 @@ bool WorkerPrivate::ChangePlaybackStateInternal(bool aIsPlayingAudio) {
 
   for (uint32_t index = 0; index < data->mChildWorkers.Length(); index++) {
     data->mChildWorkers[index]->SetIsPlayingAudio(aIsPlayingAudio);
+  }
+  return true;
+}
+
+bool WorkerPrivate::ChangePeerConnectionsInternal(bool aHasPeerConnections) {
+  AssertIsOnWorkerThread();
+  mHasActivePeerConnections = aHasPeerConnections;
+  auto data = mWorkerThreadAccessible.Access();
+
+  for (uint32_t index = 0; index < data->mChildWorkers.Length(); index++) {
+    data->mChildWorkers[index]->SetActivePeerConnections(aHasPeerConnections);
   }
   return true;
 }

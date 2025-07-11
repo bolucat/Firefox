@@ -2724,6 +2724,12 @@
   value: false
   mirror: always
 
+# Whether the commandfor "toggle" and "open" details commands are enabled
+- name: dom.element.commandfor.on_details.enabled
+  type: bool
+  value: false
+  mirror: always
+
 - name: dom.mouse_capture.enabled
   type: bool
   value: true
@@ -3906,7 +3912,7 @@
 # See bug 1953860 for background and additional details.
 - name: dom.quotaManager.loadQuotaFromSecondaryCache
   type: RelaxedAtomicBool
-#if defined(NIGHTLY_BUILD) && defined(XP_LINUX) && !defined(ANDROID)
+#if defined(NIGHTLY_BUILD) && !defined(ANDROID)
   value: true
 #else
   value: false
@@ -4045,7 +4051,7 @@
 # L2 cache to all users on all platforms in the release channel.
 - name: dom.quotaManager.originInitialization.updateOriginMetadata
   type: RelaxedAtomicBool
-#if defined(NIGHTLY_BUILD) && defined(XP_LINUX) && !defined(ANDROID)
+#if defined(NIGHTLY_BUILD) && !defined(ANDROID)
   value: true
 #else
   value: false
@@ -5469,7 +5475,7 @@
 # This is based on https://github.com/mfreed7/shadow-dom-selection
 - name: dom.shadowdom.selection_across_boundary.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Mimic Chrome's window.getSelection().toString() behaviour
@@ -5782,6 +5788,12 @@
 - name: dom.document.name_getter_follow_spec.enabled
   type: bool
   value: true
+  mirror: always
+
+# Whether to block the shadowing of known document properties.
+- name: dom.document.name_getter_prevent_shadowing.enabled
+  type: bool
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 #---------------------------------------------------------------------------
@@ -7613,14 +7625,10 @@
 #endif
   mirror: once
 
-#ifdef NIGHTLY_BUILD
-  # Keep this pref hidden on non-nightly builds to avoid people accidentally
-  # turning it on.
 - name: gfx.webrender.layer-compositor
   type: bool
   value: false
   mirror: once
-#endif
 
 #ifdef XP_WIN
 - name: gfx.webrender.layer-compositor-force-composition-surface
@@ -9136,11 +9144,7 @@
 # both unrolling and peeling.
 - name: javascript.options.wasm_unroll_loops
   type: bool
-#ifdef NIGHTLY_BUILD
   value: true
-#else
-  value: false
-#endif
   mirror: always
   set_spidermonkey_pref: always
 
@@ -10343,12 +10347,6 @@
   mirror: always
   rust: true
 
-# UA styles for h1 in article/aside/nav/section. See bug 1883896.
-- name: layout.css.h1-in-section-ua-styles.enabled
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
 # CSS for android picture-in-picture. See bug 1940052.
 - name: layout.css.android-pip.enabled
   type: RelaxedAtomicBool
@@ -10592,6 +10590,13 @@
   value: false
   mirror: always
 
+# Whether we always hide the scrollbars, to avoid them affecting the visual
+# metrics of some performance tests.
+- name: layout.testing.scrollbars.always-hidden
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 # Throttled frame rate, in frames per second.
 - name: layout.throttled_frame_rate
   type: uint32_t
@@ -10779,6 +10784,18 @@
   value: false
 #endif
   mirror: always
+
+# Is support for CSS Typed Object Model API enabled?
+#
+# Note that this feature is experimental and under active development.
+# Enabling this pref will only expose some interfaces that are already
+# implemented and is intended solely to enable WPT coverage during
+# incremental development.
+- name: layout.css.typed-om.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+  rust: true
 
 # Whether frame visibility tracking is enabled globally.
 - name: layout.framevisibility.enabled
@@ -14266,7 +14283,7 @@
 # will automatically be blocked.
 - name: network.lna.block_trackers
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # The proxy type. See nsIProtocolProxyService.idl

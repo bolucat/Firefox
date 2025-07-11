@@ -665,6 +665,12 @@ Tester.prototype = {
         continue;
       }
 
+      // Same as ScrollFrameActivityTracker and the other expiration trackers
+      // ignored above.
+      if (name == "PopupExpirationTracker") {
+        continue;
+      }
+
       // Ignore nsHttpConnectionMgr timers which show up on browser mochitests
       // running with http3. See Bug 1829841.
       if (name == "nsHttpConnectionMgr") {
@@ -1005,6 +1011,8 @@ Tester.prototype = {
           gConfig.dumpDMDAfterTest
         );
       }
+
+      this.PromiseTestUtils.assertNoUncaughtRejections();
 
       // Note the test run time
       let name = this.currentTest.path;

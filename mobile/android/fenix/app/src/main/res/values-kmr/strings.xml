@@ -326,7 +326,7 @@
   <!-- Content description (not visible, for screen readers etc.): Back button for all menu redesign sub-menu -->
   <string name="browser_menu_back_button_content_description" moz:removedIn="141" tools:ignore="UnusedResources">Vegere menuya giştî</string>
   <!-- Content description (not visible, for screen readers etc.) for bottom sheet handlebar main menu. -->
-  <string name="browser_main_menu_handlebar_content_description">Menuya giştî bigire</string>
+  <string name="browser_main_menu_handlebar_content_description" moz:removedIn="142" tools:ignore="UnusedResources">Menuya giştî bigire</string>
   <!-- Content description (not visible, for screen readers etc.) for main menu help button. -->
   <string name="browser_main_menu_content_description_help_button">Alîkarî</string>
   <!-- Content description (not visible, for screen readers etc.) for main menu settings button. -->
@@ -1383,7 +1383,7 @@
   <!-- The error message of the URL text field when an invalid URL has been entered. -->
   <string name="webcompat_reporter_url_error_invalid">Ji kerema xwe re URLeke derbasdar binivîse</string>
   <!-- The placeholder text for the dropdown where a user selects a high-level reason why the site is broken. -->
-  <string name="webcompat_reporter_choose_reason">Sedemê hilbijêre</string>
+  <string name="webcompat_reporter_choose_reason" moz:removedIn="142" tools:ignore="UnusedResources">Sedemê hilbijêre</string>
   <!-- The label/title of an optional field in the Web Compat Reporter feature for adding additional information. -->
   <string name="webcompat_reporter_label_description">Pirsgirêkê diyar bike (vebijarkî)</string>
   <!-- The button text for navigating away from the feature to provide more information on the broken site's bug report. -->
@@ -2341,11 +2341,7 @@
   <string name="synced_tabs_expand_group">Koma hilpekînan ya senkronîzekirî berfireh bike</string>
   <!-- Content description for collapsing a group of synced tabs. -->
   <string name="synced_tabs_collapse_group">Koma hilpekînan ya senkronîzekirî berteng bike</string>
-  <!--
-    Top Sites
-
-    Title text displayed in the dialog when shortcuts limit is reached.
-  -->
+  <!-- Title text displayed in the dialog when shortcuts limit is reached. -->
   <string name="shortcut_max_limit_title">Tu gihîştî sînorê kurteriyan</string>
   <!-- Content description text displayed in the dialog when shortcut limit is reached. -->
   <string name="shortcut_max_limit_content">Ji bo dikaribî kurteriyeke din lê zêde bikî, yekê jê bibe. Pêl malperê bike, li ser bigire û rakirinê hilbijêre.</string>

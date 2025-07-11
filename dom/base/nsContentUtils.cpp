@@ -84,6 +84,7 @@
 #include "mozilla/EventListenerManager.h"
 #include "mozilla/EventQueue.h"
 #include "mozilla/EventStateManager.h"
+#include "mozilla/extensions/WebExtensionPolicy.h"
 #include "mozilla/FlushType.h"
 #include "mozilla/FOGIPC.h"
 #include "mozilla/HTMLEditor.h"
@@ -2908,7 +2909,7 @@ bool nsContentUtils::ShouldResistFingerprinting_dangerous(
   }
 
   // Web extension principals are also excluded
-  if (NS_IsMainThread() && BasePrincipal::Cast(aPrincipal)->AddonPolicy()) {
+  if (BasePrincipal::Cast(aPrincipal)->AddonPolicyCore()) {
     MOZ_LOG(nsContentUtils::ResistFingerprintingLog(), LogLevel::Debug,
             ("Inside ShouldResistFingerprinting(nsIPrincipal*)"
              " and AddonPolicy said false"));
@@ -6789,7 +6790,8 @@ void nsContentUtils::TriggerLinkClick(
     }
 
     nsCOMPtr<nsIPrincipal> triggeringPrincipal = aContent->NodePrincipal();
-    nsCOMPtr<nsIContentSecurityPolicy> csp = aContent->GetCsp();
+    nsCOMPtr<nsIPolicyContainer> policyContainer =
+        aContent->GetPolicyContainer();
 
     // Sanitize fileNames containing null characters by replacing them with
     // underscores.
@@ -6800,7 +6802,7 @@ void nsContentUtils::TriggerLinkClick(
     docShell->OnLinkClick(
         aContent, aLinkURI, fileName.IsVoid() ? aTargetSpec : u""_ns, fileName,
         nullptr, nullptr, UserActivation::IsHandlingUserInput(),
-        aUserInvolvement, triggeringPrincipal, csp);
+        aUserInvolvement, triggeringPrincipal, policyContainer);
   }
 }
 

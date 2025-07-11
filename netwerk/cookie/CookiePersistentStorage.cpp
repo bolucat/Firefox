@@ -2387,13 +2387,14 @@ void CookiePersistentStorage::RecordValidationTelemetry() {
     return;
   }
 
-  struct CookieToAdd {
+  struct CookieToAddOrRemove {
     nsCString mBaseDomain;
     OriginAttributes mOriginAttributes;
     RefPtr<Cookie> mCookie;
   };
 
-  nsTArray<CookieToAdd> list;
+  nsTArray<CookieToAddOrRemove> listToAdd;
+  nsTArray<CookieToAddOrRemove> listToRemove;
 
   for (const auto& entry : mHostTable) {
     const CookieEntry::ArrayType& cookies = entry.GetCookies();
@@ -2417,10 +2418,35 @@ void CookiePersistentStorage::RecordValidationTelemetry() {
           newCookie->SetSameSite(nsICookie::SAMESITE_UNSET);
           newCookie->SetCreationTime(cookie->CreationTime());
 
-          list.AppendElement(CookieToAdd{entry.mBaseDomain,
-                                         entry.mOriginAttributes, newCookie});
+          listToAdd.AppendElement(CookieToAddOrRemove{
+              entry.mBaseDomain, entry.mOriginAttributes, newCookie});
           break;
         }
+
+        case nsICookieValidation::eRejectedAttributeExpiryOversize: {
+          RefPtr<Cookie> newCookie =
+              Cookie::Create(cookie->ToIPC(), entry.mOriginAttributes);
+          MOZ_ASSERT(newCookie);
+
+          int64_t currentTimeInMSec = PR_Now() / PR_USEC_PER_MSEC;
+
+          newCookie->SetExpiry(CookieCommons::MaybeCapExpiry(currentTimeInMSec,
+                                                             cookie->Expiry()));
+          newCookie->SetCreationTime(cookie->CreationTime());
+
+          listToAdd.AppendElement(CookieToAddOrRemove{
+              entry.mBaseDomain, entry.mOriginAttributes, newCookie});
+          break;
+        }
+
+        case nsICookieValidation::eRejectedEmptyNameAndValue:
+          [[fallthrough]];
+        case nsICookieValidation::eRejectedInvalidCharName:
+          [[fallthrough]];
+        case nsICookieValidation::eRejectedInvalidCharValue:
+          listToRemove.AppendElement(CookieToAddOrRemove{
+              entry.mBaseDomain, entry.mOriginAttributes, cookie});
+          break;
 
         default:
           // Nothing to do here.
@@ -2429,11 +2455,17 @@ void CookiePersistentStorage::RecordValidationTelemetry() {
     }
   }
 
-  for (CookieToAdd& data : list) {
+  for (CookieToAddOrRemove& data : listToAdd) {
     AddCookie(nullptr, data.mBaseDomain, data.mOriginAttributes, data.mCookie,
               data.mCookie->CreationTime(), nullptr, VoidCString(), true,
               !data.mOriginAttributes.mPartitionKey.IsEmpty(), nullptr,
               nullptr);
+  }
+
+  for (CookieToAddOrRemove& data : listToRemove) {
+    RemoveCookie(data.mBaseDomain, data.mOriginAttributes, data.mCookie->Host(),
+                 data.mCookie->Name(), data.mCookie->Path(),
+                 /* is http: */ true, nullptr);
   }
 
   nsCOMPtr<nsIObserverService> os = services::GetObserverService();

@@ -1012,6 +1012,26 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         false,
     )
 
+    var strictAllowListBaselineTrackingProtection by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_tracking_protection_strict_allow_list_baseline),
+        true,
+    )
+
+    var strictAllowListConvenienceTrackingProtection by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_tracking_protection_strict_allow_list_convenience),
+        false,
+    )
+
+    var customAllowListBaselineTrackingProtection by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_tracking_protection_custom_allow_list_baseline),
+        true,
+    )
+
+    var customAllowListConvenienceTrackingProtection by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_tracking_protection_custom_allow_list_convenience),
+        false,
+    )
+
     @VisibleForTesting(otherwise = PRIVATE)
     fun setStrictETP() {
         preferences.edit {
@@ -1764,6 +1784,15 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     var isSwipeToolbarToSwitchTabsEnabled by booleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_swipe_toolbar_switch_tabs),
         default = true,
+    )
+
+    /**
+     * Address Sync feature.
+     */
+    var isAddressSyncEnabled by featureFlagPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_enable_address_sync),
+        default = FxNimbus.features.addressSync.value().enabled,
+        featureFlag = isAddressFeatureEnabled(appContext),
     )
 
     var addressFeature by featureFlagPreference(

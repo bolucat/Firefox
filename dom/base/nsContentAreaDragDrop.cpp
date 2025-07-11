@@ -65,7 +65,7 @@ class MOZ_STACK_CLASS DragDataProducer {
                    nsIContent* aSelectionTargetNode, bool aIsAltKeyPressed);
   nsresult Produce(DataTransfer* aDataTransfer, bool* aCanDrag,
                    Selection** aSelection, nsIContent** aDragNode,
-                   nsIContentSecurityPolicy** aCsp,
+                   nsIPolicyContainer** aPolicyContainer,
                    nsICookieJarSettings** aCookieJarSettings);
 
  private:
@@ -110,7 +110,7 @@ nsresult nsContentAreaDragDrop::GetDragData(
     nsPIDOMWindowOuter* aWindow, nsIContent* aTarget,
     nsIContent* aSelectionTargetNode, bool aIsAltKeyPressed,
     DataTransfer* aDataTransfer, bool* aCanDrag, Selection** aSelection,
-    nsIContent** aDragNode, nsIContentSecurityPolicy** aCsp,
+    nsIContent** aDragNode, nsIPolicyContainer** aPolicyContainer,
     nsICookieJarSettings** aCookieJarSettings) {
   NS_ENSURE_TRUE(aSelectionTargetNode, NS_ERROR_INVALID_ARG);
 
@@ -118,8 +118,8 @@ nsresult nsContentAreaDragDrop::GetDragData(
 
   DragDataProducer provider(aWindow, aTarget, aSelectionTargetNode,
                             aIsAltKeyPressed);
-  return provider.Produce(aDataTransfer, aCanDrag, aSelection, aDragNode, aCsp,
-                          aCookieJarSettings);
+  return provider.Produce(aDataTransfer, aCanDrag, aSelection, aDragNode,
+                          aPolicyContainer, aCookieJarSettings);
 }
 
 NS_IMPL_ISUPPORTS(nsContentAreaDragDropDataProvider, nsIFlavorDataProvider)
@@ -339,45 +339,48 @@ void DragDataProducer::CreateLinkText(const nsAString& inURL,
 
 nsresult DragDataProducer::GetImageData(imgIContainer* aImage,
                                         imgIRequest* aRequest) {
+  MOZ_ASSERT(aImage);
+  MOZ_ASSERT(aRequest);
+
   nsCOMPtr<nsIURI> imgUri = aRequest->GetURI();
+  if (!imgUri) {
+    return NS_ERROR_FAILURE;
+  }
 
-  nsCOMPtr<nsIURL> imgUrl(do_QueryInterface(imgUri));
-  if (imgUrl) {
-    nsAutoCString spec;
-    nsresult rv = imgUrl->GetSpec(spec);
-    NS_ENSURE_SUCCESS(rv, rv);
+  nsAutoCString spec;
+  nsresult rv = imgUri->GetSpec(spec);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-    // pass out the image source string
-    CopyUTF8toUTF16(spec, mImageSourceString);
+  // pass out the image source string
+  CopyUTF8toUTF16(spec, mImageSourceString);
 
-    nsCString mimeType;
-    aRequest->GetMimeType(getter_Copies(mimeType));
+  nsCString mimeType;
+  aRequest->GetMimeType(getter_Copies(mimeType));
 
-    nsAutoCString fileName;
-    aRequest->GetFileName(fileName);
+  nsAutoCString fileName;
+  aRequest->GetFileName(fileName);
 
 #if defined(XP_MACOSX)
-    // Save the MIME type so we can make sure the extension
-    // is compatible (and replace it if it isn't) when the
-    // image is dropped. On Mac, we need to get the OS MIME
-    // handler information in the parent due to sandboxing.
-    CopyUTF8toUTF16(mimeType, mImageRequestMime);
-    CopyUTF8toUTF16(fileName, mImageDestFileName);
+  // Save the MIME type so we can make sure the extension
+  // is compatible (and replace it if it isn't) when the
+  // image is dropped. On Mac, we need to get the OS MIME
+  // handler information in the parent due to sandboxing.
+  CopyUTF8toUTF16(mimeType, mImageRequestMime);
+  CopyUTF8toUTF16(fileName, mImageDestFileName);
 #else
-    nsCOMPtr<nsIMIMEService> mimeService = do_GetService("@mozilla.org/mime;1");
-    if (NS_WARN_IF(!mimeService)) {
-      return NS_ERROR_FAILURE;
-    }
+  nsCOMPtr<nsIMIMEService> mimeService = do_GetService("@mozilla.org/mime;1");
+  if (NS_WARN_IF(!mimeService)) {
+    return NS_ERROR_FAILURE;
+  }
 
-    CopyUTF8toUTF16(fileName, mImageDestFileName);
-    mimeService->ValidateFileNameForSaving(mImageDestFileName, mimeType,
-                                           nsIMIMEService::VALIDATE_DEFAULT,
-                                           mImageDestFileName);
+  CopyUTF8toUTF16(fileName, mImageDestFileName);
+  mimeService->ValidateFileNameForSaving(mImageDestFileName, mimeType,
+                                         nsIMIMEService::VALIDATE_DEFAULT,
+                                         mImageDestFileName);
 #endif
 
-    // and the image object
-    mImage = aImage;
-  }
+  // and the image object
+  mImage = aImage;
 
   return NS_OK;
 }
@@ -385,7 +388,7 @@ nsresult DragDataProducer::GetImageData(imgIContainer* aImage,
 nsresult DragDataProducer::Produce(DataTransfer* aDataTransfer, bool* aCanDrag,
                                    Selection** aSelection,
                                    nsIContent** aDragNode,
-                                   nsIContentSecurityPolicy** aCsp,
+                                   nsIPolicyContainer** aPolicyContainer,
                                    nsICookieJarSettings** aCookieJarSettings) {
   MOZ_ASSERT(aCanDrag && aSelection && aDataTransfer && aDragNode,
              "null pointer passed to Produce");
@@ -610,9 +613,9 @@ nsresult DragDataProducer::Produce(DataTransfer* aDataTransfer, bool* aCanDrag,
     nsCOMPtr<Document> doc = mWindow->GetDoc();
     NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
 
-    nsCOMPtr<nsIContentSecurityPolicy> csp = doc->GetCsp();
-    if (csp) {
-      NS_IF_ADDREF(*aCsp = csp);
+    nsCOMPtr<nsIPolicyContainer> policyContainer = doc->GetPolicyContainer();
+    if (policyContainer) {
+      policyContainer.forget(aPolicyContainer);
     }
 
     nsCOMPtr<nsICookieJarSettings> cookieJarSettings = doc->CookieJarSettings();

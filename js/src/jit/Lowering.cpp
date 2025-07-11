@@ -395,7 +395,8 @@ void LIRGenerator::visitGetInlinedArgument(MGetInlinedArgument* ins) {
 }
 
 void LIRGenerator::visitGetInlinedArgumentHole(MGetInlinedArgumentHole* ins) {
-#if defined(JS_CODEGEN_X64) || defined(JS_CODEGEN_MIPS64)
+#if defined(JS_CODEGEN_X64) || defined(JS_CODEGEN_MIPS64) || \
+    defined(JS_CODEGEN_RISCV64)
   // On some 64-bit architectures, we don't support boxing a typed
   // register in-place without using a scratch register, so the result
   // register can't be the same as any of the inputs. Fortunately,
@@ -6699,14 +6700,11 @@ void LIRGenerator::visitWasmStoreStackResult(MWasmStoreStackResult* ins) {
   size_t offs = ins->offset();
   LInstruction* lir;
   if (value->type() == MIRType::Int64) {
-    lir = new (alloc())
-        LWasmStoreSlotI64(useInt64Register(value), useRegister(stackResultArea),
-                          offs, mozilla::Nothing());
+    lir = new (alloc()) LWasmStoreStackResultI64(
+        useInt64Register(value), useRegister(stackResultArea), offs);
   } else {
-    MOZ_ASSERT(value->type() != MIRType::WasmAnyRef);
-    lir = new (alloc())
-        LWasmStoreSlot(useRegister(value), useRegister(stackResultArea), offs,
-                       value->type(), MNarrowingOp::None, mozilla::Nothing());
+    lir = new (alloc()) LWasmStoreStackResult(
+        useRegister(value), useRegister(stackResultArea), offs, value->type());
   }
   add(lir, ins);
 }

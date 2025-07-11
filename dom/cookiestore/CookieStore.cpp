@@ -16,6 +16,7 @@
 #include "mozilla/ipc/BackgroundChild.h"
 #include "mozilla/ipc/PBackgroundChild.h"
 #include "mozilla/net/CookieCommons.h"
+#include "mozilla/net/CookiePrefixes.h"
 #include "mozilla/net/NeckoChannelParams.h"
 #include "mozilla/StorageAccess.h"
 #include "nsICookie.h"
@@ -100,16 +101,6 @@ bool ValidateCookieNameAndValue(const nsAString& aName, const nsAString& aValue,
   return true;
 }
 
-bool HasSecurePrefix(const nsAString& aString) {
-  return StringBeginsWith(aString, u"__Secure-"_ns,
-                          nsCaseInsensitiveStringComparator);
-}
-
-bool HasHostPrefix(const nsAString& aString) {
-  return StringBeginsWith(aString, u"__Host-"_ns,
-                          nsCaseInsensitiveStringComparator);
-}
-
 bool ValidateCookieDomain(nsIPrincipal* aPrincipal, const nsAString& aName,
                           const nsAString& aDomain, Promise* aPromise) {
   MOZ_ASSERT(aPromise);
@@ -127,7 +118,7 @@ bool ValidateCookieDomain(nsIPrincipal* aPrincipal, const nsAString& aName,
   }
 
   // If the name has a __Host- prefix, then aDomain must be empty.
-  if (HasHostPrefix(aName) && !aDomain.IsEmpty()) {
+  if (CookiePrefixes::Has(CookiePrefixes::eHost, aName) && !aDomain.IsEmpty()) {
     aPromise->MaybeRejectWithTypeError(
         "Cookie domain is not allowed for cookies with a __Host- prefix");
     return false;
@@ -158,8 +149,7 @@ bool ValidateCookieDomain(nsIPrincipal* aPrincipal, const nsAString& aName,
   return true;
 }
 
-bool ValidateCookiePath(const nsAString& aPath, nsAString& retPath,
-                        Promise* aPromise) {
+bool ValidateCookiePath(const nsAString& aPath, Promise* aPromise) {
   MOZ_ASSERT(aPromise);
 
   if (!aPath.IsEmpty() && aPath[0] != '/') {
@@ -167,18 +157,12 @@ bool ValidateCookiePath(const nsAString& aPath, nsAString& retPath,
     return false;
   }
 
-  nsString path(aPath);
-  if (path.IsEmpty() || path[path.Length() - 1] != '/') {
-    path.Append('/');
-  }
-
-  if (path.Length() > 1024) {
+  if (aPath.Length() > 1024) {
     aPromise->MaybeRejectWithTypeError(
         "Cookie domain size cannot be greater than 1024 bytes");
     return false;
   }
 
-  retPath.Assign(path);
   return true;
 }
 
@@ -190,13 +174,24 @@ bool ValidateCookieNamePrefix(const nsAString& aName, const nsAString& aValue,
                               const nsAString& aPath, Promise* aPromise) {
   MOZ_ASSERT(aPromise);
 
-  if (aName.IsEmpty() && (HasHostPrefix(aValue) || HasSecurePrefix(aValue))) {
+  if (aName.IsEmpty() &&
+      (CookiePrefixes::Has(CookiePrefixes::eHost, aValue) ||
+       CookiePrefixes::Has(CookiePrefixes::eHostHttp, aValue) ||
+       CookiePrefixes::Has(CookiePrefixes::eHttp, aValue) ||
+       CookiePrefixes::Has(CookiePrefixes::eSecure, aValue))) {
     aPromise->MaybeRejectWithTypeError(
         "Nameless cookies should not begin with special prefixes");
     return false;
   }
 
-  if (!HasHostPrefix(aName)) {
+  if (CookiePrefixes::Has(CookiePrefixes::eHttp, aName) ||
+      CookiePrefixes::Has(CookiePrefixes::eHostHttp, aName)) {
+    aPromise->MaybeRejectWithTypeError(
+        "Cookie name should not begin with special prefixes");
+    return false;
+  }
+
+  if (!CookiePrefixes::Has(CookiePrefixes::eHost, aName)) {
     return true;
   }
 
@@ -398,13 +393,13 @@ already_AddRefed<Promise> CookieStore::Set(const CookieInit& aOptions,
           return;
         }
 
-        nsString path;
-        if (!ValidateCookiePath(aOptions.mPath, path, promise)) {
+        if (!ValidateCookiePath(aOptions.mPath, promise)) {
           return;
         }
 
         if (!ValidateCookieNamePrefix(aOptions.mName, aOptions.mValue,
-                                      aOptions.mDomain, path, promise)) {
+                                      aOptions.mDomain, aOptions.mPath,
+                                      promise)) {
           return;
         }
 
@@ -445,11 +440,12 @@ already_AddRefed<Promise> CookieStore::Set(const CookieInit& aOptions,
                 mozilla::WrapNotNull(cookieURI.get()),
                 cookiePrincipal->OriginAttributesRef(), thirdPartyContext,
                 partitionForeign, usingStorageAccess, isOn3PCBExceptionList,
-                nsString(aOptions.mName), nsString(aOptions.mValue),
+                aOptions.mName, aOptions.mValue,
                 // If expires is not set, it's a session cookie.
                 aOptions.mExpires.IsNull(), ComputeExpiry(aOptions),
-                aOptions.mDomain, path, SameSiteToConst(aOptions.mSameSite),
-                aOptions.mPartitioned, operationID);
+                aOptions.mDomain, aOptions.mPath,
+                SameSiteToConst(aOptions.mSameSite), aOptions.mPartitioned,
+                operationID);
         if (NS_WARN_IF(!ipcPromise)) {
           promise->MaybeResolveWithUndefined();
           return;
@@ -512,13 +508,12 @@ already_AddRefed<Promise> CookieStore::Delete(
           return;
         }
 
-        nsString path;
-        if (!ValidateCookiePath(aOptions.mPath, path, promise)) {
+        if (!ValidateCookiePath(aOptions.mPath, promise)) {
           return;
         }
 
         if (!ValidateCookieNamePrefix(aOptions.mName, u""_ns, aOptions.mDomain,
-                                      path, promise)) {
+                                      aOptions.mPath, promise)) {
           return;
         }
 
@@ -558,7 +553,7 @@ already_AddRefed<Promise> CookieStore::Delete(
                 mozilla::WrapNotNull(cookieURI.get()),
                 cookiePrincipal->OriginAttributesRef(), thirdPartyContext,
                 partitionForeign, usingStorageAccess, isOn3PCBExceptionList,
-                nsString(aOptions.mName), nsString(aOptions.mDomain), path,
+                aOptions.mName, aOptions.mDomain, aOptions.mPath,
                 aOptions.mPartitioned, operationID);
         if (NS_WARN_IF(!ipcPromise)) {
           promise->MaybeResolveWithUndefined();
@@ -762,8 +757,8 @@ already_AddRefed<Promise> CookieStore::GetInternal(
                     ? Some(partitionedCookiePrincipal->OriginAttributesRef())
                     : Nothing(),
                 thirdPartyContext, partitionForeign, usingStorageAccess,
-                isOn3PCBExceptionList, aOptions.mName.WasPassed(),
-                nsString(name), path, aOnlyTheFirstMatch);
+                isOn3PCBExceptionList, aOptions.mName.WasPassed(), name, path,
+                aOnlyTheFirstMatch);
         if (NS_WARN_IF(!ipcPromise)) {
           promise->MaybeResolveWithUndefined();
           return;

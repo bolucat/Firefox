@@ -17,8 +17,8 @@ import org.mozilla.fenix.R
  */
 data class SettingsAppIcon(
     val activityAlias: ActivityAlias,
-    @StringRes val titleId: Int,
-    @StringRes val subtitleId: Int? = null,
+    @param:StringRes val titleId: Int,
+    @param:StringRes val subtitleId: Int? = null,
     val isSelected: Boolean = false,
 ) {
 
@@ -27,7 +27,7 @@ data class SettingsAppIcon(
      */
     companion object {
 
-        private val appDefault = SettingsAppIcon(
+        val appDefault = SettingsAppIcon(
             activityAlias = ActivityAlias.AppDefault,
             titleId = R.string.alternative_app_icon_option_default,
         )
@@ -158,4 +158,4 @@ data class SettingsAppIcon(
  *
  * @property titleId A string resource describing the group title.
  */
-data class SettingsGroupTitle(@StringRes val titleId: Int)
+data class SettingsGroupTitle(@param:StringRes val titleId: Int)

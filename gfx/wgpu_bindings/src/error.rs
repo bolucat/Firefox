@@ -6,6 +6,7 @@
 //! of this module is [`ErrorBuffer`](crate::server::ErrorBuffer).
 
 use std::{
+    borrow::Cow,
     error::Error,
     fmt::{self, Display, Formatter},
     os::raw::c_char,
@@ -163,8 +164,17 @@ pub(crate) enum ErrorBufferType {
 /// sources. Used for convenience in [`server`](crate::server) code.
 #[derive(Clone, Debug)]
 pub(crate) struct ErrMsg {
-    pub(crate) message: String,
+    pub(crate) message: Cow<'static, str>,
     pub(crate) r#type: ErrorType,
+}
+
+impl ErrMsg {
+    pub fn oom() -> Self {
+        Self {
+            message: "Out of memory".into(),
+            r#type: ErrorType::OutOfMemory,
+        }
+    }
 }
 
 impl Display for ErrMsg {

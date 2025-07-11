@@ -12,10 +12,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -28,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CollectionItemInfo
@@ -37,11 +40,13 @@ import androidx.compose.ui.semantics.collectionItemInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
 import mozilla.components.compose.base.Divider
 import org.mozilla.fenix.R
+import org.mozilla.fenix.components.menu.MenuDialogTestTag.WEB_EXTENSION_ITEM
 import org.mozilla.fenix.compose.list.IconListItem
 import org.mozilla.fenix.compose.list.ImageListItem
 import org.mozilla.fenix.compose.list.TextListItem
@@ -219,11 +224,13 @@ internal fun WebExtensionMenuItem(
         iconPainter = iconPainter,
         enabled = enabled == true,
         onClick = onClick,
-        modifier = Modifier.clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = LocalIndication.current,
-            enabled = enabled == true,
-        ) { onClick?.invoke() }
+        modifier = Modifier
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = LocalIndication.current,
+                enabled = enabled == true,
+            ) { onClick?.invoke() }
+            .testTag(WEB_EXTENSION_ITEM)
             .clearAndSetSemantics {
                 role = Role.Button
                 contentDescription = label
@@ -234,6 +241,7 @@ internal fun WebExtensionMenuItem(
                         columnIndex = 0,
                         columnSpan = 1,
                     )
+                testTagsAsResourceId = true
             }
             .wrapContentSize()
             .clip(shape = ROUNDED_CORNER_SHAPE)
@@ -274,6 +282,70 @@ internal fun WebExtensionMenuItem(
             }
         },
     )
+}
+
+@Composable
+internal fun MenuBadgeItem(
+    label: String,
+    description: String,
+    badgeText: String,
+    checked: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val state: MenuItemState
+    val badgeBackgroundColor: Color
+
+    if (checked) {
+        badgeBackgroundColor = FirefoxTheme.colors.badgeActive
+        state = MenuItemState.ACTIVE
+    } else {
+        badgeBackgroundColor = FirefoxTheme.colors.layerSearch
+        state = MenuItemState.DISABLED
+    }
+
+    Row(
+        modifier = modifier
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = LocalIndication.current,
+            ) { onClick() }
+            .clip(shape = ROUNDED_CORNER_SHAPE)
+            .background(
+                color = FirefoxTheme.colors.layer3,
+            )
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+        ) {
+            Text(
+                text = label,
+                modifier = Modifier
+                    .defaultMinSize(minHeight = 24.dp)
+                    .wrapContentHeight(),
+                color = getLabelTextColor(state),
+                style = FirefoxTheme.typography.body1,
+            )
+
+            Text(
+                text = description,
+                modifier = Modifier
+                    .defaultMinSize(minHeight = 20.dp)
+                    .wrapContentHeight(),
+                color = FirefoxTheme.colors.textSecondary,
+                style = FirefoxTheme.typography.caption,
+            )
+        }
+
+        Badge(
+            badgeText = badgeText,
+            state = state,
+            badgeBackgroundColor = badgeBackgroundColor,
+        )
+    }
 }
 
 @Composable
@@ -428,6 +500,25 @@ private fun MenuItemPreview() {
                     Divider(color = FirefoxTheme.colors.borderSecondary)
                 }
             }
+        }
+    }
+}
+
+@PreviewLightDark
+@Composable
+private fun MenuBadgeItemPreview() {
+    FirefoxTheme {
+        Column(
+            modifier = Modifier
+                .background(color = FirefoxTheme.colors.layer2),
+        ) {
+            MenuBadgeItem(
+                label = stringResource(id = R.string.protection_panel_etp_toggle_label),
+                description = stringResource(id = R.string.protection_panel_etp_toggle_enabled_description_2),
+                badgeText = stringResource(id = R.string.protection_panel_etp_toggle_on),
+                checked = true,
+                onClick = {},
+            )
         }
     }
 }

@@ -3665,12 +3665,32 @@ void nsHttpTransaction::RemoveConnection() {
   mConnection = nullptr;
 }
 
+nsILoadInfo::IPAddressSpace nsHttpTransaction::GetTargetIPAddressSpace() {
+  nsILoadInfo::IPAddressSpace retVal;
+  {
+    MutexAutoLock lock(mLock);
+    retVal = mTargetIpAddressSpace;
+  }
+
+  return retVal;
+}
+
 bool nsHttpTransaction::AllowedToConnectToIpAddressSpace(
     nsILoadInfo::IPAddressSpace aTargetIpAddressSpace) {
   // skip checks if LNA feature is disabled
   if (!StaticPrefs::network_lna_enabled()) {
     return true;
   }
+
+  // store targetIpAddress space which is required later by nsHttpChannel for
+  // permission prompts
+  {
+    mozilla::MutexAutoLock lock(mLock);
+    if (mTargetIpAddressSpace == nsILoadInfo::Unknown) {
+      mTargetIpAddressSpace = aTargetIpAddressSpace;
+    }
+  }
+
   // Deny access to a request moving to a more private addresspsace.
   // Specifically,
   // 1. local host resources cannot be accessed from Private or Public

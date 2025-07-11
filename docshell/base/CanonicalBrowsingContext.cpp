@@ -618,9 +618,10 @@ CanonicalBrowsingContext::ReplaceLoadingSessionHistoryEntryForLoad(
   MOZ_ASSERT(aInfo);
   MOZ_ASSERT(aNewChannel);
 
-  SessionHistoryInfo newInfo = SessionHistoryInfo(
-      aNewChannel, aInfo->mInfo.LoadType(),
-      aInfo->mInfo.GetPartitionedPrincipalToInherit(), aInfo->mInfo.GetCsp());
+  SessionHistoryInfo newInfo =
+      SessionHistoryInfo(aNewChannel, aInfo->mInfo.LoadType(),
+                         aInfo->mInfo.GetPartitionedPrincipalToInherit(),
+                         aInfo->mInfo.GetPolicyContainer());
 
   for (size_t i = 0; i < mLoadingEntries.Length(); ++i) {
     if (mLoadingEntries[i].mLoadId == aInfo->mLoadId) {
@@ -990,8 +991,7 @@ void CanonicalBrowsingContext::CallOnTopDescendants(
 
 void CanonicalBrowsingContext::SessionHistoryCommit(
     uint64_t aLoadId, const nsID& aChangeID, uint32_t aLoadType,
-    bool aCloneEntryChildren, bool aChannelExpired, uint32_t aCacheKey,
-    nsIPrincipal* aPartitionedPrincipal) {
+    bool aCloneEntryChildren, bool aChannelExpired, uint32_t aCacheKey) {
   MOZ_LOG(gSHLog, LogLevel::Verbose,
           ("CanonicalBrowsingContext::SessionHistoryCommit %p %" PRIu64, this,
            aLoadId));
@@ -1015,7 +1015,6 @@ void CanonicalBrowsingContext::SessionHistoryCommit(
         newActiveEntry->SharedInfo()->mExpired = true;
       }
 
-      newActiveEntry->SetPartitionedPrincipalToInherit(aPartitionedPrincipal);
       bool loadFromSessionHistory = !newActiveEntry->ForInitialLoad();
       newActiveEntry->SetForInitialLoad(false);
       SessionHistoryEntry::RemoveLoadId(aLoadId);
@@ -1486,7 +1485,8 @@ Maybe<int32_t> CanonicalBrowsingContext::HistoryGo(
     shistory->SetEpoch(aHistoryEpoch, aContentId);
   }
   int32_t requestedIndex = shistory->GetRequestedIndex();
-  nsSHistory::LoadURIs(loadResults);
+  RefPtr traversable = Top();
+  nsSHistory::LoadURIs(loadResults, traversable);
   return Some(requestedIndex);
 }
 
@@ -2493,7 +2493,7 @@ bool CanonicalBrowsingContext::SupportsLoadingInParent(
     // event.
     if (PreOrderWalkFlag([&](BrowsingContext* aBC) {
           WindowContext* wc = aBC->GetCurrentWindowContext();
-          if (wc && wc->HasBeforeUnload()) {
+          if (wc && wc->NeedsBeforeUnload()) {
             // We can stop as soon as we know at least one beforeunload listener
             // exists.
             return WalkFlag::Stop;

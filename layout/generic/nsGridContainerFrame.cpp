@@ -8,23 +8,25 @@
 
 #include "nsGridContainerFrame.h"
 
-#include <functional>
 #include <stdlib.h>  // for div()
+
+#include <functional>
 #include <type_traits>
+
 #include "fmt/format.h"
 #include "gfxContext.h"
 #include "mozilla/AutoRestore.h"
 #include "mozilla/Baseline.h"
-#include "mozilla/ComputedStyle.h"
 #include "mozilla/CSSAlignUtils.h"
-#include "mozilla/dom/Grid.h"
-#include "mozilla/dom/GridBinding.h"
+#include "mozilla/ComputedStyle.h"
 #include "mozilla/IntegerRange.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/PodOperations.h"  // for PodZero
 #include "mozilla/PresShell.h"
 #include "mozilla/ScrollContainerFrame.h"
 #include "mozilla/StaticPrefs_layout.h"
+#include "mozilla/dom/Grid.h"
+#include "mozilla/dom/GridBinding.h"
 #include "nsAbsoluteContainingBlock.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsDisplayList.h"
@@ -10726,8 +10728,13 @@ bool nsGridContainerFrame::GridItemShouldStretch(const nsIFrame* aChild,
   const auto alignment = (aAxis == LogicalAxis::Inline) == !isOrthogonal
                              ? pos->UsedJustifySelf(Style())._0
                              : pos->UsedAlignSelf(Style())._0;
-  return alignment == StyleAlignFlags::NORMAL ||
-         alignment == StyleAlignFlags::STRETCH;
+  // An item with 'normal' alignment that is a replaced frame should use its
+  // natural size, and not fill the grid area.
+  // https://drafts.csswg.org/css-grid-2/#grid-item-sizing
+  if (MOZ_LIKELY(alignment == StyleAlignFlags::NORMAL)) {
+    return !aChild->HasReplacedSizing();
+  }
+  return alignment == StyleAlignFlags::STRETCH;
 }
 
 bool nsGridContainerFrame::ShouldInhibitSubgridDueToIFC(

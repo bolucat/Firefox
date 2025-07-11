@@ -33,7 +33,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import mozilla.components.concept.engine.webextension.WebExtension
-import mozilla.components.concept.engine.webextension.WebExtensionException
 import mozilla.components.concept.engine.webextension.isUnsupported
 import mozilla.components.feature.addons.Addon
 import mozilla.components.feature.addons.R
@@ -203,6 +202,21 @@ class DefaultAddonUpdater(
 
     /**
      * See [AddonUpdater.onUpdatePermissionRequest]
+     *
+     * IMPORTANT: The current extension update flow is a bit special when the extension requests new permissions.
+     *
+     * Because we are using a system notification, which lets users respond to it at any time, we do not update the
+     * extension in a single flow. In fact, we trigger the "update logic" of the engine twice.
+     *
+     * First, we initiate an update that will only be used to prompt the user via the notification. This update will
+     * be cancelled (as far as the engine is concerned), and the application will store some information about the
+     * pending update.
+     *
+     * The second step only occurs when the user responds to the system notification:
+     *   - When the user denies the update, then we simply clear the notification and the information stored.
+     *   - When the user accepts the update, which means they have granted the new extensions' permissions, we
+     *     invoke the update flow again as if there was no permission to grant (since the user has already granted
+     *     them). At this point, the update is applied.
      */
     override fun onUpdatePermissionRequest(
         current: WebExtension,
@@ -210,31 +224,26 @@ class DefaultAddonUpdater(
         newPermissions: List<String>,
         onPermissionsGranted: (Boolean) -> Unit,
     ) {
-        logger.info("onUpdatePermissionRequest $current")
+        logger.info("onUpdatePermissionRequest ${updated.id}")
 
         val shouldGrantWithoutPrompt = Addon.localizePermissions(newPermissions, applicationContext).isEmpty()
         val shouldNotPrompt =
             updateStatusStorage.isPreviouslyAllowed(applicationContext, updated.id) || shouldGrantWithoutPrompt
-
-        // When the extension update doesn't have new permissions that the user should grant with a prompt,
-        // we allow the update to continue.
-        //
-        // Otherwise, the permission request will first be user-cancelled because we return `false` below
-        // but we create an Android notification right after, which is responsible for prompting the user.
-        // When the user allows the new permissions in the Android notification, the extension update is
-        // triggered again and - since the permissions have been previously allowed - there is no new
-        // permissions that the user should grant and so we allow the update to continue. At this point,
-        // the extension is fully updated.
-        onPermissionsGranted(shouldNotPrompt)
+        logger.debug("onUpdatePermissionRequest shouldNotPrompt=$shouldNotPrompt")
 
         if (shouldNotPrompt) {
-            // Update has been completed at this point.
+            // Update has been completed at this point, so we can clear the storage data for this update, and proceed
+            // with the update itself.
             updateStatusStorage.markAsUnallowed(applicationContext, updated.id)
+            onPermissionsGranted(true)
         } else {
             // We create the Android notification here.
             val notificationId = NotificationHandlerService.getNotificationId(applicationContext, updated.id)
             val notification = createNotification(updated, newPermissions, notificationId)
             notificationsDelegate.notify(notificationId = notificationId, notification = notification)
+            // Abort the current update flow. A new update flow might be initiated when the user grants the new
+            // permissions via the system notification.
+            onPermissionsGranted(false)
         }
     }
 
@@ -510,19 +519,26 @@ class DefaultAddonUpdater(
         }
 
         fun clear(context: Context) {
-            val settings = getSharedPreferences(context)
-            settings.edit { clear() }
+            getSettings(context).edit { clear() }
+        }
+
+        @VisibleForTesting
+        internal fun getData(context: Context): MutableSet<String> {
+            val data = requireNotNull(getSettings(context).getStringSet(KEY_ALLOWED_SET, mutableSetOf()))
+            // We must return a mutable copy of the allowed set because we want to persist it on disk, and changes to
+            // this allowed set can only be detected when a new set is passed to `setData()`.
+            return data.toMutableSet()
         }
 
         private fun getSettings(context: Context) = getSharedPreferences(context)
 
         private fun setData(context: Context, allowSet: MutableSet<String>) {
-            getSettings(context).edit { putStringSet(KEY_ALLOWED_SET, allowSet) }
-        }
+            // Get rid of the old allowed set, if it still exists.
+            if (getSettings(context).contains(OLD_KEY_ALLOWED_SET)) {
+                clear(context)
+            }
 
-        private fun getData(context: Context): MutableSet<String> {
-            val settings = getSharedPreferences(context)
-            return requireNotNull(settings.getStringSet(KEY_ALLOWED_SET, mutableSetOf()))
+            getSettings(context).edit { putStringSet(KEY_ALLOWED_SET, allowSet) }
         }
 
         private fun getSharedPreferences(context: Context): SharedPreferences {
@@ -530,10 +546,10 @@ class DefaultAddonUpdater(
         }
 
         companion object {
-            private const val PREFERENCE_FILE =
+            internal const val PREFERENCE_FILE =
                 "mozilla.components.feature.addons.update.addons_updates_status_preference"
-            private const val KEY_ALLOWED_SET =
-                "mozilla.components.feature.addons.update.KEY_ALLOWED_SET"
+            internal const val OLD_KEY_ALLOWED_SET = "mozilla.components.feature.addons.update.KEY_ALLOWED_SET"
+            internal const val KEY_ALLOWED_SET = "mozilla.components.feature.addons.update.KEY_ALLOWED_SET_2"
         }
     }
 
@@ -607,7 +623,7 @@ internal class AddonUpdaterWorker(
                 manager.updateAddon(extensionId) { status ->
                     val result = when (status) {
                         AddonUpdater.Status.NotInstalled -> {
-                            logger.error("Not installed extension with id $extensionId removed from the update queue")
+                            logger.error("Extension with id $extensionId removed from the update queue")
                             Result.failure()
                         }
                         AddonUpdater.Status.NoUpdateAvailable -> {
@@ -620,10 +636,10 @@ internal class AddonUpdaterWorker(
                         }
                         is AddonUpdater.Status.Error -> {
                             logger.error(
-                                "Unable to update extension $extensionId, re-schedule ${status.message}",
+                                "Error while trying to update extension $extensionId - status=${status.message}",
                                 status.exception,
                             )
-                            retryIfRecoverable(status.exception)
+                            Result.failure()
                         }
                     }
                     saveUpdateAttempt(extensionId, status)
@@ -631,27 +647,15 @@ internal class AddonUpdaterWorker(
                 }
             } catch (exception: Exception) {
                 logger.error(
-                    "Unable to update extension $extensionId, re-schedule ${exception.message}",
+                    "Unable to update extension $extensionId - reason=${exception.message}",
                     exception,
                 )
                 saveUpdateAttempt(extensionId, AddonUpdater.Status.Error(exception.message ?: "", exception))
                 if (exception.shouldReport()) {
                     GlobalAddonDependencyProvider.onCrash?.invoke(exception)
                 }
-                continuation.resume(retryIfRecoverable(exception))
+                continuation.resume(Result.failure())
             }
-        }
-    }
-
-    @VisibleForTesting
-    // We want to ensure, we are only retrying when the throwable isRecoverable,
-    // this could cause side effects as described on:
-    // https://github.com/mozilla-mobile/android-components/issues/8681
-    internal fun retryIfRecoverable(throwable: Throwable): Result {
-        return if (throwable is WebExtensionException && throwable.isRecoverable) {
-            Result.retry()
-        } else {
-            Result.success()
         }
     }
 

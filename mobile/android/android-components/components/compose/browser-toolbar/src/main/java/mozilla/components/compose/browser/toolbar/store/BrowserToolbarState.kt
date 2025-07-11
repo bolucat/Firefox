@@ -5,6 +5,7 @@
 package mozilla.components.compose.browser.toolbar.store
 
 import androidx.annotation.IntRange
+import androidx.annotation.StringRes
 import androidx.compose.ui.graphics.Color
 import mozilla.components.compose.browser.toolbar.R
 import mozilla.components.compose.browser.toolbar.concept.Action
@@ -63,10 +64,11 @@ enum class Mode {
  * inside of the URL bounding box.
  * These should be actions relevant to specific webpages as opposed to [browserActionsStart].
  * See [MDN docs](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/pageAction).
- * @param browserActionsEnd List of browser [Action]s to be displayed at the end of the toolbar,
+ * @property browserActionsEnd List of browser [Action]s to be displayed at the end of the toolbar,
  * outside of the URL bounding box.
  * These should be actions relevant to the browser as a whole.
  * See [MDN docs](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/browserAction).
+ * @property navigationActions List of [Action]s to be displayed in the navigation toolbar.
  * @property progressBarConfig [ProgressBarConfig] configuration for the progress bar.
  * If `null` a progress bar will not be displayed.
  */
@@ -81,6 +83,7 @@ data class DisplayState(
     ),
     val pageActionsEnd: List<Action> = emptyList(),
     val browserActionsEnd: List<Action> = emptyList(),
+    val navigationActions: List<Action> = emptyList(),
     val progressBarConfig: ProgressBarConfig? = null,
 ) : State
 
@@ -92,7 +95,7 @@ data class DisplayState(
  * If `null` is provided the default colors will be used.
  */
 data class ProgressBarConfig(
-    @IntRange(from = 0, to = 100) val progress: Int,
+    @param:IntRange(from = 0, to = 100) val progress: Int,
     val gravity: ProgressBarGravity,
     val color: List<Color>? = null,
 )
@@ -124,6 +127,7 @@ sealed class ProgressBarGravity {
  */
 data class EditState(
     val query: String = "",
+    @param:StringRes val hint: Int = R.string.mozac_browser_toolbar_search_hint,
     val showQueryAsPreselected: Boolean = false,
     val autocompleteProviders: List<AutocompleteProvider> = emptyList(),
     val editActionsStart: List<Action> = emptyList(),

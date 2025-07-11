@@ -163,6 +163,18 @@
 .titlebar-buttonbox {
   z-index: 1;
   align-items: stretch;
+  /* The spacing on each side of the titlebar button. In libadwaita, that's
+   * 3px of gap + 5px * 2 of padding = 13px / 2, see:
+   * https://gitlab.gnome.org/GNOME/libadwaita/-/blob/fe21c3c823443a8f2333cf3cc09ba3d0fa753228/src/stylesheet/widgets/_header-bar.scss#L164
+   * We want a contiguous hit region so we use 6.5px of padding instead.
+   */
+  --titlebar-button-spacing: 6.5px;
+  --titlebar-button-end-spacing: 10px;
+  --max-titlebar-button-position: max(
+    env(-moz-gtk-csd-maximize-button-position),
+    env(-moz-gtk-csd-minimize-button-position),
+    env(-moz-gtk-csd-close-button-position)
+  );
 }
 
 @media (-moz-gtk-csd-reversed-placement) {
@@ -176,7 +188,12 @@
   color: inherit;
   align-items: center;
   padding: 0;
-  padding-inline: calc(env(-moz-gtk-csd-titlebar-button-spacing) / 2);
+  padding-inline: var(--titlebar-button-spacing);
+  padding-inline-end: max(
+    var(--titlebar-button-spacing),
+    var(--titlebar-button-end-spacing) * (var(--titlebar-button-position) - var(--max-titlebar-button-position) + 1)
+  );
+  order: var(--titlebar-button-position);
   /* In GTK applications, you can drag the window by titlebar buttons */
   -moz-window-dragging: drag;
 
@@ -191,6 +208,11 @@
     height: 24px;
     /* Matches the libadwaita transition */
     transition: background-color 0.2s ease;
+
+    @media (-moz-gtk-theme-family: adwaita) or (-moz-gtk-theme-family: yaru) {
+      /* On Adwaita / Yaru, the titlebar buttons have a background by default */
+      background-color: color-mix(in srgb, currentColor 10%, transparent);
+    }
   }
 
   &:hover > .toolbarbutton-icon {
@@ -207,29 +229,25 @@
   }
 }
 
+.titlebar-restore,
 .titlebar-max {
-  order: env(-moz-gtk-csd-maximize-button-position);
+  --titlebar-button-position: env(-moz-gtk-csd-maximize-button-position);
+
   > .toolbarbutton-icon {
     background-image: -moz-symbolic-icon(window-maximize-symbolic);
   }
-}
 
-.titlebar-restore {
-  order: env(-moz-gtk-csd-maximize-button-position);
-  > .toolbarbutton-icon {
-    background-image: -moz-symbolic-icon(window-restore-symbolic);
-  }
-}
-
-@media not (-moz-gtk-csd-maximize-button) {
-  .titlebar-restore,
-  .titlebar-max {
+  @media not (-moz-gtk-csd-maximize-button) {
     display: none;
   }
 }
 
+.titlebar-restore > .toolbarbutton-icon {
+  background-image: -moz-symbolic-icon(window-restore-symbolic);
+}
+
 .titlebar-close {
-  order: env(-moz-gtk-csd-close-button-position);
+  --titlebar-button-position: env(-moz-gtk-csd-close-button-position);
 
   > .toolbarbutton-icon {
     background-image: -moz-symbolic-icon(window-close-symbolic);
@@ -241,7 +259,7 @@
 }
 
 .titlebar-min {
-  order: env(-moz-gtk-csd-minimize-button-position);
+  --titlebar-button-position: env(-moz-gtk-csd-minimize-button-position);
 
   > .toolbarbutton-icon {
     background-image: -moz-symbolic-icon(window-minimize-symbolic);

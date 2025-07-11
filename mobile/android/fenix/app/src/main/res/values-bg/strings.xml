@@ -344,7 +344,11 @@
   <!-- Content description (not visible, for screen readers etc.): Back button for all menu redesign sub-menu -->
   <string name="browser_menu_back_button_content_description" moz:removedIn="141" tools:ignore="UnusedResources">Обратно към главното меню</string>
   <!-- Content description (not visible, for screen readers etc.) for bottom sheet handlebar main menu. -->
-  <string name="browser_main_menu_handlebar_content_description">Затваряне на главното меню</string>
+  <string name="browser_main_menu_handlebar_content_description" moz:removedIn="142" tools:ignore="UnusedResources">Затваряне на главното меню</string>
+  <!-- Content description (not visible, for screen readers etc.) for the handle used to drag the main menu at the bottom of the screen. -->
+  <string name="browser_close_main_menu_handlebar_content_description">Затваряне на менюто</string>
+  <!-- Content description (not visible, for screen readers etc.) for main menu navigation header. -->
+  <string name="browser_main_menu_content_description_navigation_header">Навигация</string>
   <!-- Content description (not visible, for screen readers etc.) for main menu help button. -->
   <string name="browser_main_menu_content_description_help_button">Помощ</string>
   <!-- Content description (not visible, for screen readers etc.) for main menu settings button. -->
@@ -420,7 +424,11 @@
   <!-- Label text within the set as default banner -->
   <string name="browser_menu_default_banner_subtitle">Отнема секунди. Променяйте по всяко време.</string>
   <!-- Content description for the button that dismisses the set as default banner in the menu -->
-  <string name="browser_menu_default_banner_dismiss">Прекратяване</string>
+  <string name="browser_menu_default_banner_dismiss" moz:removedIn="142" tools:ignore="UnusedResources">Прекратяване</string>
+  <!-- Content description (not visible, for screen readers etc.) for the button that dismisses the set as default banner in the menu -->
+  <string name="browser_menu_default_banner_dismiss_promotion">Отхвърляне на повишението</string>
+  <!-- Content description (not visible, for screen readers etc.) for recommended extensions in main menu -->
+  <string name="browser_menu_recommended_extensions_content_description">Повече информация</string>
   <!--
     Menu "contextual feature recommendation" (CFR)
 
@@ -867,6 +875,8 @@
   <string name="preferences_theme">Тема</string>
   <!-- Preference for customizing the home screen -->
   <string name="preferences_home_2">Начална страница</string>
+  <!-- Preference for customizing the app icon -->
+  <string name="preferences_app_icon">Икона на приложението</string>
   <!-- Preference for gestures based actions -->
   <string name="preferences_gestures">Жестове</string>
   <!-- Preference for settings related to visual options -->
@@ -1243,9 +1253,9 @@
   <string name="preferences_daily_usage_ping_description">Това помага на Mozilla да оцени активните потребители.</string>
   <string name="preferences_daily_usage_ping_learn_more">Научете повече за ежедневната употреба</string>
   <!-- Preference switch title for automatically submitting crash reports -->
-  <string name="preferences_automatically_send_crashes_title">Автоматично изпращане на доклади за срив</string>
+  <string name="preferences_automatically_send_crashes_title" tools:ignore="UnusedResources" moz:removedIn="142">Автоматично изпращане на доклади за срив</string>
   <!-- Preference switch description for automatically submitting crash reports -->
-  <string name="preferences_automatically_send_crashes_description">Това ни помага да откриваме и отстраняваме проблеми с браузъра. Докладите може да включват лични или чувствителни данни.</string>
+  <string name="preferences_automatically_send_crashes_description" tools:ignore="UnusedResources" moz:removedIn="142">Това ни помага да откриваме и отстраняваме проблеми с браузъра. Докладите може да включват лични или чувствителни данни.</string>
   <!-- Text for sumo link to learn more about crash reports in data collection screen -->
   <string name="preferences_crashes_learn_more">Научете повече за докладите за сривове</string>
   <!-- Title Headers for data collection settings screen -->
@@ -1266,7 +1276,7 @@
   <!-- Learn more link for marketing data preference -->
   <string name="preferences_marketing_data_learn_more">Научете повече за маркетинговите данни</string>
   <!-- Learn more link for crash reporting preference -->
-  <string name="onboarding_preferences_dialog_crash_reporting_learn_more">Научете повече за докладите за сривове</string>
+  <string name="onboarding_preferences_dialog_crash_reporting_learn_more" tools:ignore="UnusedResources" moz:removedIn="142">Научете повече за докладите за сривове</string>
   <!-- Title for studies preferences -->
   <string name="preference_experiments_2">Проучвания</string>
   <!-- Summary for studies preferences -->
@@ -1299,6 +1309,12 @@
   <string name="preference_simple_toolbar">Обикновена</string>
   <!-- Preference for using expanded toolbar -->
   <string name="preference_expanded_toolbar">Разгънати</string>
+  <!--
+    App icon Preferences
+
+    Title for the preference that lets the user pick a new app icon
+  -->
+  <string name="preference_select_app_icon_title">Изберете икона на приложение</string>
   <!--
     Theme Preferences
 
@@ -1723,7 +1739,11 @@
   -->
   <string name="webcompat_reporter_screen_title">Доклад за повредена страница</string>
   <!-- The description of the Web Compat Reporter feature. %1$s is the name of the app (for example "Firefox"). -->
-  <string name="webcompat_reporter_description">Помогнете да направим %1$s по-добър за всички. Служителите на Mozilla използват информацията, която изпращате, за да решават проблеми в уебсайта.</string>
+  <string name="webcompat_reporter_description" moz:removedIn="142" tools:ignore="UnusedResources">Помогнете да направим %1$s по-добър за всички. Служителите на Mozilla използват информацията, която изпращате, за да решават проблеми в уебсайта.</string>
+  <!-- The description of the Web Compat Reporter feature, which has a "learn more" button text for navigating to a SUMO link to learn more about reporting a broken site. %1$s is the name of the app (for example "Firefox"). -->
+  <string name="webcompat_reporter_description_2">Докладът ви ни помага да разберем и отстраним проблемите в %1$s, за да го направим по-добър за всички. Научете повече</string>
+  <!-- The button text for navigating to the SUMO link to learn more about reporting a broken site. -->
+  <string name="webcompat_reporter_learn_more">Научете повече</string>
   <!-- The text field label of the URL text field. This is displayed above the user-inputted URL. -->
   <string name="webcompat_reporter_label_url">URL</string>
   <!-- The error message of the URL text field when an invalid URL has been entered. -->
@@ -1731,7 +1751,9 @@
   <!-- The label/title of a field in the Web Compat Reporter feature for explaining a high-level reason why the site is broken. -->
   <string name="webcompat_reporter_label_whats_broken_2">Какво е повредено?</string>
   <!-- The placeholder text for the dropdown where a user selects a high-level reason why the site is broken. -->
-  <string name="webcompat_reporter_choose_reason">Изберете причина</string>
+  <string name="webcompat_reporter_choose_reason" moz:removedIn="142" tools:ignore="UnusedResources">Изберете причина</string>
+  <!-- The placeholder text for the dropdown where a user selects a high-level reason why the site is broken. -->
+  <string name="webcompat_reporter_choose_reason_2">Изберете причина</string>
   <!-- The error message of the dropdown, prompting the user to select a high-level reason why the site is broken. -->
   <string name="webcompat_reporter_choose_reason_error">Моля, изберете причина</string>
   <!-- The label/title of an optional field in the Web Compat Reporter feature for adding additional information. -->
@@ -1746,6 +1768,8 @@
   <string name="webcompat_reporter_success_snackbar_text">Докладът ви е изпратен</string>
   <!-- Button text for closing or dismissing the snackbar shown after successfully submitting a WebCompat report. -->
   <string name="webcompat_reporter_dismiss_success_snackbar_text">Затваряне</string>
+  <!-- Placeholder text for the description field to prompt the user on what they should type. -->
+  <string name="webcompat_reporter_problem_description_placeholder_text">Какво се случи? Какво трябваше да се случи?</string>
   <!--
     These reason strings are dropdown options on a WebCompat reporter form, indicating what is broken on the site.
 
@@ -2240,6 +2264,8 @@
   <string name="preference_accessibility_text_size_summary">Направи текста в уебсайтовете по-голям или по-малък</string>
   <!-- Title for Accessibility Text Size Scaling Preference -->
   <string name="preference_accessibility_font_size_title">Размер на шрифт</string>
+  <!-- %d is the percentage of the slide bar for setting the text font size and %% will be announced as "percent". -->
+  <string name="a11y_preference_accessibility_font_size_percentage">%d %%.</string>
   <!-- Title for Accessibility Text Automatic Size Scaling Preference -->
   <string name="preference_accessibility_auto_size_2">Автоматичен размер на шрифта</string>
   <!-- Summary for Accessibility Text Automatic Size Scaling Preference -->
@@ -2977,8 +3003,10 @@
   <!--
     Top Sites
 
-    Title text displayed in the dialog when shortcuts limit is reached.
+    Title text displayed for the shortcuts home screen section.
   -->
+  <string name="homepage_shortcuts_title">Бързи клавиши</string>
+  <!-- Title text displayed in the dialog when shortcuts limit is reached. -->
   <string name="shortcut_max_limit_title">Пределът за преки пътища е достигнат</string>
   <!-- Content description text displayed in the dialog when shortcut limit is reached. -->
   <string name="shortcut_max_limit_content">За да добавите нов пряк път, премахнете такъв. Докоснете и задръжте страницата и изберете премахване.</string>
@@ -3370,9 +3398,9 @@
 
     Text for the protection panel header when the site is secure.
   -->
-  <string name="protection_panel_header_secure">Защитен</string>
+  <string name="protection_panel_header_secure" moz:removedIn="142" tools:ignore="UnusedResources">Защитен</string>
   <!-- Text for the protection panel header when the site is not secure. -->
-  <string name="protection_panel_header_not_secure">Не е защитено</string>
+  <string name="protection_panel_header_not_secure" moz:removedIn="142" tools:ignore="UnusedResources">Не е защитено</string>
   <!-- Title text for the protection panel banner when the site is not secure. -->
   <string name="protection_panel_banner_not_secure_title">Бъдете внимателни в този сайт</string>
   <!-- Description text for the protection panel banner when the site is not secure. -->
@@ -3393,10 +3421,18 @@
   <string name="protection_panel_banner_protected_description">Вие сте защитени. Ако забележим нещо, ще ви уведомим.</string>
   <!-- Label text for the Enhanced Tracking Protection toggle. -->
   <string name="protection_panel_etp_toggle_label">Подобрена защита от проследяване</string>
+  <!-- Toggle if Enhanced Tracking Protection is turned on -->
+  <string name="protection_panel_etp_toggle_on">Включено</string>
+  <!-- Toggle if Enhanced Tracking Protection is turned off -->
+  <string name="protection_panel_etp_toggle_off">Изключено</string>
   <!-- Description text for the Enhanced Tracking Protection toggle when tracking protection is enabled. -->
-  <string name="protection_panel_etp_toggle_enabled_description">Ако нещо на този сайт изглежда повредено, опитайте да изключите защитите.</string>
+  <string name="protection_panel_etp_toggle_enabled_description" moz:removedIn="142" tools:ignore="UnusedResources">Ако нещо на този сайт изглежда повредено, опитайте да изключите защитите.</string>
+  <!-- Description text for the Enhanced Tracking Protection toggle when tracking protection is enabled. -->
+  <string name="protection_panel_etp_toggle_enabled_description_2">Ако нещо на този сайт изглежда повредено, опитайте да го изключите.</string>
   <!-- Description text for the Enhanced Tracking Protection toggle when tracking protection is disabled. -->
-  <string name="protection_panel_etp_toggle_disabled_description">Защитите са ИЗКЛЮЧЕНИ. Препоръчваме ви да ги включите отново.</string>
+  <string name="protection_panel_etp_toggle_disabled_description" moz:removedIn="142" tools:ignore="UnusedResources">Защитите са ИЗКЛЮЧЕНИ. Препоръчваме ви да ги включите отново.</string>
+  <!-- Description text for the Enhanced Tracking Protection toggle when tracking protection is disabled. -->
+  <string name="protection_panel_etp_toggle_disabled_description_2">Препоръчително е да включите защитата от проследяване.</string>
   <!--
     Text for displaying the total number of trackers blocked in the protection panel.
     %d is a placeholder for the number of trackers blocked.
@@ -3405,7 +3441,9 @@
   <!-- Text for when no trackers have been blocked. -->
   <string name="protection_panel_no_trackers_blocked">Не са намерени тракери</string>
   <!-- Link text to navigate to privacy and security settings from the protection panel. -->
-  <string name="protection_panel_privacy_and_security_settings">Настройки за поверителност и сигурност</string>
+  <string name="protection_panel_privacy_and_security_settings" moz:removedIn="142" tools:ignore="UnusedResources">Настройки за поверителност и сигурност</string>
+  <!-- Link text to navigate to privacy and security settings from the protection panel. -->
+  <string name="protection_panel_privacy_and_security_settings_2">Настройки за поверителност</string>
   <!-- Title text for the protection panel permissions section. -->
   <string name="protection_panel_permissions_title">Права</string>
   <!--
@@ -3436,7 +3474,7 @@
   <string name="connection_security_panel_not_secure">Връзката не е защитена</string>
   <!--
     Text for the connection security panel to indicate who the certificate was verified by.
-    %s is a placeholder for the name of the certificate authority that verified the ticket
+    %s is a placeholder for the name of the certificate authority that issued the certificate.
   -->
   <string name="connection_security_panel_verified_by">Потвърдено от %s</string>
   <!--
@@ -3615,6 +3653,14 @@
   <string name="debug_drawer_override_region">Заменяне на начало и текущ регион</string>
   <!-- The title of the button for overriding home region permanently. -->
   <string name="debug_drawer_override_home_region_permanently">Заместване на началния регион за постоянно</string>
+  <!--
+    Add-ons debug tools
+
+    The description of the Add-ons Tools in the Debug Drawer
+  -->
+  <string name="debug_drawer_addons_tools_title">Инструменти за Добавки</string>
+  <!-- The title of the button used to check for add-on updates. -->
+  <string name="addons_debug_tools_check_for_updates_button">Проверка за обновяване</string>
   <!--
     Messages explaining how to exit fullscreen mode
 

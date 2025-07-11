@@ -30,7 +30,6 @@ import mozilla.components.browser.state.state.CustomTabSessionState
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.browser.thumbnails.BrowserThumbnails
 import mozilla.components.compose.base.Divider
-import mozilla.components.compose.base.theme.AcornTheme
 import mozilla.components.compose.base.theme.localAcornColors
 import mozilla.components.compose.browser.toolbar.BrowserToolbar
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarState
@@ -49,6 +48,7 @@ import org.mozilla.fenix.components.StoreProvider
 import org.mozilla.fenix.components.toolbar.ToolbarPosition.BOTTOM
 import org.mozilla.fenix.components.toolbar.ToolbarPosition.TOP
 import org.mozilla.fenix.ext.components
+import org.mozilla.fenix.theme.FirefoxTheme
 import org.mozilla.fenix.utils.Settings
 
 /**
@@ -70,6 +70,7 @@ import org.mozilla.fenix.utils.Settings
  * @param settings [Settings] object to get the toolbar position and other settings.
  * @param customTabSession [CustomTabSessionState] if the toolbar is shown in a custom tab.
  * @param tabStripContent Composable content for the tab strip.
+ * @param navigationBarContent Composable content for the navigation bar.
  */
 @Suppress("LongParameterList")
 class BrowserToolbarComposable(
@@ -88,6 +89,7 @@ class BrowserToolbarComposable(
     private val settings: Settings,
     private val customTabSession: CustomTabSessionState? = null,
     private val tabStripContent: @Composable () -> Unit,
+    private val navigationBarContent: (@Composable () -> Unit)?,
 ) : FenixBrowserToolbarView(
     context = activity,
     settings = settings,
@@ -112,20 +114,20 @@ class BrowserToolbarComposable(
             onDispose { toolbarController.stop() }
         }
 
-        AcornTheme {
-            val acornColors = AcornTheme.colors
-            val customTheme = remember(customColors, acornColors) {
-                acornColors.copy(
+        FirefoxTheme {
+            val firefoxColors = FirefoxTheme.colors
+            val customTheme = remember(customColors, firefoxColors) {
+                firefoxColors.copy(
                     // Toolbar background
-                    layer1 = customColors.value?.toolbarColor?.let { Color(it) } ?: acornColors.layer1,
+                    layer1 = customColors.value?.toolbarColor?.let { Color(it) } ?: firefoxColors.layer1,
                     // Page origin background
-                    layer3 = customColors.value?.toolbarColor?.let { Color(it) } ?: acornColors.layer3,
+                    layer3 = customColors.value?.toolbarColor?.let { Color(it) } ?: firefoxColors.layer3,
                     // All text but the title
-                    textPrimary = customColors.value?.readableColor?.let { Color(it) } ?: acornColors.textPrimary,
+                    textPrimary = customColors.value?.readableColor?.let { Color(it) } ?: firefoxColors.textPrimary,
                     // Title
-                    textSecondary = customColors.value?.readableColor?.let { Color(it) } ?: acornColors.textSecondary,
+                    textSecondary = customColors.value?.readableColor?.let { Color(it) } ?: firefoxColors.textSecondary,
                     // All icons tint
-                    iconPrimary = customColors.value?.readableColor?.let { Color(it) } ?: acornColors.iconPrimary,
+                    iconPrimary = customColors.value?.readableColor?.let { Color(it) } ?: firefoxColors.iconPrimary,
                 )
             }
 
@@ -140,7 +142,16 @@ class BrowserToolbarComposable(
                         BrowserToolbar(showDivider, progressBarValue, settings.shouldUseBottomToolbar)
                     }
 
-                    false -> BrowserToolbar(showDivider, progressBarValue, settings.shouldUseBottomToolbar)
+                    false -> Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .wrapContentHeight(),
+                    ) {
+                        BrowserToolbar(showDivider, progressBarValue, settings.shouldUseBottomToolbar)
+                        if (settings.toolbarPosition == BOTTOM) {
+                            navigationBarContent?.invoke()
+                        }
+                    }
                 }
             }
         }
@@ -159,7 +170,7 @@ class BrowserToolbarComposable(
 
     init {
         container.addView(layout)
-        setToolbarBehavior()
+        setToolbarBehavior(settings.toolbarPosition)
         updateDividerVisibility(true)
     }
 
@@ -212,6 +223,7 @@ class BrowserToolbarComposable(
                         clipboard = activity.components.clipboardHandler,
                         publicSuffixList = components.publicSuffixList,
                         settings = settings,
+                        bookmarksStorage = activity.components.core.bookmarksStorage,
                     )
 
                     else -> CustomTabBrowserToolbarMiddleware(
