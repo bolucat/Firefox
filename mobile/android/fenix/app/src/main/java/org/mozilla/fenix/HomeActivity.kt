@@ -219,6 +219,13 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
         )
     }
 
+    private val aboutHomeBinding by lazy {
+        AboutHomeBinding(
+            browserStore = components.core.store,
+            navController = navHost.navController,
+        )
+    }
+
     private val crashReporterBinding by lazy {
         CrashReporterBinding(
             context = this,
@@ -499,6 +506,7 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
             extensionsProcessDisabledForegroundController,
             extensionsProcessDisabledBackgroundController,
             serviceWorkerSupport,
+            aboutHomeBinding,
             crashReporterBinding,
             TopSitesRefresher(
                 settings = settings(),
@@ -527,7 +535,7 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
         components.core.requestInterceptor.setNavigationController(navHost.navController)
 
         supportFragmentManager.registerFragmentLifecycleCallbacks(
-            StatusBarColorManager(themeManager, this),
+            StatusBarColorManager(themeManager, this, settings().isTabStripEnabled),
             true,
         )
 

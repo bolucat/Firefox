@@ -11400,8 +11400,6 @@ const PersonalizedCard = ({
 
 
 
-
-const FEATURE_ID = "FEATURE_FOLLOW_SECTION_BUTTON";
 function FollowSectionButtonHighlight({
   arrowPosition,
   position,
@@ -11409,37 +11407,19 @@ function FollowSectionButtonHighlight({
   dispatch,
   handleDismiss,
   handleBlock,
-  isIntersecting
+  feature
 }) {
   const onDismiss = (0,external_React_namespaceObject.useCallback)(() => {
-    // This event is emitted manually because the feature may be triggered outside the OMC flow,
-    // and may not be captured by the messaging-system’s automatic reporting.
-    dispatch(actionCreators.DiscoveryStreamUserEvent({
-      event: "FEATURE_HIGHLIGHT_DISMISS",
-      source: "FEATURE_HIGHLIGHT",
-      value: FEATURE_ID
-    }));
     handleDismiss();
     handleBlock();
-  }, [dispatch, handleDismiss, handleBlock]);
-  (0,external_React_namespaceObject.useEffect)(() => {
-    if (isIntersecting) {
-      // This event is emitted manually because the feature may be triggered outside the OMC flow,
-      // and may not be captured by the messaging-system’s automatic reporting.
-      dispatch(actionCreators.DiscoveryStreamUserEvent({
-        event: "FEATURE_HIGHLIGHT_IMPRESSION",
-        source: "FEATURE_HIGHLIGHT",
-        value: FEATURE_ID
-      }));
-    }
-  }, [dispatch, isIntersecting]);
+  }, [handleDismiss, handleBlock]);
   return /*#__PURE__*/external_React_default().createElement("div", {
     className: "follow-section-button-highlight"
   }, /*#__PURE__*/external_React_default().createElement(FeatureHighlight, {
     position: position,
     arrowPosition: arrowPosition,
     verticalPosition: verticalPosition,
-    feature: FEATURE_ID,
+    feature: feature,
     dispatch: dispatch,
     message: /*#__PURE__*/external_React_default().createElement("div", {
       className: "follow-section-button-highlight-content"
@@ -11819,7 +11799,15 @@ function CardSection({
   }, /*#__PURE__*/external_React_default().createElement(FollowSectionButtonHighlight, {
     verticalPosition: "inset-block-center",
     position: "arrow-inline-start",
+    dispatch: dispatch,
+    feature: "FEATURE_FOLLOW_SECTION_BUTTON"
+  })), !anySectionsFollowed && sectionPosition === 1 && shouldShowOMCHighlight(messageData, "FollowSectionButtonAltHighlight") && /*#__PURE__*/external_React_default().createElement(MessageWrapper, {
     dispatch: dispatch
+  }, /*#__PURE__*/external_React_default().createElement(FollowSectionButtonHighlight, {
+    verticalPosition: "inset-block-center",
+    position: "arrow-inline-start",
+    dispatch: dispatch,
+    feature: "FEATURE_ALT_FOLLOW_SECTION_BUTTON"
   })), /*#__PURE__*/external_React_default().createElement("moz-button", {
     onClick: following ? onUnfollowClick : onFollowClick,
     type: "default",
@@ -14543,7 +14531,7 @@ function TopicSelection({
 const PREF_MOBILE_DOWNLOAD_HIGHLIGHT_VARIANT_A = "mobileDownloadModal.variant-a";
 const PREF_MOBILE_DOWNLOAD_HIGHLIGHT_VARIANT_B = "mobileDownloadModal.variant-b";
 const PREF_MOBILE_DOWNLOAD_HIGHLIGHT_VARIANT_C = "mobileDownloadModal.variant-c";
-const DownloadMobilePromoHighlight_FEATURE_ID = "FEATURE_DOWNLOAD_MOBILE_PROMO";
+const FEATURE_ID = "FEATURE_DOWNLOAD_MOBILE_PROMO";
 function DownloadMobilePromoHighlight({
   position,
   dispatch,
@@ -14558,7 +14546,7 @@ function DownloadMobilePromoHighlight({
       event: "FEATURE_HIGHLIGHT_DISMISS",
       source: "FEATURE_HIGHLIGHT",
       value: {
-        feature: DownloadMobilePromoHighlight_FEATURE_ID
+        feature: FEATURE_ID
       }
     }));
     handleDismiss();
@@ -14572,7 +14560,7 @@ function DownloadMobilePromoHighlight({
         event: "FEATURE_HIGHLIGHT_IMPRESSION",
         source: "FEATURE_HIGHLIGHT",
         value: {
-          feature: DownloadMobilePromoHighlight_FEATURE_ID
+          feature: FEATURE_ID
         }
       }));
     }
@@ -14623,7 +14611,7 @@ function DownloadMobilePromoHighlight({
     className: "download-firefox-feature-highlight"
   }, /*#__PURE__*/external_React_default().createElement(FeatureHighlight, {
     position: position,
-    feature: DownloadMobilePromoHighlight_FEATURE_ID,
+    feature: FEATURE_ID,
     dispatch: dispatch,
     message: /*#__PURE__*/external_React_default().createElement("div", {
       className: "download-firefox-feature-highlight-content"
@@ -15050,17 +15038,12 @@ class BaseContent extends (external_React_default()).PureComponent {
     const selectedWallpaper = prefs["newtabWallpapers.wallpaper"];
     const {
       wallpaperList,
-      uploadedWallpaper
+      uploadedWallpaper: uploadedWallpaperUrl
     } = this.props.Wallpapers;
     let lightWallpaper = {};
     let darkWallpaper = {};
-    if (selectedWallpaper === "custom" && uploadedWallpaper) {
-      // revoke ObjectURL to prevent memory leaks
-      if (this.uploadedWallpaperUrl) {
-        URL.revokeObjectURL(this.uploadedWallpaperUrl);
-      }
+    if (selectedWallpaper === "custom" && uploadedWallpaperUrl) {
       try {
-        const uploadedWallpaperUrl = URL.createObjectURL(uploadedWallpaper);
         __webpack_require__.g.document?.body.style.setProperty("--newtab-wallpaper", `url(${uploadedWallpaperUrl})`);
         __webpack_require__.g.document?.body.style.setProperty("--newtab-wallpaper-color", "transparent");
 

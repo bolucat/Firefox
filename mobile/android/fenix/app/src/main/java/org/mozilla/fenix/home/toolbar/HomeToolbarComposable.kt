@@ -6,7 +6,6 @@ package org.mozilla.fenix.home.toolbar
 
 import android.content.Context
 import android.view.Gravity
-import android.view.ViewGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
@@ -38,7 +37,6 @@ import mozilla.components.compose.browser.toolbar.store.EnvironmentRehydrated
 import mozilla.components.support.ktx.android.view.ImeInsetsSynchronizer
 import org.mozilla.fenix.R
 import org.mozilla.fenix.browser.browsingmode.BrowsingModeManager
-import org.mozilla.fenix.browser.tabstrip.isTabStripEnabled
 import org.mozilla.fenix.components.AppStore
 import org.mozilla.fenix.components.StoreProvider
 import org.mozilla.fenix.components.toolbar.ToolbarPosition.BOTTOM
@@ -91,7 +89,7 @@ internal class HomeToolbarComposable(
         id = R.id.composable_toolbar
 
         setContent {
-            val shouldShowTabStrip: Boolean = remember { context.isTabStripEnabled() }
+            val shouldShowTabStrip: Boolean = remember { settings.isTabStripEnabled }
 
             FirefoxTheme {
                 Column {
@@ -128,7 +126,6 @@ internal class HomeToolbarComposable(
             ImeInsetsSynchronizer.setup(layout)
         }
 
-        updateHomeAppBarIntegration()
         configureStartingInSearchMode()
     }
 
@@ -170,18 +167,6 @@ internal class HomeToolbarComposable(
         }
     }
 
-    private fun updateHomeAppBarIntegration() {
-        if (!settings.shouldUseBottomToolbar) {
-            homeBinding.homeAppBar.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-                topMargin = context.resources.getDimensionPixelSize(R.dimen.home_fragment_top_toolbar_header_margin) +
-                    when (context.isTabStripEnabled()) {
-                        true -> context.resources.getDimensionPixelSize(R.dimen.tab_strip_height)
-                        false -> 0
-                    }
-            }
-        }
-    }
-
     private fun configureStartingInSearchMode() {
         if (!directToSearchConfig.startSearch) return
         store.dispatch(ToggleEditMode(true))
@@ -208,6 +193,7 @@ internal class HomeToolbarComposable(
                     browserStore = browserStore,
                     clipboard = context.components.clipboardHandler,
                     useCases = context.components.useCases,
+                    settings = settings,
                 ),
                 BrowserToolbarSearchMiddleware(
                     appStore = appStore,

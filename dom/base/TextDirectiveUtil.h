@@ -19,6 +19,7 @@
 
 class nsIURI;
 class nsINode;
+class nsFind;
 class nsRange;
 struct TextDirective;
 
@@ -59,12 +60,14 @@ class TextDirectiveUtil final {
   /**
    * @brief Finds the search query in the given search range.
    *
-   * This is a thin wrapper around `nsFind`.
+   * This function parametrizes the `nsFind` instance.
    */
-  static RefPtr<nsRange> FindStringInRange(
-      const RangeBoundary& aSearchStart, const RangeBoundary& aSearchEnd,
-      const nsAString& aQuery, bool aWordStartBounded, bool aWordEndBounded,
-      nsContentUtils::NodeIndexCache* aCache = nullptr);
+  static RefPtr<nsRange> FindStringInRange(nsFind* aFinder,
+                                           const RangeBoundary& aSearchStart,
+                                           const RangeBoundary& aSearchEnd,
+                                           const nsAString& aQuery,
+                                           bool aWordStartBounded,
+                                           bool aWordEndBounded);
 
   /**
    * @brief Tests if there is whitespace at the given position.
@@ -495,20 +498,12 @@ void LogCommonSubstringLengths(const char* aFunc,
 template <TextScanDirection direction>
 /*static*/ nsTArray<uint32_t> TextDirectiveUtil::ComputeWordBoundaryDistances(
     const nsAString& aString) {
-  // Limit the amount of words to look out for.
-  // If it's not possible to create a text directive because 32 words in _all_
-  // directions are equal, it's reasonable to say that it's not possible to
-  // create a text directive at all. Without this limit, this algorithm could
-  // blow up for extremely large text nodes, such as opening a text file with
-  // megabytes of text.
-  constexpr uint32_t kMaxWordCount = 32;
-  AutoTArray<uint32_t, kMaxWordCount> wordBoundaryDistances;
+  AutoTArray<uint32_t, 32> wordBoundaryDistances;
   uint32_t pos =
       direction == TextScanDirection::Left ? aString.Length() - 1 : 0;
 
   // This loop relies on underflowing `pos` when going left as stop condition.
-  while (pos < aString.Length() &&
-         wordBoundaryDistances.Length() < kMaxWordCount) {
+  while (pos < aString.Length()) {
     auto [wordBegin, wordEnd] = intl::WordBreaker::FindWord(aString, pos);
     if constexpr (direction == TextScanDirection::Left) {
       wordBoundaryDistances.AppendElement(aString.Length() - wordBegin);
@@ -571,9 +566,12 @@ template <TextScanDirection direction>
       }
       textContentForLogging.AppendElement(std::move(textContent));
     }
-    while (offset < text->Length() &&
+    const nsTextFragment* textData = text->GetText();
+    MOZ_DIAGNOSTIC_ASSERT(textData);
+    const uint32_t textLength = textData->GetLength();
+    while (offset < textLength &&
            referenceStringPosition < aReferenceString.Length()) {
-      char16_t ch = text->GetText()->CharAt(offset);
+      char16_t ch = textData->CharAt(offset);
       char16_t refCh = aReferenceString.CharAt(referenceStringPosition);
       const bool chIsWhitespace = nsContentUtils::IsHTMLWhitespace(ch);
       const bool refChIsWhitespace = nsContentUtils::IsHTMLWhitespace(refCh);

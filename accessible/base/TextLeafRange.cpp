@@ -1142,6 +1142,13 @@ TextLeafPoint TextLeafPoint::GetCaret(Accessible* aAcc) {
     return TextLeafPoint();
   }
   TextLeafPoint point = ht->ToTextLeafPoint(htOffset);
+  if (!point) {
+    // The caret offset should usually be in sync with the tree. However, tree
+    // and selection updates happen using separate IPDL calls, so it's possible
+    // for a client caret query to arrive between them. Thus, we can end up
+    // with an invalid caret here.
+    return point;
+  }
   if (!IsCaretValid(point)) {
     return TextLeafPoint();
   }

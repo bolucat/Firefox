@@ -567,12 +567,15 @@ inline void SharedContextWebgl::BlendFunc(GLenum aSrcFactor,
 }
 
 void SharedContextWebgl::SetBlendState(CompositionOp aOp,
-                                       const Maybe<DeviceColor>& aColor) {
-  if (aOp == mLastCompositionOp && mLastBlendColor == aColor) {
+                                       const Maybe<DeviceColor>& aColor,
+                                       uint8_t aStage) {
+  if (aOp == mLastCompositionOp && mLastBlendColor == aColor &&
+      mLastBlendStage == aStage) {
     return;
   }
   mLastCompositionOp = aOp;
   mLastBlendColor = aColor;
+  mLastBlendStage = aStage;
   // AA is not supported for all composition ops, so switching blend modes may
   // cause a toggle in AA state. Certain ops such as OP_SOURCE require output
   // alpha that is blended separately from AA coverage. This would require two
@@ -619,7 +622,19 @@ void SharedContextWebgl::SetBlendState(CompositionOp aOp,
           LOCAL_GL_ONE_MINUS_SRC_ALPHA);
       break;
     case CompositionOp::OP_MULTIPLY:
-      BlendFunc(LOCAL_GL_ZERO, LOCAL_GL_SRC_COLOR);
+      switch (aStage) {
+        // Single stage, assume dest is opaque alpha.
+        case 0:
+          BlendFunc(LOCAL_GL_DST_COLOR, LOCAL_GL_ONE_MINUS_SRC_ALPHA);
+          break;
+        // Multi-stage, decompose into [Cs*(1 - Ad)] + [Cd*(1 - As) + Cs*Cd]
+        case 1:
+          BlendFunc(LOCAL_GL_DST_COLOR, LOCAL_GL_ONE_MINUS_SRC_ALPHA);
+          break;
+        case 2:
+          BlendFunc(LOCAL_GL_ONE_MINUS_DST_ALPHA, LOCAL_GL_ONE);
+          break;
+      }
       break;
     case CompositionOp::OP_SCREEN:
       BlendFunc(LOCAL_GL_ONE, LOCAL_GL_ONE_MINUS_SRC_COLOR);
@@ -1736,10 +1751,11 @@ bool SharedContextWebgl::CreateShaders() {
   return true;
 }
 
-void SharedContextWebgl::EnableScissor(const IntRect& aRect) {
+void SharedContextWebgl::EnableScissor(const IntRect& aRect, bool aForce) {
   // Only update scissor state if it actually changes.
-  IntRect rect =
-      mTargetHandle ? aRect + mTargetHandle->GetBounds().TopLeft() : aRect;
+  IntRect rect = !aForce && mTargetHandle
+                     ? aRect + mTargetHandle->GetBounds().TopLeft()
+                     : aRect;
   if (!mLastScissor.IsEqualEdges(rect)) {
     mLastScissor = rect;
     mWebgl->Scissor(rect.x, rect.y, rect.width, rect.height);
@@ -2007,6 +2023,22 @@ static inline bool SupportsDrawOptions(const DrawOptions& aOptions) {
       return true;
     default:
       return false;
+  }
+}
+
+// Whether the composition operator requires multiple blend stages to
+// approximate with WebGL blend modes.
+inline uint8_t SharedContextWebgl::RequiresMultiStageBlend(
+    const DrawOptions& aOptions, DrawTargetWebgl* aDT) {
+  switch (aOptions.mCompositionOp) {
+    case CompositionOp::OP_MULTIPLY:
+      return !IsOpaque(aDT ? aDT->GetFormat()
+                           : (mTargetHandle ? mTargetHandle->GetFormat()
+                                            : mCurrentTarget->GetFormat()))
+                 ? 2
+                 : 0;
+    default:
+      return 0;
   }
 }
 
@@ -2357,7 +2389,7 @@ void SharedContextWebgl::BindScratchFramebuffer(TextureHandle* aHandle,
   mWebgl->Viewport(bounds.x, bounds.y, bounds.width, bounds.height);
 
   if (aInit) {
-    EnableScissor(bounds);
+    EnableScissor(bounds, true);
     ClearRenderTex(backing);
   }
 }
@@ -2558,7 +2590,7 @@ bool SharedContextWebgl::DrawRectAccel(
     Maybe<DeviceColor> aMaskColor, RefPtr<TextureHandle>* aHandle,
     bool aTransformed, bool aClipped, bool aAccelOnly, bool aForceUpdate,
     const StrokeOptions* aStrokeOptions, const PathVertexRange* aVertexRange,
-    const Matrix* aRectXform) {
+    const Matrix* aRectXform, uint8_t aBlendStage) {
   // If the rect or clip rect is empty, then there is nothing to draw.
   if (aRect.IsEmpty() || mClipRect.IsEmpty()) {
     return true;
@@ -2580,6 +2612,19 @@ bool SharedContextWebgl::DrawRectAccel(
                                        aTransformed, aClipped, aStrokeOptions);
     }
     return false;
+  }
+
+  if (!aBlendStage) {
+    if (uint8_t numStages = RequiresMultiStageBlend(aOptions)) {
+      for (uint8_t stage = 1; stage <= numStages; ++stage) {
+        if (!DrawRectAccel(aRect, aPattern, aOptions, aMaskColor, aHandle,
+                           aTransformed, aClipped, aAccelOnly, aForceUpdate,
+                           aStrokeOptions, aVertexRange, aRectXform, stage)) {
+          return false;
+        }
+      }
+      return true;
+    }
   }
 
   const Matrix& currentTransform = mCurrentTarget->GetTransform();
@@ -2676,7 +2721,7 @@ bool SharedContextWebgl::DrawRectAccel(
         // Both source and clear operators should output a mask from the shader.
         color = DeviceColor(1, 1, 1, 1);
       }
-      SetBlendState(aOptions.mCompositionOp, blendColor);
+      SetBlendState(aOptions.mCompositionOp, blendColor, aBlendStage);
       // Since it couldn't be mapped to a scissored clear, we need to use the
       // solid color shader with supplied transform.
       if (mLastProgram != mSolidProgram) {
@@ -2856,7 +2901,8 @@ bool SharedContextWebgl::DrawRectAccel(
       // blending. If we encounter the source op here, then assume the surface
       // is opaque (non-opaque is handled above) and emulate it with over.
       SetBlendState(aOptions.mCompositionOp,
-                    format != SurfaceFormat::A8 ? aMaskColor : Nothing());
+                    format != SurfaceFormat::A8 ? aMaskColor : Nothing(),
+                    aBlendStage);
       // Switch to the image shader and set up relevant transforms.
       if (mLastProgram != mImageProgram) {
         mWebgl->UseProgram(mImageProgram);
@@ -3447,7 +3493,8 @@ bool DrawTargetWebgl::BlurSurface(float aSigma, SourceSurface* aSurface,
         }
       }
     }
-    if (mTransform.IsTranslation()) {
+    if (mTransform.IsTranslation() &&
+        !mSharedContext->RequiresMultiStageBlend(aOptions, this)) {
       return mSharedContext->BlurRectAccel(
           Rect(aDest + mTransform.GetTranslation(), Size(sourceRect.Size())),
           Point(aSigma, aSigma), aSurface, sourceRect, aOptions, maskColor,
@@ -3505,13 +3552,12 @@ already_AddRefed<TextureHandle> SharedContextWebgl::ResolveFilterInputAccel(
     return nullptr;
   }
 
-  IntRect targetBounds(handle->GetBounds());
   BackingTexture* targetBacking = handle->GetBackingTexture();
   InitRenderTex(targetBacking);
   if (!aDT->PrepareContext(false, handle)) {
     return nullptr;
   }
-  EnableScissor(targetBounds);
+  DisableScissor();
   ClearRenderTex(targetBacking);
 
   AutoRestoreTransform restore(aDT);
@@ -4359,7 +4405,8 @@ bool SharedContextWebgl::DrawPathAccel(
   if (aShadow) {
     // Inflate the bounds to account for the blur radius.
     bounds += aShadow->mOffset;
-    if (aShadow->mSigma > 0.0f && aShadow->mSigma <= BLUR_ACCEL_SIGMA_MAX) {
+    if (aShadow->mSigma > 0.0f && aShadow->mSigma <= BLUR_ACCEL_SIGMA_MAX &&
+        !RequiresMultiStageBlend(aOptions)) {
       // Allow the input texture to be reused regardless of sigma since it
       // doesn't actually differ.
       viewport.Inflate(2 * BLUR_ACCEL_RADIUS_MAX);
@@ -4686,6 +4733,7 @@ bool SharedContextWebgl::DrawPathAccel(
     // targets when drawing the path, so back up the old target.
     DrawTargetWebgl* oldTarget = mCurrentTarget;
     RefPtr<TextureHandle> oldHandle = mTargetHandle;
+    IntSize oldViewport = mViewportSize;
     {
       RefPtr<const Path> path;
       if (!aPathXform || (color && !aStrokeOptions)) {
@@ -4747,8 +4795,9 @@ bool SharedContextWebgl::DrawPathAccel(
     RefPtr<SourceSurface> pathSurface = pathDT->Snapshot();
     // If the target changed, try to restore it.
     if (pathSurface &&
-        ((mCurrentTarget == oldTarget && mTargetHandle == oldHandle) ||
-         oldTarget->PrepareContext(!oldHandle, oldHandle))) {
+        ((mCurrentTarget == oldTarget && mTargetHandle == oldHandle &&
+          mViewportSize == oldViewport) ||
+         oldTarget->PrepareContext(!oldHandle, oldHandle, oldViewport))) {
       SurfacePattern pathPattern(pathSurface, ExtendMode::CLAMP,
                                  Matrix::Translation(quantBounds.TopLeft()),
                                  filter);

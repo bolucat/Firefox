@@ -10,6 +10,7 @@
 #include "TextDirectiveUtil.h"
 #include "mozilla/ErrorResult.h"
 #include "mozilla/ResultVariant.h"
+#include "nsFind.h"
 #include "nsINode.h"
 #include "nsRange.h"
 #include "Document.h"
@@ -21,7 +22,14 @@ TextDirectiveCreator::TextDirectiveCreator(Document* aDocument,
                                            const TimeoutWatchdog* aWatchdog)
     : mDocument(WrapNotNull(aDocument)),
       mRange(WrapNotNull(aRange)),
-      mWatchdog(aWatchdog) {}
+      mFinder(WrapNotNull(new nsFind())),
+      mWatchdog(aWatchdog) {
+  mFinder->SetNodeIndexCache(&mNodeIndexCache);
+}
+
+TextDirectiveCreator::~TextDirectiveCreator() {
+  mFinder->SetNodeIndexCache(nullptr);
+}
 
 /* static */
 mozilla::Result<nsCString, ErrorResult>
@@ -204,10 +212,25 @@ Result<Ok, ErrorResult> RangeBasedTextDirectiveCreator::CollectContextTerms() {
     mEndContent = Substring(mStartContent, wordEnd);
     mStartContent = Substring(mStartContent, 0, wordEnd);
   }
+  if (mStartContent.Length() > kMaxContextTermLength) {
+    TEXT_FRAGMENT_LOG(
+        "Start term seems very long ({} chars), "
+        "only considering the first {} chars.",
+        mStartContent.Length(), kMaxContextTermLength);
+    mStartContent = Substring(mStartContent, 0, kMaxContextTermLength);
+  }
   mStartFoldCaseContent = mStartContent;
   ToFoldedCase(mStartFoldCaseContent);
   TEXT_FRAGMENT_LOG("Maximum possible start term:\n{}",
                     NS_ConvertUTF16toUTF8(mStartContent));
+  if (mEndContent.Length() > kMaxContextTermLength) {
+    TEXT_FRAGMENT_LOG(
+        "End term seems very long ({} chars), "
+        "only considering the last {} chars.",
+        mEndContent.Length(), kMaxContextTermLength);
+    mEndContent =
+        Substring(mEndContent, mEndContent.Length() - kMaxContextTermLength);
+  }
   mEndFoldCaseContent = mEndContent;
   ToFoldedCase(mEndFoldCaseContent);
   TEXT_FRAGMENT_LOG("Maximum possible end term:\n{}",
@@ -231,6 +254,14 @@ Result<Ok, ErrorResult> TextDirectiveCreator::CollectPrefixContextTerm() {
   MOZ_ASSERT(prefixRange);
   mPrefixContent =
       MOZ_TRY(TextDirectiveUtil::RangeContentAsString(prefixRange));
+  if (mPrefixContent.Length() > kMaxContextTermLength) {
+    TEXT_FRAGMENT_LOG(
+        "Prefix term seems very long ({} chars), "
+        "only considering the last {} chars.",
+        mPrefixContent.Length(), kMaxContextTermLength);
+    mPrefixContent = Substring(mPrefixContent,
+                               mPrefixContent.Length() - kMaxContextTermLength);
+  }
   mPrefixFoldCaseContent = mPrefixContent;
   ToFoldedCase(mPrefixFoldCaseContent);
   TEXT_FRAGMENT_LOG("Maximum possible prefix term:\n{}",
@@ -253,6 +284,13 @@ Result<Ok, ErrorResult> TextDirectiveCreator::CollectSuffixContextTerm() {
   MOZ_ASSERT(suffixRange);
   mSuffixContent =
       MOZ_TRY(TextDirectiveUtil::RangeContentAsString(suffixRange));
+  if (mSuffixContent.Length() > kMaxContextTermLength) {
+    TEXT_FRAGMENT_LOG(
+        "Suffix term seems very long ({} chars), "
+        "only considering the first {} chars.",
+        mSuffixContent.Length(), kMaxContextTermLength);
+    mSuffixContent = Substring(mSuffixContent, 0, kMaxContextTermLength);
+  }
   mSuffixFoldCaseContent = mSuffixContent;
   ToFoldedCase(mSuffixFoldCaseContent);
   TEXT_FRAGMENT_LOG("Maximum possible suffix term:\n{}",
@@ -376,7 +414,7 @@ TextDirectiveCreator::FindAllMatchingRanges(const nsString& aSearchQuery,
       return matchingRanges;
     }
     RefPtr<AbstractRange> searchResult = TextDirectiveUtil::FindStringInRange(
-        searchStart, aSearchEnd, aSearchQuery, true, true, &mNodeIndexCache);
+        mFinder, searchStart, aSearchEnd, aSearchQuery, true, true);
     if (!searchResult || searchResult->Collapsed()) {
       break;
     }
@@ -499,6 +537,9 @@ void RangeBasedTextDirectiveCreator::FindStartMatchCommonSubstringLengths(
     const nsTArray<RefPtr<AbstractRange>>& aMatchRanges) {
   size_t loopCounter = 0;
   for (const auto& range : aMatchRanges) {
+    if (mWatchdog && mWatchdog->IsDone()) {
+      return;
+    }
     ++loopCounter;
     TEXT_FRAGMENT_LOG(
         "Computing common prefix substring length for start match {}.",
@@ -527,6 +568,9 @@ void RangeBasedTextDirectiveCreator::FindEndMatchCommonSubstringLengths(
     const nsTArray<RefPtr<AbstractRange>>& aMatchRanges) {
   size_t loopCounter = 0;
   for (const auto& range : aMatchRanges) {
+    if (mWatchdog && mWatchdog->IsDone()) {
+      return;
+    }
     ++loopCounter;
     TEXT_FRAGMENT_LOG("Computing common end substring length for end match {}.",
                       loopCounter);
