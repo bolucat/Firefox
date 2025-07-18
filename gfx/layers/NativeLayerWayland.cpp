@@ -818,6 +818,7 @@ bool NativeLayerWayland::Map(WaylandSurfaceLock* aParentWaylandSurfaceLock) {
   mNeedsMainThreadUpdate = MainThreadUpdate::Map;
   mState.mMutatedStackingOrder = true;
   mState.mMutatedVisibility = true;
+  mState.mMutatedPlacement = true;
   return true;
 }
 
@@ -1075,7 +1076,6 @@ void NativeLayerWaylandRender::CommitFrontBufferToScreenLocked(
     buffer->GetSurface()->FenceWait();
   }
 
-  MOZ_DIAGNOSTIC_ASSERT(!mFrontBuffer->IsAttached());
   mSurface->AttachLocked(aProofOfLock, mFrontBuffer);
   mState.mMutatedFrontBuffer = false;
   mState.mMutatedVisibility = false;

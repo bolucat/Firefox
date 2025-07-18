@@ -21,12 +21,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.android.asCoroutineDispatcher
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.setMain
+import mozilla.components.browser.state.action.SearchAction.ApplicationSearchEnginesLoaded
 import mozilla.components.browser.state.action.TabListAction.AddTabAction
 import mozilla.components.browser.state.action.TabListAction.RemoveTabAction
 import mozilla.components.browser.state.search.SearchEngine
 import mozilla.components.browser.state.search.SearchEngine.Type.APPLICATION
 import mozilla.components.browser.state.state.BrowserState
 import mozilla.components.browser.state.state.createTab
+import mozilla.components.browser.state.state.selectedOrDefaultSearchEngine
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.compose.browser.toolbar.concept.Action.ActionButton
 import mozilla.components.compose.browser.toolbar.concept.Action.ActionButtonRes
@@ -55,9 +57,9 @@ import mozilla.components.support.test.rule.MainCoroutineRule
 import mozilla.components.support.test.rule.runTestOnMain
 import mozilla.components.support.utils.ClipboardHandler
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -73,10 +75,13 @@ import org.mozilla.fenix.browser.browsingmode.SimpleBrowsingModeManager
 import org.mozilla.fenix.components.AppStore
 import org.mozilla.fenix.components.UseCases
 import org.mozilla.fenix.components.appstate.AppAction
-import org.mozilla.fenix.components.appstate.AppAction.SearchEngineSelected
+import org.mozilla.fenix.components.appstate.AppAction.SearchAction.SearchEngineSelected
+import org.mozilla.fenix.components.appstate.AppAction.SearchAction.SearchStarted
 import org.mozilla.fenix.components.appstate.AppState
 import org.mozilla.fenix.components.appstate.OrientationMode.Landscape
 import org.mozilla.fenix.components.appstate.OrientationMode.Portrait
+import org.mozilla.fenix.components.appstate.search.SearchState
+import org.mozilla.fenix.components.appstate.search.SelectedSearchEngine
 import org.mozilla.fenix.components.menu.MenuAccessPoint
 import org.mozilla.fenix.components.toolbar.ToolbarPosition
 import org.mozilla.fenix.components.usecases.FenixBrowserUseCases
@@ -95,7 +100,6 @@ import org.mozilla.fenix.search.fixtures.assertSearchSelectorEquals
 import org.mozilla.fenix.search.fixtures.buildExpectedSearchSelector
 import org.mozilla.fenix.tabstray.Page
 import org.mozilla.fenix.tabstray.TabManagementFeatureHelper
-import org.mozilla.fenix.utils.Settings
 import org.robolectric.Shadows.shadowOf
 import mozilla.components.ui.icons.R as iconsR
 
@@ -107,17 +111,20 @@ class BrowserToolbarMiddlewareTest {
     @get:Rule
     val gleanRule = FenixGleanTestRule(testContext)
 
-    private val appStore = AppStore()
+    private val appState: AppState = mockk(relaxed = true) {
+        every { orientation } returns Portrait
+    }
+    private val appStore: AppStore = mockk(relaxed = true) {
+        every { state } returns appState
+    }
     private val browserStore = BrowserStore()
     private val lifecycleOwner = FakeLifecycleOwner(Lifecycle.State.RESUMED)
     private val browsingModeManager = SimpleBrowsingModeManager(Normal)
-    private val settings: Settings = mockk(relaxed = true) {
-        every { isTabStripEnabled } returns false
-    }
 
     @Before
     fun setup() = runTestOnMain {
-        every { testContext.settings().shouldUseSimpleToolbar } returns true
+        every { testContext.settings().shouldUseExpandedToolbar } returns false
+        every { testContext.settings().isTabStripEnabled } returns false
     }
 
     @Test
@@ -127,7 +134,6 @@ class BrowserToolbarMiddlewareTest {
             browserStore,
             mockk(),
             mockk(),
-            settings,
             tabManagementFeatureHelper = object : TabManagementFeatureHelper {
                 override val enhancementsEnabledNightly: Boolean
                     get() = false
@@ -151,9 +157,9 @@ class BrowserToolbarMiddlewareTest {
     }
 
     @Test
-    fun `WHEN initializing the toolbar AND should not use simple toolbar THEN add browser end actions`() = runTestOnMain {
-        every { testContext.settings().shouldUseSimpleToolbar } returns false
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), settings)
+    fun `WHEN initializing the toolbar AND should use expanded toolbar THEN add browser end actions`() = runTestOnMain {
+        every { testContext.settings().shouldUseExpandedToolbar } returns true
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
 
         val toolbarStore = buildStore(middleware)
 
@@ -162,9 +168,9 @@ class BrowserToolbarMiddlewareTest {
     }
 
     @Test
-    fun `WHEN initializing the navigation bar AND should not use simple toolbar THEN add navigation bar actions`() = runTestOnMain {
-        every { testContext.settings().shouldUseSimpleToolbar } returns false
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), settings)
+    fun `WHEN initializing the navigation bar AND should use expanded toolbar THEN add navigation bar actions`() = runTestOnMain {
+        every { testContext.settings().shouldUseExpandedToolbar } returns true
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
 
         val toolbarStore = buildStore(middleware)
 
@@ -183,6 +189,18 @@ class BrowserToolbarMiddlewareTest {
     }
 
     @Test
+    fun `WHEN initializing the navigation bar AND should use expanded toolbar AND orientation is landscape THEN add no navigation bar actions`() = runTestOnMain {
+        every { testContext.settings().shouldUseExpandedToolbar } returns true
+        every { appState.orientation } returns Landscape
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
+
+        val toolbarStore = buildStore(middleware)
+
+        val navigationActions = toolbarStore.state.displayState.navigationActions
+        assertEquals(0, navigationActions.size)
+    }
+
+    @Test
     fun `GIVEN normal browsing mode WHEN initializing the toolbar THEN show the number of normal tabs in the tabs counter button`() = runTestOnMain {
         val browsingModeManager = SimpleBrowsingModeManager(Normal)
         val browserStore = BrowserStore(
@@ -190,7 +208,7 @@ class BrowserToolbarMiddlewareTest {
                 tabs = listOf(createTab("test.com", private = false)),
             ),
         )
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), settings)
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
 
         val toolbarStore = buildStore(
             middleware = middleware,
@@ -213,7 +231,7 @@ class BrowserToolbarMiddlewareTest {
                 ),
             ),
         )
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), settings)
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
 
         val toolbarStore = buildStore(
             middleware = middleware,
@@ -234,7 +252,7 @@ class BrowserToolbarMiddlewareTest {
             contextualMenuOptions = listOf(PasteFromClipboard, LoadFromClipboard),
             onClick = OriginClicked,
         )
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), settings)
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
 
         val toolbarStore = buildStore(middleware)
 
@@ -244,7 +262,7 @@ class BrowserToolbarMiddlewareTest {
 
     @Test
     fun `GIVEN an environment was already set WHEN it is cleared THEN reset it to null`() {
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), settings)
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
         val store = buildStore(middleware)
 
         assertNotNull(middleware.environment)
@@ -264,7 +282,7 @@ class BrowserToolbarMiddlewareTest {
                 orientation = Portrait,
             ),
         )
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), settings)
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
         val toolbarStore = buildStore(middleware)
         testScheduler.advanceUntilIdle()
         var toolbarBrowserActions = toolbarStore.state.displayState.browserActionsEnd
@@ -290,7 +308,7 @@ class BrowserToolbarMiddlewareTest {
             ),
         )
 
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), settings)
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
         val toolbarStore = buildStore(middleware)
         testScheduler.advanceUntilIdle()
         var toolbarBrowserActions = toolbarStore.state.displayState.browserActionsEnd
@@ -312,7 +330,7 @@ class BrowserToolbarMiddlewareTest {
         Dispatchers.setMain(StandardTestDispatcher())
         val browsingModeManager = SimpleBrowsingModeManager(Normal)
         val browserStore = BrowserStore()
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), settings)
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
         val toolbarStore = buildStore(
             middleware = middleware,
             browsingModeManager = browsingModeManager,
@@ -346,7 +364,7 @@ class BrowserToolbarMiddlewareTest {
                 tabs = listOf(initialNormalTab, initialPrivateTab),
             ),
         )
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), settings)
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
         val toolbarStore = buildStore(
             middleware = middleware,
             browsingModeManager = browsingModeManager,
@@ -371,7 +389,7 @@ class BrowserToolbarMiddlewareTest {
     @Test
     fun `WHEN clicking the menu button THEN open the menu`() {
         val navController: NavController = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), settings)
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
         val toolbarStore = buildStore(
             middleware = middleware,
             navController = navController,
@@ -394,7 +412,7 @@ class BrowserToolbarMiddlewareTest {
     fun `GIVEN browsing in normal mode WHEN clicking the tab counter button THEN open the tabs tray in normal mode`() {
         val browsingModeManager = SimpleBrowsingModeManager(Normal)
         val navController: NavController = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), settings)
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
         val toolbarStore = buildStore(
             middleware = middleware,
             navController = navController,
@@ -417,7 +435,7 @@ class BrowserToolbarMiddlewareTest {
     fun `GIVEN browsing in private mode WHEN clicking the tab counter button THEN open the tabs tray in private mode`() {
         val browsingModeManager = SimpleBrowsingModeManager(Private)
         val navController: NavController = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), settings)
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
         val toolbarStore = buildStore(
             middleware = middleware,
             navController = navController,
@@ -438,7 +456,7 @@ class BrowserToolbarMiddlewareTest {
 
     @Test
     fun `WHEN long clicking the tab counter button THEN record telemetry`() {
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), settings)
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
         val toolbarStore = buildStore(middleware)
         val tabCounterButton = toolbarStore.state.displayState.browserActionsEnd[0] as TabCounterAction
 
@@ -451,7 +469,7 @@ class BrowserToolbarMiddlewareTest {
     fun `GIVEN browsing in normal mode WHEN clicking on the long click menu option THEN open a new private tab`() {
         val browsingModeManager = SimpleBrowsingModeManager(Normal)
         val navController: NavController = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), settings)
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
         val toolbarStore = buildStore(
             middleware = middleware,
             navController = navController,
@@ -486,7 +504,7 @@ class BrowserToolbarMiddlewareTest {
     fun `GIVEN browsing in private mode WHEN clicking on the long click menu option THEN open a new normal tab`() {
         val browsingModeManager = SimpleBrowsingModeManager(Private)
         val navController: NavController = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), settings)
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
         val toolbarStore = buildStore(
             middleware = middleware,
             navController = navController,
@@ -521,7 +539,7 @@ class BrowserToolbarMiddlewareTest {
     fun `GIVEN in normal browsing mode WHEN the page origin is clicked THEN start the search UX for normal browsing`() {
         val browsingModeManager = SimpleBrowsingModeManager(Normal)
         val navController: NavController = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), settings)
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), mockk())
         val toolbarStore = buildStore(
             middleware = middleware,
             navController = navController,
@@ -530,14 +548,14 @@ class BrowserToolbarMiddlewareTest {
 
         toolbarStore.dispatch(toolbarStore.state.displayState.pageOrigin.onClick as BrowserToolbarAction)
 
-        assertTrue(toolbarStore.state.isEditMode())
+        verify { appStore.dispatch(SearchStarted()) }
     }
 
     @Test
     fun `GIVEN in private browsing mode WHEN the page origin is clicked THEN start the search UX for private browsing`() {
         val browsingModeManager = SimpleBrowsingModeManager(Private)
         val navController: NavController = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), settings)
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), mockk())
         val toolbarStore = buildStore(
             middleware = middleware,
             navController = navController,
@@ -546,7 +564,7 @@ class BrowserToolbarMiddlewareTest {
 
         toolbarStore.dispatch(toolbarStore.state.displayState.pageOrigin.onClick as BrowserToolbarAction)
 
-        assertTrue(toolbarStore.state.isEditMode())
+        verify { appStore.dispatch(SearchStarted()) }
     }
 
     @Test
@@ -556,7 +574,7 @@ class BrowserToolbarMiddlewareTest {
         val clipboard = ClipboardHandler(testContext).also {
             it.text = "test"
         }
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, clipboard, mockk(), settings)
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, clipboard, mockk())
         val toolbarStore = buildStore(
             middleware = middleware,
             navController = navController,
@@ -598,7 +616,7 @@ class BrowserToolbarMiddlewareTest {
         val useCases: UseCases = mockk {
             every { fenixBrowserUseCases } returns browserUseCases
         }
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, clipboard, useCases, settings)
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, clipboard, useCases)
         val toolbarStore = buildStore(
             middleware = middleware,
             navController = navController,
@@ -625,9 +643,10 @@ class BrowserToolbarMiddlewareTest {
 
     @Test
     fun `WHEN the selected search engine changes THEN update the search selector`() {
+        val appStore = AppStore()
         Dispatchers.setMain(Handler(Looper.getMainLooper()).asCoroutineDispatcher())
 
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), settings)
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
         val toolbarStore = buildStore(middleware)
         val newSearchEngine = SearchEngine("test", "Test", mock(), type = APPLICATION)
 
@@ -636,6 +655,34 @@ class BrowserToolbarMiddlewareTest {
 
         assertSearchSelectorEquals(
             expectedSearchSelector(newSearchEngine),
+            toolbarStore.state.displayState.pageActionsStart[0] as SearchSelectorAction,
+        )
+    }
+
+    @Test
+    fun `GIVEN a search engine is already selected WHEN the search engine configuration changes THEN don't change the selected search engine`() {
+        Dispatchers.setMain(Handler(Looper.getMainLooper()).asCoroutineDispatcher())
+
+        val selectedSearchEngine = SearchEngine("test", "Test", mock(), type = APPLICATION)
+        val otherSearchEngine = SearchEngine("other", "Other", mock(), type = APPLICATION)
+        val appStore = AppStore(
+            initialState = AppState(
+                searchState = SearchState.EMPTY.copy(
+                    selectedSearchEngine = SelectedSearchEngine(selectedSearchEngine, true),
+                ),
+            ),
+        )
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), mockk())
+        val toolbarStore = buildStore(middleware)
+
+        browserStore.dispatch(ApplicationSearchEnginesLoaded(listOf(otherSearchEngine))).joinBlocking()
+
+        assertNotEquals(
+            appStore.state.searchState.selectedSearchEngine?.searchEngine,
+            browserStore.state.search.selectedOrDefaultSearchEngine,
+        )
+        assertSearchSelectorEquals(
+            expectedSearchSelector(selectedSearchEngine),
             toolbarStore.state.displayState.pageActionsStart[0] as SearchSelectorAction,
         )
     }
@@ -652,7 +699,7 @@ class BrowserToolbarMiddlewareTest {
             ),
         )
 
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), settings)
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
         val store = buildStore(middleware)
 
         val action = middleware.buildHomeAction(
@@ -674,7 +721,7 @@ class BrowserToolbarMiddlewareTest {
 
     @Test
     fun `WHEN building Menu action THEN returns Menu ActionButton`() {
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), settings)
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
         val store = buildStore(middleware)
 
         val action = middleware.buildHomeAction(

@@ -448,7 +448,24 @@ already_AddRefed<BindGroup> Device::CreateBindGroup(
   for (const auto& entry : aDesc.mEntries) {
     ffi::WGPUBindGroupEntry e = {};
     e.binding = entry.mBinding;
-    if (entry.mResource.IsGPUBufferBinding()) {
+    auto setTextureViewBinding =
+        [&e, &canvasContexts](const TextureView& texture_view) {
+          e.texture_view = texture_view.mId;
+          auto context = texture_view.GetTargetContext();
+          if (context) {
+            canvasContexts.AppendElement(context);
+          }
+        };
+    if (entry.mResource.IsGPUBuffer()) {
+      const auto& buffer = entry.mResource.GetAsGPUBuffer();
+      if (!buffer->mId) {
+        NS_WARNING("Buffer has no id -- ignoring.");
+        continue;
+      }
+      e.buffer = buffer->mId;
+      e.offset = 0;
+      e.size = 0;
+    } else if (entry.mResource.IsGPUBufferBinding()) {
       const auto& bufBinding = entry.mResource.GetAsGPUBufferBinding();
       if (!bufBinding.mBuffer->mId) {
         NS_WARNING("Buffer binding has no id -- ignoring.");
@@ -457,13 +474,14 @@ already_AddRefed<BindGroup> Device::CreateBindGroup(
       e.buffer = bufBinding.mBuffer->mId;
       e.offset = bufBinding.mOffset;
       e.size = bufBinding.mSize.WasPassed() ? bufBinding.mSize.Value() : 0;
+    } else if (entry.mResource.IsGPUTexture()) {
+      auto texture = entry.mResource.GetAsGPUTexture();
+      const dom::GPUTextureViewDescriptor defaultDesc{};
+      RefPtr<TextureView> texture_view = texture->CreateView(defaultDesc);
+      setTextureViewBinding(*texture_view);
     } else if (entry.mResource.IsGPUTextureView()) {
       auto texture_view = entry.mResource.GetAsGPUTextureView();
-      e.texture_view = texture_view->mId;
-      auto context = texture_view->GetTargetContext();
-      if (context) {
-        canvasContexts.AppendElement(context);
-      }
+      setTextureViewBinding(texture_view);
     } else if (entry.mResource.IsGPUSampler()) {
       e.sampler = entry.mResource.GetAsGPUSampler()->mId;
     } else {

@@ -14,6 +14,8 @@ interface IdentityCredential : Credential {
  [Throws]
  static Promise<undefined> disconnect(optional IdentityCredentialDisconnectOptions options = {});
  readonly attribute UTF8String? token;
+ readonly attribute boolean isAutoSelected;
+ readonly attribute UTF8String configURL;
 };
 
 enum IdentityCredentialRequestOptionsMode {
@@ -84,8 +86,10 @@ dictionary IdentityProviderAPIConfig {
 // https://w3c-fedid.github.io/FedCM/#dictdef-identityprovideraccount
 dictionary IdentityProviderAccount {
   required USVString id;
-  required USVString name;
-  required USVString email;
+  USVString name;
+  USVString email;
+  USVString tel;
+  USVString username;
   USVString given_name;
   USVString picture;
   sequence<USVString> approved_clients;

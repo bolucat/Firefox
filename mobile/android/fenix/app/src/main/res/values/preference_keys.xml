@@ -160,7 +160,7 @@
     <string name="pref_key_toolbar_bottom" translatable="false">pref_key_toolbar_bottom</string>
     <string name="pref_key_toolbar_tab_swipe_cfr">pref_key_should_show_tab_swipe_cfr</string>
     <string name="pref_key_toolbar_has_shown_tab_swipe_cfr">pref_key_has_shown_tab_swipe_cfr</string>
-    <string name="pref_key_toolbar_simple" translatable="false">pref_key_toolbar_simple</string>
+    <string name="pref_key_toolbar_expanded" translatable="false">pref_key_toolbar_expanded</string>
 
     <!-- App icon settings-->
     <string name="pref_key_app_icon">pref_key_app_icon</string>
@@ -254,6 +254,8 @@
     <string name="pref_key_addresses_manage_addresses" translatable="false">pref_key_addresses_manage_addresses</string>
     <!-- Key for the "Save and autofill addresses" preference in the "Autofill" fragment -->
     <string name="pref_key_addresses_save_and_autofill_addresses" translatable="false">pref_key_addresses_save_and_autofill_addresses</string>
+    <!-- Key for the "Sync addresses across devices" preference in the "Autofill" fragment -->
+    <string name="pref_key_addresses_sync_cards_across_devices" translatable="false">pref_key_addresses_sync_cards_across_devices</string>
 
     <!-- Privacy Settings -->
     <string name="pref_key_privacy_security_category" translatable="false">pref_key_privacy_security_category</string>
@@ -456,7 +458,6 @@
     <!-- Crash reporting -->
     <string name="pref_key_crash_reporting_cutoff_date" translatable="false">pref_key_crash_reporting_cutoff_date</string>
     <string name="pref_key_crash_reporting_deferred_until" translatable="false">pref_key_crash_reporting_deferred_until</string>
-    <string name="pref_key_crash_reporting_always_report" translatable="false">pref_key_crash_reporting_always_report</string>
     <string name="pref_key_use_new_crash_reporter" translatable="false">pref_key_use_new_crash_reporter</string>
 
     <!-- Bookmarks -->

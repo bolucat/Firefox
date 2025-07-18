@@ -9,11 +9,9 @@ prefs = [
   "layout.css.scroll-driven-animations.enabled=true",
   "layout.css.stretch-size-keyword.enabled=true",
   "layout.css.webkit-fill-available.enabled=true",
-  "layout.css.animation-composition.enabled=true",
   "layout.css.basic-shape-rect.enabled=true",
   "layout.css.basic-shape-shape.enabled=true",
   "layout.css.basic-shape-xywh.enabled=true",
-  "layout.css.transform-box-content-stroke.enabled=true",
   "layout.css.field-sizing.enabled=true",
   "layout.css.anchor-positioning.enabled=true",
 ]
@@ -572,8 +570,6 @@ skip-if = [
 ["test_non_matching_sheet_media.html"]
 
 ["test_of_type_selectors.xhtml"]
-
-["test_overscroll_behavior_pref.html"]
 
 ["test_page_parser.html"]
 

@@ -57,7 +57,6 @@ class BookmarksMiddlewareTest {
     private lateinit var navigateToSearch: () -> Unit
     private lateinit var shareBookmarks: (List<BookmarkItem.Bookmark>) -> Unit
     private lateinit var showTabsTray: (Boolean) -> Unit
-    private lateinit var showUrlCopiedSnackbar: () -> Unit
     private lateinit var getBrowsingMode: () -> BrowsingMode
     private lateinit var openTab: (String, Boolean) -> Unit
     private lateinit var lastSavedFolderCache: LastSavedFolderCache
@@ -89,7 +88,6 @@ class BookmarksMiddlewareTest {
         navigateToSearch = { }
         shareBookmarks = { }
         showTabsTray = { _ -> }
-        showUrlCopiedSnackbar = { }
         getBrowsingMode = { BrowsingMode.Normal }
         openTab = { _, _ -> }
         lastSavedFolderCache = mock()
@@ -853,18 +851,15 @@ class BookmarksMiddlewareTest {
     }
 
     @Test
-    fun `WHEN copy clicked in bookmark item menu THEN copy bookmark url to clipboard and snackboard is shown`() {
+    fun `WHEN copy clicked in bookmark item menu THEN copy bookmark url to clipboard`() {
         val url = "url"
         val bookmarkItem = BookmarkItem.Bookmark(url = url, title = "title", previewImageUrl = url, guid = "guid", position = null)
-        var snackShown = false
-        showUrlCopiedSnackbar = { snackShown = true }
         val middleware = buildMiddleware()
         val store = middleware.makeStore()
 
         store.dispatch(BookmarksListMenuAction.Bookmark.CopyClicked(bookmarkItem))
 
         verify(clipboardManager).setPrimaryClip(any())
-        assertTrue(snackShown)
     }
 
     @Test
@@ -1479,7 +1474,6 @@ class BookmarksMiddlewareTest {
         shareBookmarks = shareBookmarks,
         showTabsTray = showTabsTray,
         resolveFolderTitle = resolveFolderTitle,
-        showUrlCopiedSnackbar = showUrlCopiedSnackbar,
         getBrowsingMode = getBrowsingMode,
         openTab = openTab,
         ioDispatcher = coroutineRule.testDispatcher,

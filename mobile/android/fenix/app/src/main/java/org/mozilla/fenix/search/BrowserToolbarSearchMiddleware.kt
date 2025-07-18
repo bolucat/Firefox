@@ -14,7 +14,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.launch
-import mozilla.components.browser.state.action.AwesomeBarAction
+import mozilla.components.browser.state.action.AwesomeBarAction.EngagementFinished
 import mozilla.components.browser.state.search.SearchEngine
 import mozilla.components.browser.state.search.SearchEngine.Type.APPLICATION
 import mozilla.components.browser.state.state.selectedOrDefaultSearchEngine
@@ -23,6 +23,7 @@ import mozilla.components.compose.browser.toolbar.BrowserToolbar
 import mozilla.components.compose.browser.toolbar.concept.Action.SearchSelectorAction
 import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction.AutocompleteProvidersUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction.HintUpdated
+import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction.SearchAborted
 import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction.SearchActionsStartUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction.SearchQueryUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction.UrlSuggestionAutocompleted
@@ -47,8 +48,9 @@ import org.mozilla.fenix.R
 import org.mozilla.fenix.browser.BrowserFragmentDirections
 import org.mozilla.fenix.components.AppStore
 import org.mozilla.fenix.components.Components
-import org.mozilla.fenix.components.appstate.AppAction.SearchEngineSelected
-import org.mozilla.fenix.components.appstate.AppAction.UpdateSearchBeingActiveState
+import org.mozilla.fenix.components.appstate.AppAction.SearchAction.SearchEnded
+import org.mozilla.fenix.components.appstate.AppAction.SearchAction.SearchEngineSelected
+import org.mozilla.fenix.components.appstate.AppAction.SearchAction.SearchStarted
 import org.mozilla.fenix.components.search.BOOKMARKS_SEARCH_ENGINE_ID
 import org.mozilla.fenix.components.search.HISTORY_SEARCH_ENGINE_ID
 import org.mozilla.fenix.components.search.TABS_SEARCH_ENGINE_ID
@@ -127,8 +129,7 @@ class BrowserToolbarSearchMiddleware(
                 if (action.editMode) {
                     refreshConfigurationAfterSearchEngineChange(
                         store = context.store,
-                        searchEngine = appStore.state.selectedSearchEngine?.shortcutSearchEngine
-                            ?: browserStore.state.search.selectedOrDefaultSearchEngine,
+                        searchEngine = reconcileSelectedEngine(),
                     )
                     syncCurrentSearchEngine(context.store)
                     syncAvailableEngines(context.store)
@@ -138,25 +139,27 @@ class BrowserToolbarSearchMiddleware(
                 }
             }
 
+            is SearchAborted -> {
+                appStore.dispatch(SearchEnded)
+                browserStore.dispatch(EngagementFinished(abandoned = true))
+            }
+
             is SearchSelectorClicked -> {
                 UnifiedSearch.searchMenuTapped.record(NoExtras())
             }
 
             is SearchSettingsItemClicked -> {
-                context.store.dispatch(ToggleEditMode(false))
                 context.store.dispatch(SearchQueryUpdated(""))
-                appStore.dispatch(UpdateSearchBeingActiveState(false))
-                browserStore.dispatch(AwesomeBarAction.EngagementFinished(abandoned = true))
+                appStore.dispatch(SearchEnded)
+                browserStore.dispatch(EngagementFinished(abandoned = true))
                 environment?.navController?.navigate(
                     BrowserFragmentDirections.actionGlobalSearchEngineFragment(),
                 )
             }
 
             is SearchSelectorItemClicked -> {
-                if (!context.store.state.isEditMode()) {
-                    context.store.dispatch(ToggleEditMode(true))
-                }
                 appStore.dispatch(SearchEngineSelected(action.searchEngine, true))
+                appStore.dispatch(SearchStarted())
                 refreshConfigurationAfterSearchEngineChange(context.store, action.searchEngine)
             }
 
@@ -255,10 +258,10 @@ class BrowserToolbarSearchMiddleware(
     private fun syncCurrentSearchEngine(store: Store<BrowserToolbarState, BrowserToolbarAction>) {
         syncCurrentSearchEngineJob?.cancel()
         syncCurrentSearchEngineJob = appStore.observeWhileActive {
-            distinctUntilChangedBy { it.selectedSearchEngine?.shortcutSearchEngine }
+            distinctUntilChangedBy { it.searchState.selectedSearchEngine?.searchEngine }
                 .collect {
-                    it.selectedSearchEngine?.let {
-                        refreshConfigurationAfterSearchEngineChange(store, it.shortcutSearchEngine)
+                    it.searchState.selectedSearchEngine?.let {
+                        refreshConfigurationAfterSearchEngineChange(store, it.searchEngine)
                     }
                 }
         }
@@ -271,11 +274,15 @@ class BrowserToolbarSearchMiddleware(
                 .collect {
                     refreshConfigurationAfterSearchEngineChange(
                         store = store,
-                        searchEngine = it.search.selectedOrDefaultSearchEngine,
+                        searchEngine = reconcileSelectedEngine(),
                     )
                 }
         }
     }
+
+    private fun reconcileSelectedEngine(): SearchEngine? =
+        appStore.state.searchState.selectedSearchEngine?.searchEngine
+            ?: browserStore.state.search.selectedOrDefaultSearchEngine
 
     private inline fun <S : State, A : MVIAction> Store<S, A>.observeWhileActive(
         crossinline observe: suspend (Flow<S>.() -> Unit),

@@ -86,12 +86,14 @@ import org.mozilla.fenix.library.bookmarks.ui.BookmarksState
 import org.mozilla.fenix.library.bookmarks.ui.BookmarksStore
 import org.mozilla.fenix.library.bookmarks.ui.BookmarksSyncMiddleware
 import org.mozilla.fenix.library.bookmarks.ui.BookmarksTelemetryMiddleware
+import org.mozilla.fenix.library.bookmarks.ui.BrowserToolbarSyncToBookmarksMiddleware
 import org.mozilla.fenix.library.bookmarks.ui.LifecycleHolder
 import org.mozilla.fenix.library.bookmarks.ui.PrivateBrowsingLockMiddleware
 import org.mozilla.fenix.lifecycle.registerForVerification
 import org.mozilla.fenix.lifecycle.verifyUser
 import org.mozilla.fenix.search.BrowserStoreToFenixSearchMapperMiddleware
 import org.mozilla.fenix.search.BrowserToolbarSearchMiddleware
+import org.mozilla.fenix.search.BrowserToolbarSearchStatusSyncMiddleware
 import org.mozilla.fenix.search.BrowserToolbarToFenixSearchMapperMiddleware
 import org.mozilla.fenix.search.FenixSearchMiddleware
 import org.mozilla.fenix.search.SearchFragmentAction
@@ -166,6 +168,7 @@ class BookmarkFragment : LibraryPageFragment<BookmarkNode>(), UserInteractionHan
                                 ),
                                 BookmarksTelemetryMiddleware(),
                                 BookmarksSyncMiddleware(requireComponents.backgroundServices.syncStore, lifecycleScope),
+                                BrowserToolbarSyncToBookmarksMiddleware(toolbarStore, lifecycleScope),
                                 BookmarksMiddleware(
                                     bookmarksStorage = requireContext().bookmarkStorage,
                                     clipboardManager = requireActivity().getSystemService(),
@@ -205,9 +208,6 @@ class BookmarkFragment : LibraryPageFragment<BookmarkNode>(), UserInteractionHan
                                             node = it,
                                             rootTitles = composeRootTitles(lifecycleHolder.context),
                                         ) ?: ""
-                                    },
-                                    showUrlCopiedSnackbar = {
-                                        showSnackBarWithText(resources.getString(R.string.url_copied))
                                     },
                                     getBrowsingMode = {
                                         lifecycleHolder.homeActivity.browsingModeManager.mode
@@ -321,6 +321,7 @@ class BookmarkFragment : LibraryPageFragment<BookmarkNode>(), UserInteractionHan
             BrowserToolbarStore(
                 initialState = BrowserToolbarState(mode = Mode.EDIT),
                 middleware = listOf(
+                    BrowserToolbarSearchStatusSyncMiddleware(requireComponents.appStore),
                     BrowserToolbarSearchMiddleware(
                         appStore = requireComponents.appStore,
                         browserStore = requireComponents.core.store,

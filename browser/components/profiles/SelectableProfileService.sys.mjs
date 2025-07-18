@@ -21,6 +21,7 @@ const PROFILES_CREATED_PREF_NAME = "browser.profiles.created";
 ChromeUtils.defineESModuleGetters(lazy, {
   ClientID: "resource://gre/modules/ClientID.sys.mjs",
   CryptoUtils: "resource://services-crypto/utils.sys.mjs",
+  DownloadPaths: "resource://gre/modules/DownloadPaths.sys.mjs",
   EveryWindow: "resource:///modules/EveryWindow.sys.mjs",
   ExperimentAPI: "resource://nimbus/ExperimentAPI.sys.mjs",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
@@ -30,7 +31,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
 });
 
 ChromeUtils.defineLazyGetter(lazy, "profilesLocalization", () => {
-  return new Localization(["browser/profiles.ftl"], true);
+  return new Localization(["browser/profiles.ftl"]);
 });
 
 XPCOMUtils.defineLazyPreferenceGetter(
@@ -55,60 +56,48 @@ const COMMAND_LINE_ACTIVATE = "profiles-activate";
 
 const gSupportsBadging = "nsIMacDockSupport" in Ci || "nsIWinTaskbar" in Ci;
 
-function loadBuiltInAvatarImage(uri, channel) {
-  return new Promise((resolve, reject) => {
-    let imageTools = Cc["@mozilla.org/image/tools;1"].getService(Ci.imgITools);
-    let imageContainer;
-    let observer = imageTools.createScriptedObserver({
-      sizeAvailable() {
-        resolve(imageContainer);
-        imageContainer = null;
-      },
-    });
+class ChannelListener {
+  #request = null;
+  #imageListener = null;
+  #rejector = null;
 
-    imageTools.decodeImageFromChannelAsync(
-      uri,
-      channel,
-      (image, status) => {
-        if (!Components.isSuccessCode(status)) {
-          reject(new Components.Exception("Image loading failed", status));
-        } else {
-          imageContainer = image;
-        }
-      },
-      observer
-    );
-  });
-}
+  constructor(rejector) {
+    this.#rejector = rejector;
+  }
 
-async function getCustomAvatarImageType(blob, channel) {
-  let octets = await new Promise((resolve, reject) => {
-    let reader = new FileReader();
-    reader.addEventListener("load", () => {
-      resolve(Array.from(reader.result).map(c => c.charCodeAt(0)));
-    });
-    reader.addEventListener("error", reject);
-    reader.readAsBinaryString(blob);
-  });
+  setImageListener(imageListener) {
+    this.#imageListener = imageListener;
+    if (this.#request) {
+      this.#imageListener.onStartRequest(this.#request);
+    }
+  }
 
-  let sniffer = Cc["@mozilla.org/image/loader;1"].createInstance(
-    Ci.nsIContentSniffer
-  );
-  let type = sniffer.getMIMETypeFromContent(channel, octets, octets.length);
+  onStartRequest(request) {
+    this.#request = request;
+    if (this.#imageListener) {
+      this.#imageListener.onStartRequest(request);
+    }
+  }
 
-  return type;
-}
+  onStopRequest(request, status) {
+    if (this.#imageListener) {
+      this.#imageListener.onStopRequest(request, status);
+    }
 
-async function loadCustomAvatarImage(profile, channel) {
-  let blob = await profile.getAvatarFile();
+    if (!Components.isSuccessCode(status)) {
+      this.#rejector(new Components.Exception("Image loading failed", status));
+    }
 
-  const imageTools = Cc["@mozilla.org/image/tools;1"].getService(Ci.imgITools);
-  let type = await getCustomAvatarImageType(blob, channel);
+    this.#imageListener = null;
+    this.#rejector = null;
+    this.#request = null;
+  }
 
-  let buffer = await blob.arrayBuffer();
-  const image = imageTools.decodeImageFromArrayBuffer(buffer, type);
-
-  return image;
+  onDataAvailable(request, inputStream, offset, count) {
+    if (this.#imageListener) {
+      this.#imageListener.onDataAvailable(request, inputStream, offset, count);
+    }
+  }
 }
 
 async function loadImage(profile) {
@@ -130,11 +119,37 @@ async function loadImage(profile) {
     Ci.nsIContentPolicy.TYPE_IMAGE
   );
 
-  if (profile.hasCustomAvatar) {
-    return loadCustomAvatarImage(profile, channel);
-  }
+  return new Promise((resolve, reject) => {
+    let imageTools = Cc["@mozilla.org/image/tools;1"].getService(Ci.imgITools);
 
-  return loadBuiltInAvatarImage(uri, channel);
+    // Despite the docs it is fine to pass null here, we then just get a global loader.
+    let imageLoader = imageTools.getImgLoaderForDocument(null);
+    let observer = imageTools.createScriptedObserver({
+      decodeComplete() {
+        request.cancel(Cr.NS_BINDING_ABORTED);
+        resolve(request.image);
+      },
+    });
+
+    let channelListener = new ChannelListener(reject);
+    channel.asyncOpen(channelListener);
+
+    let streamListener = {};
+    let request = imageLoader.loadImageWithChannelXPCOM(
+      channel,
+      observer,
+      null,
+      streamListener
+    );
+    // Force image decoding to start when the container is available.
+    request.startDecoding(Ci.imgIContainer.FLAG_ASYNC_NOTIFY);
+
+    // If the request is coming from the cache then there will be no listener
+    // and the channel will have been automatically cancelled.
+    if (streamListener.value) {
+      channelListener.setImageListener(streamListener.value);
+    }
+  });
 }
 
 /**
@@ -978,7 +993,13 @@ class SelectableProfileServiceClass extends EventEmitter {
     // directory name. So we match only word characters for the directory name.
     const safeSalt = salt.match(/\w/g).join("").slice(0, 8);
 
-    const profileDir = `${safeSalt}.${aProfileName}`;
+    const profileDir = lazy.DownloadPaths.sanitize(
+      `${safeSalt}.${aProfileName}`,
+      {
+        compressWhitespaces: false,
+        allowDirectoryNames: true,
+      }
+    );
 
     // Handle errors in bug 1909919
     await Promise.all([
@@ -1104,7 +1125,7 @@ class SelectableProfileServiceClass extends EventEmitter {
       ...(await this.getAllProfiles()).map(p => p.id)
     );
     let [defaultName, originalName] =
-      lazy.profilesLocalization.formatMessagesSync([
+      await lazy.profilesLocalization.formatMessages([
         { id: "default-profile-name", args: { number: nextProfileNumber } },
         { id: "original-profile-name" },
       ]);

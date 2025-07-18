@@ -284,7 +284,7 @@ def getArtifactSuffix() {
     return suffix
 }
 
-class MachExec extends Exec {
+abstract class MachExec extends Exec {
     def MachExec() {
         // Bug 1543982: When invoking `mach build` recursively, the outer `mach
         // build` itself modifies the environment, causing configure to run
@@ -502,6 +502,7 @@ subprojects { project ->
                         'ktlint_standard_argument-list-wrapping'     : 'disabled',
                         'ktlint_standard_class-signature'            : 'disabled',
                         'ktlint_standard_enum-wrapping'              : 'disabled',
+                        'ktlint_standard_expression-operand-wrapping': 'disabled',
                         'ktlint_standard_function-expression-body'   : 'disabled',
                         'ktlint_standard_function-signature'         : 'disabled',
                         'ktlint_standard_max-line-length'            : 'disabled',

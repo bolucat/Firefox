@@ -58,6 +58,8 @@ import org.mozilla.fenix.browser.browsingmode.BrowsingMode.Normal
 import org.mozilla.fenix.browser.browsingmode.BrowsingMode.Private
 import org.mozilla.fenix.components.AppStore
 import org.mozilla.fenix.components.UseCases
+import org.mozilla.fenix.components.appstate.AppAction.SearchAction.SearchStarted
+import org.mozilla.fenix.components.appstate.OrientationMode
 import org.mozilla.fenix.components.menu.MenuAccessPoint
 import org.mozilla.fenix.ext.nav
 import org.mozilla.fenix.ext.settings
@@ -74,7 +76,6 @@ import org.mozilla.fenix.search.ext.searchEngineShortcuts
 import org.mozilla.fenix.tabstray.DefaultTabManagementFeatureHelper
 import org.mozilla.fenix.tabstray.Page
 import org.mozilla.fenix.tabstray.TabManagementFeatureHelper
-import org.mozilla.fenix.utils.Settings
 import mozilla.components.lib.state.Action as MVIAction
 import mozilla.components.ui.icons.R as iconsR
 
@@ -103,7 +104,6 @@ internal sealed class PageOriginInteractions : BrowserToolbarEvent {
  * @param browserStore [BrowserStore] to sync from.
  * @param clipboard [ClipboardHandler] to use for reading from device's clipboard.
  * @param useCases [UseCases] helping this integrate with other features of the applications.
- * @param settings [Settings] for accessing user preferences.
  * @param tabManagementFeatureHelper Feature flag helper for the tab management UI.
  */
 class BrowserToolbarMiddleware(
@@ -111,7 +111,6 @@ class BrowserToolbarMiddleware(
     private val browserStore: BrowserStore,
     private val clipboard: ClipboardHandler,
     private val useCases: UseCases,
-    private val settings: Settings,
     private val tabManagementFeatureHelper: TabManagementFeatureHelper = DefaultTabManagementFeatureHelper,
 ) : Middleware<BrowserToolbarState, BrowserToolbarAction> {
     @VisibleForTesting
@@ -210,7 +209,7 @@ class BrowserToolbarMiddleware(
             }
 
             is OriginClicked -> {
-                context.store.dispatch(ToggleEditMode(true))
+                appStore.dispatch(SearchStarted())
             }
             is PasteFromClipboardClicked -> {
                 openNewTab(searchTerms = clipboard.text)
@@ -254,10 +253,10 @@ class BrowserToolbarMiddleware(
     private fun observeSearchStateUpdates(store: Store<BrowserToolbarState, BrowserToolbarAction>) {
         syncCurrentSearchEngineJob?.cancel()
         syncCurrentSearchEngineJob = appStore.observeWhileActive {
-            distinctUntilChangedBy { it.selectedSearchEngine?.shortcutSearchEngine }
+            distinctUntilChangedBy { it.searchState.selectedSearchEngine?.searchEngine }
                 .collect {
-                    it.selectedSearchEngine?.let {
-                        updateStartPageActions(store, it.shortcutSearchEngine)
+                    it.searchState.selectedSearchEngine?.let {
+                        updateStartPageActions(store, it.searchEngine)
                     }
                 }
         }
@@ -266,7 +265,11 @@ class BrowserToolbarMiddleware(
         observeBrowserSearchStateJob = browserStore.observeWhileActive {
             distinctUntilChangedBy { it.search.searchEngineShortcuts }
                 .collect {
-                    updateStartPageActions(store, it.search.selectedOrDefaultSearchEngine)
+                    updateStartPageActions(
+                        store = store,
+                        selectedSearchEngine = appStore.state.searchState.selectedSearchEngine?.searchEngine
+                            ?: it.search.selectedOrDefaultSearchEngine,
+                    )
                 }
         }
     }
@@ -320,15 +323,14 @@ class BrowserToolbarMiddleware(
 
     private fun buildEndBrowserActions(): List<Action> {
         val environment = environment ?: return emptyList()
+        val isExpandedAndPortrait = environment.context.settings().shouldUseExpandedToolbar &&
+                appStore.state.orientation == OrientationMode.Portrait
 
         return listOf(
             HomeToolbarActionConfig(HomeToolbarAction.TabCounter) {
-                !settings.isTabStripEnabled &&
-                        environment.context.settings().shouldUseSimpleToolbar
+                !environment.context.settings().isTabStripEnabled && !isExpandedAndPortrait
             },
-            HomeToolbarActionConfig(HomeToolbarAction.Menu) {
-                environment.context.settings().shouldUseSimpleToolbar
-            },
+            HomeToolbarActionConfig(HomeToolbarAction.Menu) { !isExpandedAndPortrait },
         ).filter { config ->
             config.isVisible()
         }.map { config ->
@@ -344,18 +346,23 @@ class BrowserToolbarMiddleware(
         )
     }
 
-    private fun buildNavigationActions(): List<Action> =
-        listOf(
-            HomeToolbarActionConfig(HomeToolbarAction.FakeBookmark),
-            HomeToolbarActionConfig(HomeToolbarAction.FakeShare),
-            HomeToolbarActionConfig(HomeToolbarAction.NewTab),
-            HomeToolbarActionConfig(HomeToolbarAction.TabCounter),
-            HomeToolbarActionConfig(HomeToolbarAction.Menu),
+    private fun buildNavigationActions(): List<Action> {
+        val environment = environment ?: return emptyList()
+        val isExpandedAndPortrait = environment.context.settings().shouldUseExpandedToolbar &&
+                appStore.state.orientation == OrientationMode.Portrait
+
+        return listOf(
+            HomeToolbarActionConfig(HomeToolbarAction.FakeBookmark) { isExpandedAndPortrait },
+            HomeToolbarActionConfig(HomeToolbarAction.FakeShare) { isExpandedAndPortrait },
+            HomeToolbarActionConfig(HomeToolbarAction.NewTab) { isExpandedAndPortrait },
+            HomeToolbarActionConfig(HomeToolbarAction.TabCounter) { isExpandedAndPortrait },
+            HomeToolbarActionConfig(HomeToolbarAction.Menu) { isExpandedAndPortrait },
         ).filter { config ->
             config.isVisible()
         }.map { config ->
             buildHomeAction(config.action)
         }
+    }
 
     private fun buildTabCounterMenu(): CombinedEventAndMenu? {
         val environment = environment ?: return null

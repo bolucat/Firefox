@@ -32,8 +32,7 @@ import org.mozilla.fenix.settings.SupportUtils
  * @param openTab Invoked when opening a tab when a login url is clicked.
  * @param ioDispatcher Coroutine dispatcher for IO operations.
  * @param clipboardManager For copying logins URLs.
- * @param showUsernameCopiedSnackbar Invoked when a login username is copied.
- * @param showPasswordCopiedSnackbar Invoked when a login password is copied.
+ * @param refreshLoginsList Invoked to refresh the logins list.
  */
 @Suppress("LongParameterList")
 internal class LoginsMiddleware(
@@ -44,8 +43,7 @@ internal class LoginsMiddleware(
     private val openTab: (url: String, openInNewTab: Boolean) -> Unit,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val clipboardManager: ClipboardManager?,
-    private val showUsernameCopiedSnackbar: () -> Unit,
-    private val showPasswordCopiedSnackbar: () -> Unit,
+    private val refreshLoginsList: Store<LoginsState, LoginsAction>.() -> Unit = { dispatch(Init) },
 ) : Middleware<LoginsState, LoginsAction> {
 
     private val scope = CoroutineScope(ioDispatcher)
@@ -77,6 +75,8 @@ internal class LoginsMiddleware(
             is DetailLoginMenuAction.DeleteLoginMenuItemClicked -> {
                 scope.launch {
                     loginsStorage.delete(action.item.guid)
+
+                    context.store.refreshLoginsList()
 
                     withContext(Dispatchers.Main) {
                         getNavController().navigate(LoginsDestinations.LIST)
@@ -160,10 +160,6 @@ internal class LoginsMiddleware(
             }
         }
         clipboardManager?.setPrimaryClip(usernameClipData)
-
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            showUsernameCopiedSnackbar()
-        }
     }
 
     private fun handlePasswordClicked(password: String) {
@@ -177,10 +173,6 @@ internal class LoginsMiddleware(
             }
         }
         clipboardManager?.setPrimaryClip(passwordClipData)
-
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            showPasswordCopiedSnackbar()
-        }
     }
 
     private fun Store<LoginsState, LoginsAction>.handleAddLogin() =
@@ -212,9 +204,7 @@ internal class LoginsMiddleware(
         }
 
     private fun Store<LoginsState, LoginsAction>.handleLoginsDetailsBackPressed() = scope.launch {
-        dispatch(
-            Init,
-        )
+        refreshLoginsList()
 
         withContext(Dispatchers.Main) {
             getNavController().navigate(LoginsDestinations.LIST)

@@ -3147,21 +3147,6 @@
       }
     ]
   },
-  "1924441": {
-    "label": "contractorinduction.colesgroup.com.au",
-    "bugs": {
-      "1924441": {
-        "issue": "firefox-blocked-completely",
-        "matches": ["*://contractorinduction.colesgroup.com.au/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "ua_string": ["add_Chrome"]
-      }
-    ]
-  },
   "1925508": {
     "label": "developer.apple.com",
     "bugs": {
@@ -3943,27 +3928,6 @@
       }
     ]
   },
-  "1954533": {
-    "label": "copaair.com",
-    "bugs": {
-      "1954533": {
-        "issue": "page-fails-to-load",
-        "matches": ["*://*.copaair.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "min_version": 141,
-        "alter_request_headers": [
-          {
-            "headers": ["TE"],
-            "replacement": "moz_no_te_trailers"
-          }
-        ]
-      }
-    ]
-  },
   "1955932": {
     "label": "coopvoce.it",
     "bugs": {
@@ -3978,21 +3942,6 @@
         "content_scripts": {
           "css": ["bug1955932-coopvoce.it-fix-broken-radiobuttons.css"]
         }
-      }
-    ]
-  },
-  "1956045": {
-    "label": "m.daum.net",
-    "bugs": {
-      "1956045": {
-        "issue": "user-interface-frustration",
-        "matches": ["*://m.daum.net/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["android"],
-        "ua_string": ["add_Chrome"]
       }
     ]
   },
@@ -4185,21 +4134,6 @@
         "content_scripts": {
           "js": ["bug1963270-app.kosmi.io-unprefix-mozCaptureStream.js"]
         }
-      }
-    ]
-  },
-  "1964015": {
-    "label": "kickasstorrents.cr",
-    "bugs": {
-      "1964015": {
-        "issue": "firefox-blocked-completely",
-        "matches": ["*://kickasstorrents.cr/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "ua_string": ["Chrome", "add_Firefox_as_Gecko"]
       }
     ]
   },
@@ -4474,6 +4408,62 @@
       {
         "platforms": ["desktop"],
         "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
+  "1975651": {
+    "label": "comic.k-manga.jp",
+    "bugs": {
+      "1975651": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://comic.k-manga.jp/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "content_scripts": {
+          "js": [
+            "lib/ua_helpers.js",
+            "bug1975651-comic.k-manga.jp-ua-override.js"
+          ]
+        }
+      }
+    ]
+  },
+  "1975951": {
+    "label": "www.dell.com",
+    "bugs": {
+      "1975951": {
+        "issue": "broken-images",
+        "matches": ["*://www.dell.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "not_platforms": ["mac"],
+        "content_scripts": {
+          "css": ["bug1975951-www.dell.com-reveal-product-images.css"]
+        }
+      }
+    ]
+  },
+  "1975953": {
+    "label": "envios.mercadolibre.com.ar",
+    "bugs": {
+      "1975953": {
+        "issue": "broken-layout",
+        "matches": [
+          "*://envios.mercadolibre.com.ar/shipping/agencies-map/pick-up*"
+        ]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "content_scripts": {
+          "css": ["bug1975953-envios.mercadolibre.com.ar-reveal-content.css"]
+        }
       }
     ]
   },

@@ -91,9 +91,10 @@ import org.mozilla.fenix.components.NimbusComponents
 import org.mozilla.fenix.components.UseCases
 import org.mozilla.fenix.components.appstate.AppAction.BookmarkAction
 import org.mozilla.fenix.components.appstate.AppAction.CurrentTabClosed
+import org.mozilla.fenix.components.appstate.AppAction.SearchAction.SearchEnded
 import org.mozilla.fenix.components.appstate.AppAction.SnackbarAction.SnackbarDismissed
 import org.mozilla.fenix.components.appstate.AppAction.URLCopiedToClipboard
-import org.mozilla.fenix.components.appstate.AppAction.UpdateSearchBeingActiveState
+import org.mozilla.fenix.components.appstate.OrientationMode
 import org.mozilla.fenix.components.appstate.snackbar.SnackbarState
 import org.mozilla.fenix.components.menu.MenuAccessPoint
 import org.mozilla.fenix.components.metrics.MetricsUtils
@@ -222,7 +223,7 @@ class BrowserToolbarMiddleware(
             is Init -> {
                 next(action)
 
-                appStore.dispatch(UpdateSearchBeingActiveState(context.store.state.isEditMode()))
+                appStore.dispatch(SearchEnded)
 
                 updateStartPageActions(context.store)
             }
@@ -665,11 +666,13 @@ class BrowserToolbarMiddleware(
 
     private fun buildStartBrowserActions(): List<Action> {
         val environment = environment ?: return emptyList()
+        val isLargeWindowOrLandscape = environment.context.isLargeWindow() ||
+                appStore.state.orientation == OrientationMode.Landscape
 
         return listOf(
-            ToolbarActionConfig(ToolbarAction.Back) { environment.context.isLargeWindow() },
-            ToolbarActionConfig(ToolbarAction.Forward) { environment.context.isLargeWindow() },
-            ToolbarActionConfig(ToolbarAction.RefreshOrStop) { environment.context.isLargeWindow() },
+            ToolbarActionConfig(ToolbarAction.Back) { isLargeWindowOrLandscape },
+            ToolbarActionConfig(ToolbarAction.Forward) { isLargeWindowOrLandscape },
+            ToolbarActionConfig(ToolbarAction.RefreshOrStop) { isLargeWindowOrLandscape },
         ).filter { config ->
             config.isVisible()
         }.map { config ->
@@ -683,7 +686,8 @@ class BrowserToolbarMiddleware(
                 browserScreenStore.state.readerModeStatus.isAvailable
             },
             ToolbarActionConfig(ToolbarAction.Translate) {
-                browserScreenStore.state.pageTranslationStatus.isTranslationPossible
+                browserScreenStore.state.pageTranslationStatus.isTranslationPossible &&
+                        settings.shouldUseExpandedToolbar
             },
         ).filter { config ->
             config.isVisible()
@@ -693,16 +697,17 @@ class BrowserToolbarMiddleware(
     }
 
     private fun buildEndBrowserActions(): List<Action> {
-        val environment = environment ?: return emptyList()
+        val isExpandedAndPortrait = settings.shouldUseExpandedToolbar &&
+                appStore.state.orientation == OrientationMode.Portrait
 
         return listOf(
             ToolbarActionConfig(ToolbarAction.NewTab) {
-                !settings.isTabStripEnabled && settings.shouldUseSimpleToolbar
+                !settings.isTabStripEnabled && !isExpandedAndPortrait
             },
             ToolbarActionConfig(ToolbarAction.TabCounter) {
-                !settings.isTabStripEnabled && settings.shouldUseSimpleToolbar
+                !settings.isTabStripEnabled && !isExpandedAndPortrait
             },
-            ToolbarActionConfig(ToolbarAction.Menu) { settings.shouldUseSimpleToolbar },
+            ToolbarActionConfig(ToolbarAction.Menu) { !isExpandedAndPortrait },
         ).filter { config ->
             config.isVisible()
         }.map { config ->
@@ -711,13 +716,20 @@ class BrowserToolbarMiddleware(
     }
 
     private fun buildNavigationActions(isBookmarked: Boolean): List<Action> {
+        val isExpandedAndPortrait = settings.shouldUseExpandedToolbar &&
+                    appStore.state.orientation == OrientationMode.Portrait
+
         return listOf(
-            ToolbarActionConfig(ToolbarAction.Bookmark) { !settings.shouldUseSimpleToolbar && !isBookmarked },
-            ToolbarActionConfig(ToolbarAction.EditBookmark) { !settings.shouldUseSimpleToolbar && isBookmarked },
-            ToolbarActionConfig(ToolbarAction.Share) { !settings.shouldUseSimpleToolbar },
-            ToolbarActionConfig(ToolbarAction.NewTab) { !settings.shouldUseSimpleToolbar },
-            ToolbarActionConfig(ToolbarAction.TabCounter) { !settings.shouldUseSimpleToolbar },
-            ToolbarActionConfig(ToolbarAction.Menu) { !settings.shouldUseSimpleToolbar },
+            ToolbarActionConfig(ToolbarAction.Bookmark) {
+                isExpandedAndPortrait && !isBookmarked
+            },
+            ToolbarActionConfig(ToolbarAction.EditBookmark) {
+                isExpandedAndPortrait && isBookmarked
+            },
+            ToolbarActionConfig(ToolbarAction.Share) { isExpandedAndPortrait },
+            ToolbarActionConfig(ToolbarAction.NewTab) { isExpandedAndPortrait },
+            ToolbarActionConfig(ToolbarAction.TabCounter) { isExpandedAndPortrait },
+            ToolbarActionConfig(ToolbarAction.Menu) { isExpandedAndPortrait },
         ).filter { config ->
             config.isVisible()
         }.map { config ->
@@ -799,6 +811,7 @@ class BrowserToolbarMiddleware(
         appStore.observeWhileActive {
             distinctUntilChangedBy { it.orientation }
             .collect {
+                updateStartBrowserActions(store)
                 updateEndBrowserActions(store)
                 updateNavigationActions(store)
             }

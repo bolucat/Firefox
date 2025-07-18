@@ -39,6 +39,12 @@ export default class IPProtectionContentElement extends MozLitElement {
     super.disconnectedCallback();
   }
 
+  handleClickSupportLink() {
+    this.dispatchEvent(
+      new CustomEvent("IPProtection:Close", { bubbles: true })
+    );
+  }
+
   handleToggleConnect(event) {
     let isEnabled = event.target.pressed;
 
@@ -62,6 +68,9 @@ export default class IPProtectionContentElement extends MozLitElement {
     const statusCardL10nId = this.state.isProtectionEnabled
       ? "ipprotection-connection-status-on"
       : "ipprotection-connection-status-off";
+    const toggleL10nId = this.state.isProtectionEnabled
+      ? "ipprotection-toggle-active"
+      : "ipprotection-toggle-inactive";
 
     // TODO: update timer and its starting value according to the protectionEnabledSince property (Bug 1972460)
     const timeConnected = DEFAULT_TIME_CONNECTED;
@@ -77,9 +86,9 @@ export default class IPProtectionContentElement extends MozLitElement {
             >
           </div>
           <div>
-            <!--TODO: add an aria label to the toggle (Bug 1976721)-->
             <moz-toggle
               id="connection-toggle"
+              data-l10n-id=${toggleL10nId}
               @click=${this.handleToggleConnect}
               ?pressed=${this.state.isProtectionEnabled}
             ></moz-toggle>
@@ -98,7 +107,11 @@ export default class IPProtectionContentElement extends MozLitElement {
       ${this.statusCardTemplate()}
       <div id="upgrade-vpn-content">
         <h2 id="upgrade-vpn-title" data-l10n-id="upgrade-vpn-title"></h2>
-        <p id="upgrade-vpn-paragraph" data-l10n-id="upgrade-vpn-paragraph">
+        <p
+          id="upgrade-vpn-paragraph"
+          data-l10n-id="upgrade-vpn-paragraph"
+          @click=${this.handleClickSupportLink}
+        >
           <a
             is="moz-support-link"
             data-l10n-name="learn-more-vpn"

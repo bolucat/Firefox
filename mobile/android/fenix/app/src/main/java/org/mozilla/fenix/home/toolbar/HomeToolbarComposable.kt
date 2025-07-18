@@ -6,6 +6,7 @@ package org.mozilla.fenix.home.toolbar
 
 import android.content.Context
 import android.view.Gravity
+import android.view.ViewGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
@@ -29,7 +30,6 @@ import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.compose.base.Divider
 import mozilla.components.compose.browser.toolbar.BrowserToolbar
 import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction.SearchQueryUpdated
-import mozilla.components.compose.browser.toolbar.store.BrowserToolbarAction.ToggleEditMode
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarState
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarStore
 import mozilla.components.compose.browser.toolbar.store.EnvironmentCleared
@@ -39,6 +39,8 @@ import org.mozilla.fenix.R
 import org.mozilla.fenix.browser.browsingmode.BrowsingModeManager
 import org.mozilla.fenix.components.AppStore
 import org.mozilla.fenix.components.StoreProvider
+import org.mozilla.fenix.components.appstate.AppAction.SearchAction.SearchStarted
+import org.mozilla.fenix.components.metrics.MetricsUtils
 import org.mozilla.fenix.components.toolbar.ToolbarPosition.BOTTOM
 import org.mozilla.fenix.components.toolbar.ToolbarPosition.TOP
 import org.mozilla.fenix.databinding.FragmentHomeBinding
@@ -126,6 +128,7 @@ internal class HomeToolbarComposable(
             ImeInsetsSynchronizer.setup(layout)
         }
 
+        updateHomeAppBarIntegration()
         configureStartingInSearchMode()
     }
 
@@ -167,9 +170,26 @@ internal class HomeToolbarComposable(
         }
     }
 
+    private fun updateHomeAppBarIntegration() {
+        if (!settings.shouldUseBottomToolbar) {
+            homeBinding.homeAppBar.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                topMargin = context.resources.getDimensionPixelSize(R.dimen.home_fragment_top_toolbar_header_margin) +
+                    when (settings.isTabStripEnabled) {
+                        true -> context.resources.getDimensionPixelSize(R.dimen.tab_strip_height)
+                        false -> 0
+                    }
+            }
+        }
+    }
+
     private fun configureStartingInSearchMode() {
         if (!directToSearchConfig.startSearch) return
-        store.dispatch(ToggleEditMode(true))
+        appStore.dispatch(
+            SearchStarted(
+                tabId = directToSearchConfig.sessionId,
+                source = directToSearchConfig.source,
+            ),
+        )
 
         if (directToSearchConfig.sessionId != null) {
             browserStore.state.findTab(directToSearchConfig.sessionId)?.let {
@@ -193,7 +213,6 @@ internal class HomeToolbarComposable(
                     browserStore = browserStore,
                     clipboard = context.components.clipboardHandler,
                     useCases = context.components.useCases,
-                    settings = settings,
                 ),
                 BrowserToolbarSearchMiddleware(
                     appStore = appStore,
@@ -234,10 +253,12 @@ internal class HomeToolbarComposable(
          * @property startSearch Whether to start in search mode. Defaults to `false`.
          * @property sessionId The session ID of the current session with details of which to start search.
          * Defaults to `null`.
+         * @property source The application feature from where a new search was started.
          */
         data class DirectToSearchConfig(
             val startSearch: Boolean = false,
             val sessionId: String? = null,
+            val source: MetricsUtils.Source = MetricsUtils.Source.NONE,
         )
     }
 }

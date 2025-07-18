@@ -37,6 +37,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.toColorInt
@@ -82,6 +83,7 @@ import mozilla.components.lib.state.ext.consumeFrom
 import mozilla.components.lib.state.ext.flowScoped
 import mozilla.components.lib.state.ext.observeAsComposableState
 import mozilla.components.support.base.feature.UserInteractionHandler
+import mozilla.components.support.ktx.android.view.hideKeyboard
 import mozilla.components.support.ktx.kotlin.toShortUrl
 import mozilla.components.ui.widgets.withCenterAlignedButtons
 import mozilla.telemetry.glean.private.NoExtras
@@ -116,6 +118,7 @@ import org.mozilla.fenix.lifecycle.registerForVerification
 import org.mozilla.fenix.lifecycle.verifyUser
 import org.mozilla.fenix.search.BrowserStoreToFenixSearchMapperMiddleware
 import org.mozilla.fenix.search.BrowserToolbarSearchMiddleware
+import org.mozilla.fenix.search.BrowserToolbarSearchStatusSyncMiddleware
 import org.mozilla.fenix.search.BrowserToolbarToFenixSearchMapperMiddleware
 import org.mozilla.fenix.search.FenixSearchMiddleware
 import org.mozilla.fenix.search.SearchFragmentAction
@@ -422,6 +425,7 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
                             }
                         }
 
+                        val view = LocalView.current
                         val focusManager = LocalFocusManager.current
                         val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -431,6 +435,7 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
                                 binding.historyLayout.updateLayoutParams {
                                     (this as? ViewGroup.MarginLayoutParams)?.topMargin = 0
                                 }
+                                requireComponents.appStore.dispatch(AppAction.SearchAction.SearchEnded)
                                 searchLayout?.isVisible = false
                             }
                         }
@@ -445,8 +450,8 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
                                         detectTapGestures(
                                             // Hide the keyboard for any touches in the empty area of the awesomebar
                                             onPress = {
-                                                keyboardController?.hide()
                                                 focusManager.clearFocus()
+                                                keyboardController?.hide()
                                                 if (searchState.query.isEmpty()) {
                                                     historyStore.dispatch(SearchDismissed)
                                                 }
@@ -472,7 +477,7 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
                                         searchStore.dispatch(SuggestionSelected(suggestion))
                                     },
                                     onVisibilityStateUpdated = {},
-                                    onScroll = { keyboardController?.hide() },
+                                    onScroll = { view.hideKeyboard() },
                                     profiler = requireComponents.core.engine.profiler,
                                 )
                             }
@@ -493,9 +498,9 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
             it.id == HISTORY_SEARCH_ENGINE_ID
         }
         historySearchEngine?.let {
-            appStore.dispatch(AppAction.SearchEngineSelected(it, false))
+            appStore.dispatch(AppAction.SearchAction.SearchEngineSelected(it, false))
         }
-        appStore.dispatch(AppAction.UpdateSearchBeingActiveState(true))
+        appStore.dispatch(AppAction.SearchAction.SearchStarted())
     }
 
     private fun handleOpenHistoryInPrivateTabsMultiSelectMenuItem() {
@@ -727,6 +732,8 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
         BrowserToolbarStore(
             initialState = BrowserToolbarState(mode = Mode.EDIT),
             middleware = listOf(
+                BrowserToolbarSyncToHistoryMiddleware(historyStore),
+                BrowserToolbarSearchStatusSyncMiddleware(requireComponents.appStore),
                 BrowserToolbarSearchMiddleware(
                     appStore = requireComponents.appStore,
                     browserStore = requireComponents.core.store,

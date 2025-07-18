@@ -4446,6 +4446,15 @@ main section {
     inset-block-start: 0;
   }
 }
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
 .ds-onboarding-container,
 .ds-card-grid .ds-card {
   background: var(--newtab-background-color-secondary);
@@ -4836,11 +4845,6 @@ main section {
     display: inline-block;
   }
 }
-@media (min-width: 866px) {
-  .has-sections-grid .ds-outer-wrapper-breakpoint-override .ds-layout-topsites .hide-for-narrow {
-    display: inline-block;
-  }
-}
 
 .has-sections-grid .ds-outer-wrapper-breakpoint-override main {
   width: auto;
@@ -4994,6 +4998,36 @@ main section {
   }
   .ds-section-grid.ds-card-grid .col-1-position-6 {
     order: 6;
+  }
+  .ds-section-grid.ds-card-grid .col-1-position-7 {
+    order: 7;
+  }
+  .ds-section-grid.ds-card-grid .col-1-position-8 {
+    order: 8;
+  }
+  .ds-section-grid.ds-card-grid .col-1-position-9 {
+    order: 9;
+  }
+  .ds-section-grid.ds-card-grid .col-1-position-10 {
+    order: 10;
+  }
+  .ds-section-grid.ds-card-grid .col-1-position-11 {
+    order: 11;
+  }
+  .ds-section-grid.ds-card-grid .col-1-position-12 {
+    order: 12;
+  }
+  .ds-section-grid.ds-card-grid .col-1-position-13 {
+    order: 13;
+  }
+  .ds-section-grid.ds-card-grid .col-1-position-14 {
+    order: 14;
+  }
+  .ds-section-grid.ds-card-grid .col-1-position-15 {
+    order: 15;
+  }
+  .ds-section-grid.ds-card-grid .col-1-position-16 {
+    order: 16;
   }
   .ds-section-grid.ds-card-grid .col-1-small {
     grid-row: span 1;
@@ -5329,6 +5363,36 @@ main section {
   }
   .ds-section-grid.ds-card-grid .col-2-position-6 {
     order: 6;
+  }
+  .ds-section-grid.ds-card-grid .col-2-position-7 {
+    order: 7;
+  }
+  .ds-section-grid.ds-card-grid .col-2-position-8 {
+    order: 8;
+  }
+  .ds-section-grid.ds-card-grid .col-2-position-9 {
+    order: 9;
+  }
+  .ds-section-grid.ds-card-grid .col-2-position-10 {
+    order: 10;
+  }
+  .ds-section-grid.ds-card-grid .col-2-position-11 {
+    order: 11;
+  }
+  .ds-section-grid.ds-card-grid .col-2-position-12 {
+    order: 12;
+  }
+  .ds-section-grid.ds-card-grid .col-2-position-13 {
+    order: 13;
+  }
+  .ds-section-grid.ds-card-grid .col-2-position-14 {
+    order: 14;
+  }
+  .ds-section-grid.ds-card-grid .col-2-position-15 {
+    order: 15;
+  }
+  .ds-section-grid.ds-card-grid .col-2-position-16 {
+    order: 16;
   }
   .ds-section-grid.ds-card-grid .col-2-small {
     grid-row: span 1;
@@ -5666,6 +5730,36 @@ main section {
   .ds-section-grid.ds-card-grid .col-3-position-6 {
     order: 6;
   }
+  .ds-section-grid.ds-card-grid .col-3-position-7 {
+    order: 7;
+  }
+  .ds-section-grid.ds-card-grid .col-3-position-8 {
+    order: 8;
+  }
+  .ds-section-grid.ds-card-grid .col-3-position-9 {
+    order: 9;
+  }
+  .ds-section-grid.ds-card-grid .col-3-position-10 {
+    order: 10;
+  }
+  .ds-section-grid.ds-card-grid .col-3-position-11 {
+    order: 11;
+  }
+  .ds-section-grid.ds-card-grid .col-3-position-12 {
+    order: 12;
+  }
+  .ds-section-grid.ds-card-grid .col-3-position-13 {
+    order: 13;
+  }
+  .ds-section-grid.ds-card-grid .col-3-position-14 {
+    order: 14;
+  }
+  .ds-section-grid.ds-card-grid .col-3-position-15 {
+    order: 15;
+  }
+  .ds-section-grid.ds-card-grid .col-3-position-16 {
+    order: 16;
+  }
   .ds-section-grid.ds-card-grid .col-3-small {
     grid-row: span 1;
     grid-column: span 1;
@@ -6000,6 +6094,36 @@ main section {
   }
   .ds-section-grid.ds-card-grid .col-4-position-6 {
     order: 6;
+  }
+  .ds-section-grid.ds-card-grid .col-4-position-7 {
+    order: 7;
+  }
+  .ds-section-grid.ds-card-grid .col-4-position-8 {
+    order: 8;
+  }
+  .ds-section-grid.ds-card-grid .col-4-position-9 {
+    order: 9;
+  }
+  .ds-section-grid.ds-card-grid .col-4-position-10 {
+    order: 10;
+  }
+  .ds-section-grid.ds-card-grid .col-4-position-11 {
+    order: 11;
+  }
+  .ds-section-grid.ds-card-grid .col-4-position-12 {
+    order: 12;
+  }
+  .ds-section-grid.ds-card-grid .col-4-position-13 {
+    order: 13;
+  }
+  .ds-section-grid.ds-card-grid .col-4-position-14 {
+    order: 14;
+  }
+  .ds-section-grid.ds-card-grid .col-4-position-15 {
+    order: 15;
+  }
+  .ds-section-grid.ds-card-grid .col-4-position-16 {
+    order: 16;
   }
   .ds-section-grid.ds-card-grid .col-4-small {
     grid-row: span 1;
@@ -7928,14 +8052,9 @@ main section {
   width: 298px;
   transition: opacity 0.3s, visibility 0.3s;
 }
-.feature-highlight .feature-highlight-modal .icon-dismiss {
-  flex-shrink: 0;
-  background-size: 12px;
-  height: 12px;
-  width: 12px;
-  margin: var(--space-medium);
-  color: var(--icon-color);
-  border: none;
+.feature-highlight .feature-highlight-modal > moz-button {
+  margin-inline-start: var(--space-xsmall);
+  z-index: 1;
 }
 .feature-highlight .feature-highlight-modal .message-icon {
   margin-block: var(--space-large);
@@ -8242,6 +8361,40 @@ main section {
   width: var(--arrow-size);
   box-shadow: 4px -4px 6px -2px rgba(0, 0, 0, 0.15);
   pointer-events: none;
+}
+
+.shortcut-feature-highlight .feature-highlight-modal {
+  padding: var(--space-large);
+}
+.shortcut-feature-highlight .feature-highlight-modal p {
+  margin: 0;
+  padding-block-start: 0;
+}
+.shortcut-feature-highlight .feature-highlight-modal p, .shortcut-feature-highlight .feature-highlight-modal p:hover {
+  color: inherit;
+}
+.shortcut-feature-highlight .feature-highlight-modal .message-icon {
+  display: none;
+}
+.shortcut-feature-highlight .feature-highlight-modal.inset-block-end {
+  margin-block-start: var(--space-large);
+  inset-inline-end: var(--space-xlarge);
+}
+.shortcut-feature-highlight .feature-highlight-modal img {
+  -moz-context-properties: fill;
+  fill: currentColor;
+}
+.shortcut-feature-highlight .shortcut-feature-highlight-content {
+  display: flex;
+  gap: var(--space-medium);
+}
+.shortcut-feature-highlight .shortcut-feature-highlight-copy {
+  font-size: var(--font-size-small);
+}
+.shortcut-feature-highlight .shortcut-feature-highlight-copy .title {
+  font-weight: var(--font-weight-bold);
+  margin-block-end: var(--space-xsmall);
+  text-align: inherit;
 }
 
 /* stylelint-disable max-nesting-depth */
@@ -9186,6 +9339,10 @@ main section {
   align-items: center;
   justify-content: space-between;
 }
+.trending-searches-list-view:not(.placeholder) .trending-searches-context-menu-wrapper {
+  opacity: 0;
+  transition: opacity;
+}
 .trending-searches-list-view:not(.placeholder) .trending-searches-context-menu {
   position: relative;
 }
@@ -9248,4 +9405,8 @@ main section {
   margin-inline-start: auto;
   inset-inline-end: 0;
   inset-inline-start: auto;
+}
+.trending-searches-list-view:focus-within .trending-searches-context-menu-wrapper, .trending-searches-list-view:hover .trending-searches-context-menu-wrapper {
+  opacity: 1;
+  transition-duration: 0.3s;
 }

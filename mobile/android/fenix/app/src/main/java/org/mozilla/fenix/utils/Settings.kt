@@ -1223,9 +1223,9 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         persistDefaultIfNotExists = true,
     )
 
-    var shouldUseSimpleToolbar by booleanPreference(
-        key = appContext.getPreferenceKey(R.string.pref_key_toolbar_simple),
-        default = true,
+    var shouldUseExpandedToolbar by booleanPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_toolbar_expanded),
+        default = false,
         persistDefaultIfNotExists = true,
     )
 
@@ -2287,7 +2287,7 @@ class Settings(private val appContext: Context) : PreferencesHolder {
             0
         }
 
-        val navBarHeight = if (!shouldUseSimpleToolbar) {
+        val navBarHeight = if (shouldUseExpandedToolbar) {
             appContext.resources.getDimensionPixelSize(R.dimen.browser_navbar_height)
         } else {
             0
@@ -2329,7 +2329,7 @@ class Settings(private val appContext: Context) : PreferencesHolder {
             0
         }
 
-        val navBarHeight = if (!shouldUseSimpleToolbar) {
+        val navBarHeight = if (shouldUseExpandedToolbar) {
             appContext.resources.getDimensionPixelSize(R.dimen.browser_navbar_height)
         } else {
             0
@@ -2427,15 +2427,6 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     var crashReportCutoffDate by longPreference(
         appContext.getPreferenceKey(R.string.pref_key_crash_reporting_cutoff_date),
         default = 0,
-    )
-
-    /**
-     * A user preference indicating that crash reports should always be automatically sent. This can be updated
-     * through the unsubmitted crash dialog or through data choice preferences.
-     */
-    var crashReportAlwaysSend by booleanPreference(
-        appContext.getPreferenceKey(R.string.pref_key_crash_reporting_always_report),
-        default = false,
     )
 
     /**

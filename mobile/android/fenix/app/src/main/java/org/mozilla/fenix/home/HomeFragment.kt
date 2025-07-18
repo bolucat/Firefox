@@ -5,6 +5,7 @@
 package org.mozilla.fenix.home
 
 import android.annotation.SuppressLint
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.res.Configuration
 import android.os.Bundle
@@ -24,6 +25,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.content.ContextCompat.getColor
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.view.isVisible
@@ -35,6 +37,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
+import com.google.android.material.appbar.AppBarLayout
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -62,7 +65,6 @@ import mozilla.components.lib.state.ext.flow
 import mozilla.components.support.base.feature.ViewBoundFeatureWrapper
 import mozilla.telemetry.glean.private.NoExtras
 import org.mozilla.fenix.BrowserDirection
-import org.mozilla.fenix.FeatureFlags
 import org.mozilla.fenix.GleanMetrics.HomeScreen
 import org.mozilla.fenix.HomeActivity
 import org.mozilla.fenix.NavGraphDirections
@@ -74,6 +76,7 @@ import org.mozilla.fenix.biometricauthentication.NavigationOrigin
 import org.mozilla.fenix.browser.browsingmode.BrowsingMode
 import org.mozilla.fenix.browser.tabstrip.TabStrip
 import org.mozilla.fenix.components.Components
+import org.mozilla.fenix.components.HomepageThumbnailIntegration
 import org.mozilla.fenix.components.TabCollectionStorage
 import org.mozilla.fenix.components.appstate.AppAction
 import org.mozilla.fenix.components.appstate.AppAction.ContentRecommendationsAction
@@ -137,6 +140,7 @@ import org.mozilla.fenix.microsurvey.ui.ext.MicrosurveyUIData
 import org.mozilla.fenix.microsurvey.ui.ext.toMicrosurveyUIData
 import org.mozilla.fenix.nimbus.FxNimbus
 import org.mozilla.fenix.onboarding.HomeScreenPopupManager
+import org.mozilla.fenix.onboarding.WidgetPinnedReceiver
 import org.mozilla.fenix.perf.MarkersFragmentLifecycleCallbacks
 import org.mozilla.fenix.perf.StartupTimeline
 import org.mozilla.fenix.reviewprompt.ReviewPromptState
@@ -152,6 +156,7 @@ import org.mozilla.fenix.tabstray.Page
 import org.mozilla.fenix.tabstray.TabsTrayAccessPoint
 import org.mozilla.fenix.theme.FirefoxTheme
 import org.mozilla.fenix.utils.allowUndo
+import org.mozilla.fenix.utils.showAddSearchWidgetPromptIfSupported
 import org.mozilla.fenix.wallpapers.Wallpaper
 import java.lang.ref.WeakReference
 import org.mozilla.fenix.GleanMetrics.TabStrip as TabStripMetrics
@@ -190,26 +195,17 @@ class HomeFragment : Fragment() {
 
     private val collectionStorageObserver = object : TabCollectionStorage.Observer {
         @SuppressLint("NotifyDataSetChanged")
-        override fun onCollectionRenamed(tabCollection: TabCollection, title: String) {
-            showRenamedSnackbar()
-        }
-
-        @SuppressLint("NotifyDataSetChanged")
         override fun onTabsAdded(tabCollection: TabCollection, sessions: List<TabSessionState>) {
             view?.let {
-                val message = if (sessions.size == 1) {
-                    R.string.create_collection_tab_saved
-                } else {
-                    R.string.create_collection_tabs_saved
+                if (sessions.size == 1) {
+                    Snackbar.make(
+                        snackBarParentView = binding.dynamicSnackbarContainer,
+                        snackbarState = SnackbarState(
+                            message = it.context.getString(R.string.create_collection_tab_saved),
+                            duration = SnackbarState.Duration.Preset.Long,
+                        ),
+                    ).show()
                 }
-
-                Snackbar.make(
-                    snackBarParentView = binding.dynamicSnackbarContainer,
-                    snackbarState = SnackbarState(
-                        message = it.context.getString(message),
-                        duration = SnackbarState.Duration.Preset.Long,
-                    ),
-                ).show()
             }
         }
     }
@@ -249,6 +245,7 @@ class HomeFragment : Fragment() {
     private val searchSelectorBinding = ViewBoundFeatureWrapper<SearchSelectorBinding>()
     private val searchSelectorMenuBinding = ViewBoundFeatureWrapper<SearchSelectorMenuBinding>()
     private val homeScreenPopupManager = ViewBoundFeatureWrapper<HomeScreenPopupManager>()
+    private val thumbnailsFeature = ViewBoundFeatureWrapper<HomepageThumbnailIntegration>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // DO NOT ADD ANYTHING ABOVE THIS getProfilerTime CALL!
@@ -312,16 +309,13 @@ class HomeFragment : Fragment() {
             }
         }
 
-        if (!requireContext().settings().shouldUseSimpleToolbar) {
-            homeNavigationBar = HomeNavigationBar(
-                context = requireContext(),
-                lifecycleOwner = this,
-                container = binding.navigationBarContainer,
-                appStore = components.appStore,
-                browserStore = store,
-                settings = requireContext().settings(),
-            )
-        }
+        homeNavigationBar = HomeNavigationBar(
+            context = requireContext(),
+            lifecycleOwner = this,
+            container = binding.navigationBarContainer,
+            appStore = components.appStore,
+            browserStore = store,
+        )
 
         if (requireContext().settings().isExperimentationEnabled) {
             messagingFeatureHomescreen.set(
@@ -427,6 +421,16 @@ class HomeFragment : Fragment() {
             view = binding.root,
         )
 
+        thumbnailsFeature.set(
+            feature = HomepageThumbnailIntegration(
+                context = requireContext(),
+                view = binding.homepageView,
+                store = requireComponents.core.store,
+            ),
+            owner = this,
+            view = binding.homepageView,
+        )
+
         snackbarBinding.set(
             feature = SnackbarBinding(
                 context = requireContext(),
@@ -462,6 +466,7 @@ class HomeFragment : Fragment() {
             appStore = components.appStore,
             navControllerRef = WeakReference(findNavController()),
             viewLifecycleScope = viewLifecycleOwner.lifecycleScope,
+            showAddSearchWidgetPrompt = ::showAddSearchWidgetPrompt,
         ).apply {
             registerCallback(
                 object : SessionControlControllerCallback {
@@ -553,6 +558,8 @@ class HomeFragment : Fragment() {
 
         initComposeHomepage()
 
+        disableAppBarDragging()
+
         FxNimbus.features.homescreen.recordExposure()
 
         // DO NOT MOVE ANYTHING BELOW THIS addMarker CALL!
@@ -579,6 +586,7 @@ class HomeFragment : Fragment() {
                     startSearch = bundleArgs.getBoolean(FOCUS_ON_ADDRESS_BAR) ||
                             FxNimbus.features.oneClickSearch.value().enabled,
                     sessionId = args.sessionToStartSearchFor,
+                    source = args.searchAccessPoint,
                 ),
                 tabStripContent = { TabStrip() },
                 searchSuggestionsContent = { toolbarStore, modifier ->
@@ -786,6 +794,22 @@ class HomeFragment : Fragment() {
         )
     }
 
+    private fun disableAppBarDragging() {
+        if (binding.homeAppBar.layoutParams != null) {
+            val appBarLayoutParams = binding.homeAppBar.layoutParams as CoordinatorLayout.LayoutParams
+            val appBarBehavior = AppBarLayout.Behavior()
+            appBarBehavior.setDragCallback(
+                object : AppBarLayout.Behavior.DragCallback() {
+                    override fun canDrag(appBarLayout: AppBarLayout): Boolean {
+                        return false
+                    }
+                },
+            )
+            appBarLayoutParams.behavior = appBarBehavior
+        }
+        binding.homeAppBar.setExpanded(true)
+    }
+
     @Suppress("LongMethod", "ComplexMethod")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         // DO NOT ADD ANYTHING ABOVE THIS getProfilerTime CALL!
@@ -901,6 +925,8 @@ class HomeFragment : Fragment() {
     }
 
     private fun initComposeHomepage() {
+        binding.homeAppBarContent.isVisible = false
+
         binding.homepageView.apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
 
@@ -1038,6 +1064,7 @@ class HomeFragment : Fragment() {
         super.onDestroyView()
 
         nullableToolbarView = null
+        homeNavigationBar = null
 
         _sessionControlController?.unregisterCallback()
         _sessionControlController = null
@@ -1086,13 +1113,8 @@ class HomeFragment : Fragment() {
         // We only want this observer live just before we navigate away to the collection creation screen
         requireComponents.core.tabCollectionStorage.unregister(collectionStorageObserver)
 
-        if (FeatureFlags.CUSTOM_REVIEW_PROMPT_ENABLED) {
-            requireComponents.appStore.dispatch(CheckIfEligibleForReviewPrompt)
-        } else {
-            lifecycleScope.launch(IO) {
-                requireComponents.reviewPromptController.promptReview(requireActivity())
-            }
-        }
+        // Trigger review prompt logic and show the appropriate prompt variation if applicable
+        requireComponents.appStore.dispatch(CheckIfEligibleForReviewPrompt)
     }
 
     @VisibleForTesting
@@ -1168,18 +1190,6 @@ class HomeFragment : Fragment() {
         requireComponents.core.tabCollectionStorage.register(collectionStorageObserver, this)
     }
 
-    private fun showRenamedSnackbar() {
-        view?.let { view ->
-            Snackbar.make(
-                snackBarParentView = binding.dynamicSnackbarContainer,
-                snackbarState = SnackbarState(
-                    message = view.context.getString(R.string.snackbar_collection_renamed),
-                    duration = SnackbarState.Duration.Preset.Long,
-                ),
-            ).show()
-        }
-    }
-
     private fun openTabsTray() {
         if (DefaultTabManagementFeatureHelper.enhancementsEnabled) {
             findNavController().nav(
@@ -1200,6 +1210,31 @@ class HomeFragment : Fragment() {
                         BrowsingMode.Private -> Page.PrivateTabs
                     },
                 ),
+            )
+        }
+    }
+
+    /**
+     * Shows a prompt to add a search widget to the home screen if supported by the device.
+     *
+     * This function should be called when the fragment's view is active (e.g., in response
+     * to a user interaction). It launches a coroutine within the [viewLifecycleOwner]'s
+     * [androidx.lifecycle.LifecycleCoroutineScope] to display the widget prompt using
+     * [showAddSearchWidgetPromptIfSupported].
+     *
+     * The actual display logic, including handling success and failure callbacks, is managed by
+     * [showAddSearchWidgetPromptIfSupported].
+     */
+    private fun showAddSearchWidgetPrompt() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val currentPackageName = requireActivity().packageName
+            val currentWidgetManager = AppWidgetManager.getInstance(requireContext())
+            val currentAddWidgetSuccessCallback = WidgetPinnedReceiver.getPendingIntent(requireContext())
+
+            showAddSearchWidgetPromptIfSupported(
+                packageName = currentPackageName,
+                appWidgetManager = currentWidgetManager,
+                successCallback = currentAddWidgetSuccessCallback,
             )
         }
     }

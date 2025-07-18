@@ -2616,19 +2616,19 @@
   value: false
   mirror: always
 
-# Disable cookie-store API
+# Enable cookie-store API
 - name: dom.cookieStore.enabled
   type: RelaxedAtomicBool
   value: true
   mirror: always
 
-# Disable cookie-store manager API
+# Enable cookie-store manager API
 - name: dom.cookieStore.manager.enabled
   type: RelaxedAtomicBool
   value: true
   mirror: always
 
-# Disable extra cookie-store properties
+# Enable extra cookie-store properties
 - name: dom.cookieStore.extra.enabled
   type: RelaxedAtomicBool
   value: @IS_NIGHTLY_BUILD@
@@ -4562,18 +4562,6 @@
   value: false
   mirror: always
 
-# pref controls "heavyweight" network discoverable `identity` credentials being exposed
-- name: dom.security.credentialmanagement.identity.heavyweight.enabled
-  type: bool
-  value: false
-  mirror: always
-
-# pref controls storable "lightweight" `identity` credentials being exposed
-- name: dom.security.credentialmanagement.identity.lightweight.enabled
-  type: bool
-  value: false
-  mirror: always
-
 # pref controls `identity` credential UI for testing. When true, UI is not shown and
 # the first option in the account and provider lists are chosen
 - name: dom.security.credentialmanagement.identity.select_first_in_ui_lists
@@ -4598,12 +4586,6 @@
 - name: dom.security.credentialmanagement.identity.reject_delay.duration_ms
   type: uint32_t
   value: 120000
-  mirror: always
-
-# Enforce origin check whenever a content process tries to set a document URI
-- name: dom.security.setdocumenturi
-  type: bool
-  value: true
   mirror: always
 
 # Whether or not selection events on text controls are enabled.
@@ -4924,12 +4906,6 @@
 - name: dom.storage.requestFinalization.pauseOnDOMFileThreadMs
   type: RelaxedAtomicUint32
   value: 0
-  mirror: always
-
-# This enables the SVGPathSegment APIs
-- name: dom.svg.pathSegment.enabled
-  type: bool
-  value: true
   mirror: always
 
 # For area and anchor elements with target=_blank and no rel set to
@@ -9663,20 +9639,6 @@
   mirror: always
   rust: true
 
-# Whether to respect align-content on blocks.
-- name: layout.css.align-content.blocks.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
-# Whether content-box and stroke-box are enabled for transform-box.
-- name: layout.css.transform-box-content-stroke.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
 # Whether @starting-style is enabled?
 - name: layout.css.starting-style-at-rules.enabled
   type: RelaxedAtomicBool
@@ -9769,12 +9731,6 @@
   value: 6.0
   mirror: always
 
-# Whether the `animation-composition` in css-animations-2 is enabled.
-- name: layout.css.animation-composition.enabled
-  type: bool
-  value: true
-  mirror: always
-
 # Is the codepath for using cached scrollbar styles enabled?
 - name: layout.css.cached-scrollbar-styles.enabled
   type: bool
@@ -9851,13 +9807,6 @@
 - name: layout.css.control-characters.visible
   type: RelaxedAtomicBool
   value: @IS_NOT_RELEASE_OR_BETA@
-  mirror: always
-  rust: true
-
-# Whether the `contain-intrinsic-size` CSS property is enabled
-- name: layout.css.contain-intrinsic-size.enabled
-  type: RelaxedAtomicBool
-  value: true
   mirror: always
   rust: true
 
@@ -10003,26 +9952,6 @@
   mirror: always
   rust: true
 
-# Is support for :has() enabled?
-- name: layout.css.has-selector.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
-# Whether the `:has-slotted` pseudo class is enabled
-- name: layout.css.has-slotted-selector.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
-# Is support for CSS hyphenate-limit-chars enabled?
-- name: layout.css.hyphenate-limit-chars.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # Is support for CSS initial-letter property enabled?
 - name: layout.css.initial-letter.enabled
   type: bool
@@ -10087,12 +10016,6 @@
   value: @IS_NOT_NIGHTLY_BUILD@
   mirror: always
   rust: true
-
-# Is support for overscroll-behavior enabled?
-- name: layout.css.overscroll-behavior.enabled
-  type: bool
-  value: true
-  mirror: always
 
 # Enables support for @margin rules.
 - name: layout.css.margin-rules.enabled
@@ -10301,22 +10224,10 @@
   value: 50 # 50%
   mirror: always
 
-# Whether the `hanging` and `each-line` keywords are supported by `text-indent`
-- name: layout.css.text-indent-keywords.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
 # Whether the "modern" uppercase mapping of ß to ẞ (rather than SS) is used.
 - name: layout.css.text-transform.uppercase-eszett.enabled
   type: bool
   value: false
-  mirror: always
-
-- name: layout.css.text-wrap-balance.enabled
-  type: bool
-  value: true
   mirror: always
 
 # Maximum number of lines to try balancing.
@@ -10748,13 +10659,6 @@
   type: RelaxedAtomicBool
   value: false
   mirror: always
-
-# Whether supports() conditions in @import is enabled
-- name: layout.css.import-supports.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
 
 # Whether :-moz-broken is supported in content.
 - name: layout.css.moz-broken.content.enabled
@@ -13141,7 +13045,7 @@
 # but still checks for capacity overflow and reports telemetry
 - name: network.cookie.chips.partitionLimitDryRun
   type: bool
-  value: true
+  value: false
   mirror: always
 
 # The actual CHIPS parition limit in bytes
@@ -13228,6 +13132,13 @@
 - name: network.cookie.block_nameless_with_equal_char
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+
+# A Enable a workaround for XPCShell tests to avoid setting the cookies via
+# HttpChannelParent actor
+- name: network.cookie.skip_browsing_context_check_in_parent_for_testing
+  type: bool
+  value: false
   mirror: always
 
 # If we should attempt to race the cache and network.
@@ -14995,6 +14906,15 @@
 - name: network.http.http3.pr_poll_write
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+  rust: true
+
+# Maximum number of UDP segments in a single UDP GSO send. Noop if
+# network.http.http3.use_nspr_for_io is true.
+- name: network.http.http3.max_gso_segments
+  type: RelaxedAtomicUint32
+  # Current industry standard. Likely worth tuning.
+  value: 10
   mirror: always
   rust: true
 
@@ -17304,12 +17224,12 @@
 
 - name: security.integrity_policy.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 - name: security.integrity_policy.stylesheet.enabled
   type: RelaxedAtomicBool
-  value: true
+  value: false
   mirror: always
 
 # Which mechanism the secret decoder ring should use for encryption. Decryption
@@ -17415,12 +17335,6 @@
   value: @IS_NIGHTLY_BUILD@
   mirror: always
 
-# Whether SVGGraphicsElement.nearestViewportElement and SVGGraphicsElement.farthestViewportElement are enabled.
-- name: svg.nearestAndFarthestViewportElement.enabled
-  type: bool
-  value: false
-  mirror: always
-
 # Whether SVGAElement.text is enabled.
 - name: svg.SVGAElement.text.enabled
   type: bool
@@ -17467,12 +17381,6 @@
 - name: svg.use-element.recursive-clone-limit
   type: uint32_t
   value: 8
-  mirror: always
-
-# Whether <svg:use> with a data: URL as href is allowed
-- name: svg.use-element.data-url-href.allowed
-  type: bool
-  value: false
   mirror: always
 
 #---------------------------------------------------------------------------
@@ -18952,6 +18860,28 @@
 - name: widget.windows.window_occlusion_tracking_session_lock.enabled
   type: bool
   value: true
+  mirror: always
+
+# tiltX and tiltY are supported only by expensive pen tablet devices.  For
+# testing the feature, enabling this pref overrides tiltX and tiltY values to
+# non-zero values.
+- name: widget.windows.pen.tilt_override.enabled
+  type: bool
+  value: false
+  mirror: always
+
+# twist is supported only by expensive pen tablet devices.  For testing the
+# feature, enabling this overrides twist value to non-zero values.
+- name: widget.windows.pen.twist_override.enabled
+  type: bool
+  value: false
+  mirror: always
+
+# How frequently updates the value of tiltX, tiltY and/or twist value of pen
+# input which can be enabled by the above prefs.
+- name: widget.widnows.pen.override.number_of_preserver_value
+  type: RelaxedAtomicUint32
+  value: 75
   mirror: always
 
 # Whether this device is capable of entering tablet mode. (Win11+ only.)

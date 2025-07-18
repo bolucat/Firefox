@@ -54,7 +54,6 @@ import mozilla.components.browser.state.action.MediaSessionAction
 import mozilla.components.browser.state.action.SearchAction
 import mozilla.components.browser.state.search.SearchEngine
 import mozilla.components.browser.state.selector.getNormalOrPrivateTabs
-import mozilla.components.browser.state.selector.privateTabs
 import mozilla.components.browser.state.selector.selectedTab
 import mozilla.components.browser.state.state.WebExtensionState
 import mozilla.components.concept.engine.EngineSession
@@ -163,8 +162,6 @@ import org.mozilla.fenix.theme.ThemeManager
 import org.mozilla.fenix.utils.AccessibilityUtils.announcePrivateModeForAccessibility
 import org.mozilla.fenix.utils.Settings
 import org.mozilla.fenix.utils.changeAppLauncherIcon
-import java.lang.Math
-import java.lang.System
 import java.lang.ref.WeakReference
 import java.util.Locale
 
@@ -1278,7 +1275,6 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
             settings = components.settings,
             modeDidChange = { newMode ->
                 updateSecureWindowFlags(newMode)
-                addPrivateHomepageTabIfNecessary(newMode)
                 themeManager.currentTheme = newMode
             },
             updateAppStateMode = { newMode ->
@@ -1294,22 +1290,6 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
             window.addFlags(FLAG_SECURE)
         } else {
             window.clearFlags(FLAG_SECURE)
-        }
-    }
-
-    /**
-     * When switching to private mode, add a private homepage tab if there are
-     * no private tabs available.
-     *
-     * @param mode The new [BrowsingMode] that is being swapped to.
-     */
-    @VisibleForTesting
-    internal fun addPrivateHomepageTabIfNecessary(mode: BrowsingMode) {
-        if (settings().enableHomepageAsNewTab &&
-            mode.isPrivate &&
-            components.core.store.state.privateTabs.isEmpty()
-        ) {
-            components.useCases.fenixBrowserUseCases.addNewHomepageTab(private = true)
         }
     }
 
@@ -1424,20 +1404,14 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
     }
 
     @VisibleForTesting
-    internal fun showCrashReporter(crashIDs: Array<String>?, ctxt: Context) {
+    internal fun showCrashReporter(crashIDs: List<String>?, ctxt: Context) {
         if (!settings().useNewCrashReporterDialog) {
-            return
-        }
-
-        var now = Math.round(System.currentTimeMillis() / DateUtils.SECOND_IN_MILLIS * 1.0)
-        if (now < settings().crashPullDontShowBefore) {
             return
         }
 
         UnsubmittedCrashDialog(
             dispatcher = { action ->
                 components.appStore.dispatch(AppAction.CrashActionWrapper(action))
-                settings().crashPullDontShowBefore = now + CRASH_PULL_SILENCE_FOR_DAYS_IN_S
             },
             crashIDs = crashIDs,
             localContext = ctxt,
@@ -1456,7 +1430,5 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
         // PWA must have been used within last 30 days to be considered "recently used" for the
         // telemetry purposes.
         private const val PWA_RECENTLY_USED_THRESHOLD = DateUtils.DAY_IN_MILLIS * 30L
-
-        private const val CRASH_PULL_SILENCE_FOR_DAYS_IN_S = 7L * 86400L
     }
 }

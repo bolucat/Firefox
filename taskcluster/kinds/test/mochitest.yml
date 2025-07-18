@@ -871,8 +871,8 @@ mochitest-media:
                     windows11.*hw-ref.*: ['autoland', 'mozilla-central', 'mozilla-beta']
                     macosx.*64(-shippable)?(-qr)?/.*: ['autoland', 'mozilla-central', 'mozilla-beta']
                     android-hw-.*: ['autoland', 'mozilla-central', 'mozilla-beta']
+                    linux1804.*: ['autoland', 'mozilla-central', 'mozilla-beta']
                     default: []
-                    # TODO : add Linux, it would crash on gfxFeature.cpp:180
             default:
                 by-test-platform:
                     .*hw-ref.*: []
@@ -939,6 +939,13 @@ mochitest-media:
         by-test-platform:
             .*hw-ref.*: [checkout]
             default: [checkout, pip, uv]
+    worker-type:
+        by-variant:
+            media-gpu:
+                by-test-platform:
+                    linux.*: t-linux-talos-1804
+                    default: default
+            default: default
 
 mochitest-valgrind:
     description: "Mochitest plain Valgrind run"

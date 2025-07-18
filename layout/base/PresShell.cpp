@@ -1155,7 +1155,7 @@ void PresShell::Destroy() {
   NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
                "destroy called on presshell while scripts not blocked");
 
-  [[maybe_unused]] nsIURI* uri = mDocument->GetDocumentURI();
+  nsIURI* uri = mDocument->GetDocumentURI();
   AUTO_PROFILER_LABEL_DYNAMIC_NSCSTRING_RELEVANT_FOR_JS(
       "Layout tree destruction", LAYOUT_Destroy,
       uri ? uri->GetSpecOrDefault() : "N/A"_ns);
@@ -10736,7 +10736,7 @@ DOMHighResTimeStamp PresShell::GetPerformanceNowUnclamped() {
 
 bool PresShell::DoReflow(nsIFrame* target, bool aInterruptible,
                          OverflowChangedTracker* aOverflowTracker) {
-  [[maybe_unused]] nsIURI* uri = mDocument->GetDocumentURI();
+  nsIURI* uri = mDocument->GetDocumentURI();
   AUTO_PROFILER_LABEL_DYNAMIC_NSCSTRING_RELEVANT_FOR_JS(
       "Reflow", LAYOUT_Reflow, uri ? uri->GetSpecOrDefault() : "N/A"_ns);
 
@@ -12761,22 +12761,19 @@ PresShell::WindowSizeConstraints PresShell::GetWindowSizeConstraints() {
   const auto* pos = rootFrame->StylePosition();
   const auto anchorResolutionParams =
       AnchorPosResolutionParams::From(rootFrame);
-  if (const auto styleMinWidth =
-          pos->GetMinWidth(anchorResolutionParams.mPosition);
+  if (const auto styleMinWidth = pos->GetMinWidth(anchorResolutionParams);
       styleMinWidth->ConvertsToLength()) {
     minSize.width = styleMinWidth->ToLength();
   }
-  if (const auto styleMinHeight =
-          pos->GetMinHeight(anchorResolutionParams.mPosition);
+  if (const auto styleMinHeight = pos->GetMinHeight(anchorResolutionParams);
       styleMinHeight->ConvertsToLength()) {
     minSize.height = styleMinHeight->ToLength();
   }
-  if (const auto maxWidth = pos->GetMaxWidth(anchorResolutionParams.mPosition);
+  if (const auto maxWidth = pos->GetMaxWidth(anchorResolutionParams);
       maxWidth->ConvertsToLength()) {
     maxSize.width = maxWidth->ToLength();
   }
-  if (const auto maxHeight =
-          pos->GetMaxHeight(anchorResolutionParams.mPosition);
+  if (const auto maxHeight = pos->GetMaxHeight(anchorResolutionParams);
       maxHeight->ConvertsToLength()) {
     maxSize.height = maxHeight->ToLength();
   }

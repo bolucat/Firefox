@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalView
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -32,14 +33,15 @@ import mozilla.components.compose.base.theme.AcornTheme
 import mozilla.components.compose.browser.awesomebar.AwesomeBar
 import mozilla.components.compose.browser.awesomebar.AwesomeBarDefaults
 import mozilla.components.compose.browser.awesomebar.AwesomeBarOrientation
-import mozilla.components.compose.browser.toolbar.store.BrowserToolbarAction.ToggleEditMode
+import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction.SearchQueryUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarStore
 import mozilla.components.lib.state.ext.observeAsComposableState
+import mozilla.components.support.ktx.android.view.hideKeyboard
 import org.mozilla.fenix.HomeActivity
 import org.mozilla.fenix.components.AppStore
 import org.mozilla.fenix.components.Components
 import org.mozilla.fenix.components.StoreProvider
-import org.mozilla.fenix.components.appstate.AppAction.UpdateSearchBeingActiveState
+import org.mozilla.fenix.components.appstate.AppAction.SearchAction.SearchEnded
 import org.mozilla.fenix.components.metrics.MetricsUtils
 import org.mozilla.fenix.search.BrowserStoreToFenixSearchMapperMiddleware
 import org.mozilla.fenix.search.BrowserToolbarToFenixSearchMapperMiddleware
@@ -84,9 +86,10 @@ class AwesomeBarComposable(
      * that will show search suggestions whenever the users edits the current query in the toolbar.
      */
     @OptIn(ExperimentalLayoutApi::class) // for WindowInsets.isImeVisible
+    @Suppress("LongMethod")
     @Composable
     fun SearchSuggestions() {
-        val isSearchActive = appStore.observeAsComposableState { it.isSearchActive }.value
+        val isSearchActive = appStore.observeAsComposableState { it.searchState.isSearchActive }.value
         val state = searchStore.observeAsComposableState { it }.value
         val orientation by remember(state.searchSuggestionsOrientedAtBottom) {
             derivedStateOf {
@@ -96,24 +99,53 @@ class AwesomeBarComposable(
                 }
             }
         }
+        val shouldShowClipboardBar by remember(
+            state.showClipboardSuggestions,
+            state.query,
+            state.clipboardHasUrl,
+            state.showSearchShortcuts,
+        ) {
+            derivedStateOf {
+                state.showClipboardSuggestions &&
+                        state.query.isEmpty() &&
+                        state.clipboardHasUrl &&
+                        !state.showSearchShortcuts
+            }
+        }
+        val view = LocalView.current
         val focusManager = LocalFocusManager.current
         val keyboardController = LocalSoftwareKeyboardController.current
 
         LaunchedEffect(isSearchActive) {
             if (!isSearchActive) {
-                appStore.dispatch(UpdateSearchBeingActiveState(false))
                 focusManager.clearFocus()
                 keyboardController?.hide()
+            } else {
+                val hasUrl = components.clipboardHandler.containsURL()
+                searchStore.dispatch(SearchFragmentAction.UpdateClipboardHasUrl(hasUrl))
             }
         }
 
         BackHandler {
             searchStore.dispatch(SearchSuggestionsVisibilityUpdated(false))
-            toolbarStore.dispatch(ToggleEditMode(false))
+            appStore.dispatch(SearchEnded)
             browserStore.dispatch(AwesomeBarAction.EngagementFinished(abandoned = true))
         }
 
-        if (isSearchActive && state.shouldShowSearchSuggestions) {
+        if (isSearchActive && shouldShowClipboardBar) {
+            val url = components.clipboardHandler.extractURL()
+
+            ClipboardSuggestionBar(
+                shouldUseBottomToolbar = components.settings.shouldUseBottomToolbar,
+                onClick = {
+                    url?.let {
+                        toolbarStore.dispatch(
+                            SearchQueryUpdated(query = url, showAsPreselected = false),
+                        )
+                    }
+                },
+            )
+        } else if (isSearchActive && state.shouldShowSearchSuggestions) {
             Box(
                 modifier = modifier
                     .background(AcornTheme.colors.layer1)
@@ -121,7 +153,7 @@ class AwesomeBarComposable(
                     .pointerInput(WindowInsets.isImeVisible) {
                         detectTapGestures(
                             // Hide the keyboard for any touches in the empty area of the awesomebar
-                            onPress = { keyboardController?.hide() },
+                            onPress = { view.hideKeyboard() },
                         )
                     },
             ) {
@@ -143,7 +175,7 @@ class AwesomeBarComposable(
                         searchStore.dispatch(SuggestionSelected(suggestion))
                     },
                     onVisibilityStateUpdated = {},
-                    onScroll = { keyboardController?.hide() },
+                    onScroll = { view.hideKeyboard() },
                     profiler = components.core.engine.profiler,
                 )
             }

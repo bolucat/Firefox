@@ -26,6 +26,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   DiscoveryStreamFeed: "resource://newtab/lib/DiscoveryStreamFeed.sys.mjs",
   FaviconFeed: "resource://newtab/lib/FaviconFeed.sys.mjs",
   HighlightsFeed: "resource://newtab/lib/HighlightsFeed.sys.mjs",
+  ListsFeed: "resource://newtab/lib/Widgets/ListsFeed.sys.mjs",
   NewTabInit: "resource://newtab/lib/NewTabInit.sys.mjs",
   NewTabMessaging: "resource://newtab/lib/NewTabMessaging.sys.mjs",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
@@ -39,6 +40,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   Store: "resource://newtab/lib/Store.sys.mjs",
   SystemTickFeed: "resource://newtab/lib/SystemTickFeed.sys.mjs",
   TelemetryFeed: "resource://newtab/lib/TelemetryFeed.sys.mjs",
+  TimerFeed: "resource://newtab/lib/Widgets/TimerFeed.sys.mjs",
   TopSitesFeed: "resource://newtab/lib/TopSitesFeed.sys.mjs",
   TopStoriesFeed: "resource://newtab/lib/TopStoriesFeed.sys.mjs",
   TrendingSearchFeed: "resource://newtab/lib/TrendingSearchFeed.sys.mjs",
@@ -865,6 +867,34 @@ export const PREFS_CONFIG = new Map([
     },
   ],
   [
+    "widgets.lists.enabled",
+    {
+      title: "Enables the to-do lists widget",
+      value: true,
+    },
+  ],
+  [
+    "widgets.system.lists.enabled",
+    {
+      title: "Enables the to-do lists widget experiment in Nimbus",
+      value: false,
+    },
+  ],
+  [
+    "widgets.focusTimer.enabled",
+    {
+      title: "Enables the focus timer widget",
+      value: true,
+    },
+  ],
+  [
+    "widgets.system.focusTimer.enabled",
+    {
+      title: "Enables the focus timer widget experiment in Nimbus",
+      value: false,
+    },
+  ],
+  [
     "improvesearch.noDefaultSearchTile",
     {
       title: "Remove tiles that are the same as the default search",
@@ -1422,6 +1452,18 @@ const FEEDS_DATA = [
     name: "trendingsearchfeed",
     factory: () => new lazy.TrendingSearchFeed(),
     title: "Handles fetching the google trending search API",
+    value: true,
+  },
+  {
+    name: "listsfeed",
+    factory: () => new lazy.ListsFeed(),
+    title: "Handles the data for the Todo list widget",
+    value: true,
+  },
+  {
+    name: "timerfeed",
+    factory: () => new lazy.TimerFeed(),
+    title: "Handles the data for the Timer widget",
     value: true,
   },
 ];

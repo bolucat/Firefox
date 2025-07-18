@@ -543,7 +543,7 @@ RefPtr<GetIPCIdentityCredentialPromise> CreateCredentialDuringDiscovery(
               if (reauthenticatingAccount.isSome()) {
                 return GetAccountPromise::CreateAndResolve(
                     std::make_tuple(aManifest,
-                                    reauthenticatingAccount.extract()),
+                                    reauthenticatingAccount.extract(), true),
                     __func__);
               }
             }
@@ -561,14 +561,16 @@ RefPtr<GetIPCIdentityCredentialPromise> CreateCredentialDuringDiscovery(
           })
       ->Then(
           GetCurrentSerialEventTarget(), __func__,
-          [argumentPrincipal, aProvider, relyingParty](
-              const std::tuple<IdentityProviderAPIConfig,
-                               IdentityProviderAccount>& promiseResult) {
+          [argumentPrincipal, aProvider,
+           relyingParty](const std::tuple<IdentityProviderAPIConfig,
+                                          IdentityProviderAccount, const bool>&
+                             promiseResult) {
             IdentityProviderAPIConfig currentManifest;
             IdentityProviderAccount account;
-            std::tie(currentManifest, account) = promiseResult;
+            bool isAutoSelected;
+            std::tie(currentManifest, account, isAutoSelected) = promiseResult;
             return FetchToken(argumentPrincipal, relyingParty, aProvider,
-                              currentManifest, account);
+                              currentManifest, account, isAutoSelected);
           },
           [](nsresult error) {
             return GetTokenPromise::CreateAndReject(error, __func__);
@@ -576,13 +578,17 @@ RefPtr<GetIPCIdentityCredentialPromise> CreateCredentialDuringDiscovery(
       ->Then(
           GetCurrentSerialEventTarget(), __func__,
           [argumentPrincipal,
-           aProvider](const std::tuple<nsCString, nsCString>& promiseResult) {
+           aProvider](const std::tuple<nsCString, nsCString, const bool>&
+                          promiseResult) {
             nsCString token;
             nsCString accountId;
-            std::tie(token, accountId) = promiseResult;
+            bool isAutoSelected;
+            std::tie(token, accountId, isAutoSelected) = promiseResult;
             IPCIdentityCredential credential;
             credential.token() = Some(token);
             credential.id() = NS_ConvertUTF8toUTF16(accountId);
+            credential.isAutoSelected() = isAutoSelected;
+            credential.configURL() = aProvider.mConfigURL;
             // We always make sure accounts are linked after we successfully
             // fetch a token
             nsresult rv = LinkAccount(argumentPrincipal, accountId, aProvider);
@@ -778,7 +784,7 @@ RefPtr<GetTokenPromise> FetchToken(
     nsIPrincipal* aPrincipal, WebIdentityParent* aRelyingParty,
     const IdentityProviderRequestOptions& aProvider,
     const IdentityProviderAPIConfig& aManifest,
-    const IdentityProviderAccount& aAccount) {
+    const IdentityProviderAccount& aAccount, const bool isAutoSelected) {
   MOZ_ASSERT(XRE_IsParentProcess());
   // Build the URL
   nsCOMPtr<nsIURI> baseURI;
@@ -807,7 +813,8 @@ RefPtr<GetTokenPromise> FetchToken(
     bodyValue.Set("nonce"_ns, aProvider.mNonce.Value());
   }
   bodyValue.Set("disclosure_text_shown"_ns, "false"_ns);
-  bodyValue.Set("is_auto_selected"_ns, "false"_ns);
+  nsCString serializedIsAutoSelected = isAutoSelected ? "true"_ns : "false"_ns;
+  bodyValue.Set("is_auto_selected"_ns, serializedIsAutoSelected);
   nsAutoCString bodyCString;
   bodyValue.Serialize(bodyCString, true);
 
@@ -816,13 +823,14 @@ RefPtr<GetTokenPromise> FetchToken(
                                                   aPrincipal)
       ->Then(
           GetCurrentSerialEventTarget(), __func__,
-          [aAccount, idpURI,
-           relyingParty](const IdentityAssertionResponse& response) {
+          [aAccount, idpURI, relyingParty,
+           isAutoSelected](const IdentityAssertionResponse& response) {
             // If we were provided a token, resolve with it.
             if (response.mToken.WasPassed()) {
               return GetTokenPromise::CreateAndResolve(
                   std::make_tuple(response.mToken.Value(),
-                                  NS_ConvertUTF16toUTF8(aAccount.mId)),
+                                  NS_ConvertUTF16toUTF8(aAccount.mId),
+                                  isAutoSelected),
                   __func__);
             }
             // If we don't have a continuation window to open at this stage,
@@ -849,7 +857,7 @@ RefPtr<GetTokenPromise> FetchToken(
             }
             // Open the popup, and return the result of its interaction
             return AuthorizationPopupForToken(continueURI, relyingParty,
-                                              aAccount);
+                                              aAccount, isAutoSelected);
           },
           [](nsresult error) {
             return GetTokenPromise::CreateAndReject(error, __func__);
@@ -858,7 +866,7 @@ RefPtr<GetTokenPromise> FetchToken(
 
 RefPtr<GetTokenPromise> AuthorizationPopupForToken(
     nsIURI* aContinueURI, WebIdentityParent* aRelyingParty,
-    const IdentityProviderAccount& aAccount) {
+    const IdentityProviderAccount& aAccount, const bool isAutoSelected) {
   MOZ_ASSERT(aContinueURI);
   IdentityCredentialRequestManager* requestManager =
       IdentityCredentialRequestManager::GetInstance();
@@ -872,7 +880,7 @@ RefPtr<GetTokenPromise> AuthorizationPopupForToken(
   return requestManager->GetTokenFromPopup(aRelyingParty, aContinueURI)
       ->Then(
           GetCurrentSerialEventTarget(), __func__,
-          [aAccount](
+          [aAccount, isAutoSelected](
               const std::tuple<nsCString, Maybe<nsCString>>& promiseResult) {
             // We will resolve either way with our token from here, but
             // We may have an account ID to override the user's selection in the
@@ -882,11 +890,13 @@ RefPtr<GetTokenPromise> AuthorizationPopupForToken(
             std::tie(token, overridingAccountId) = promiseResult;
             if (overridingAccountId.isSome()) {
               return GetTokenPromise::CreateAndResolve(
-                  std::make_tuple(token, overridingAccountId.value()),
+                  std::make_tuple(token, overridingAccountId.value(),
+                                  isAutoSelected),
                   __func__);
             }
             return GetTokenPromise::CreateAndResolve(
-                std::make_tuple(token, NS_ConvertUTF16toUTF8(aAccount.mId)),
+                std::make_tuple(token, NS_ConvertUTF16toUTF8(aAccount.mId),
+                                isAutoSelected),
                 __func__);
           },
           [](nsresult rv) {
@@ -1184,7 +1194,8 @@ RefPtr<GetAccountPromise> PromptUserToSelectAccount(
         }
         const IdentityProviderAccount& resolved =
             aAccounts.mAccounts.Value().ElementAt(result);
-        resultPromise->Resolve(std::make_tuple(aManifest, resolved), __func__);
+        resultPromise->Resolve(std::make_tuple(aManifest, resolved, false),
+                               __func__);
       },
       [resultPromise](JSContext*, JS::Handle<JS::Value> aValue, ErrorResult&) {
         resultPromise->Reject(
@@ -1221,6 +1232,26 @@ nsresult LinkAccount(nsIPrincipal* aPrincipal, const nsCString& aAccountId,
 
   // Mark as logged in and return
   icStorageService->SetState(aPrincipal, idpPrincipal, aAccountId, true, true);
+
+  nsCOMPtr<nsIPermissionManager> permissionManager =
+      components::PermissionManager::Service();
+
+  if (NS_WARN_IF(!permissionManager)) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
+  nsCString idpOrigin;
+  error = idpPrincipal->GetOrigin(idpOrigin);
+  NS_ENSURE_SUCCESS(error, error);
+
+  permissionManager->AddFromPrincipal(
+      aPrincipal, "credential-allow-silent-access^"_ns + idpOrigin,
+      nsIPermissionManager::ALLOW_ACTION, nsIPermissionManager::EXPIRE_SESSION,
+      0);
+  permissionManager->AddFromPrincipal(aPrincipal,
+                                      "credential-allow-silent-access"_ns,
+                                      nsIPermissionManager::ALLOW_ACTION,
+                                      nsIPermissionManager::EXPIRE_SESSION, 0);
   return NS_OK;
 }
 

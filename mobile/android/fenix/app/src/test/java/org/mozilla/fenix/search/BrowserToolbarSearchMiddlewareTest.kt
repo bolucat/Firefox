@@ -18,7 +18,7 @@ import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.android.asCoroutineDispatcher
 import kotlinx.coroutines.test.setMain
-import mozilla.components.browser.state.action.AwesomeBarAction
+import mozilla.components.browser.state.action.AwesomeBarAction.EngagementFinished
 import mozilla.components.browser.state.action.SearchAction.ApplicationSearchEnginesLoaded
 import mozilla.components.browser.state.search.RegionState
 import mozilla.components.browser.state.search.SearchEngine
@@ -26,6 +26,7 @@ import mozilla.components.browser.state.state.SearchState
 import mozilla.components.browser.state.state.selectedOrDefaultSearchEngine
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.compose.browser.toolbar.concept.Action.SearchSelectorAction
+import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction.SearchAborted
 import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction.SearchQueryUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarAction.ToggleEditMode
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarStore
@@ -50,8 +51,10 @@ import org.mozilla.fenix.browser.BrowserFragmentDirections
 import org.mozilla.fenix.components.AppStore
 import org.mozilla.fenix.components.Components
 import org.mozilla.fenix.components.appstate.AppAction
-import org.mozilla.fenix.components.appstate.AppAction.UpdateSearchBeingActiveState
+import org.mozilla.fenix.components.appstate.AppAction.SearchAction.SearchEnded
+import org.mozilla.fenix.components.appstate.AppAction.SearchAction.SearchStarted
 import org.mozilla.fenix.components.appstate.AppState
+import org.mozilla.fenix.components.appstate.search.SelectedSearchEngine
 import org.mozilla.fenix.components.search.BOOKMARKS_SEARCH_ENGINE_ID
 import org.mozilla.fenix.components.search.HISTORY_SEARCH_ENGINE_ID
 import org.mozilla.fenix.components.search.TABS_SEARCH_ENGINE_ID
@@ -66,6 +69,7 @@ import org.mozilla.fenix.search.fixtures.buildExpectedSearchSelector
 import org.mozilla.fenix.utils.Settings
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
+import org.mozilla.fenix.components.appstate.search.SearchState as AppSearchState
 
 @RunWith(RobolectricTestRunner::class)
 class BrowserToolbarSearchMiddlewareTest {
@@ -121,19 +125,19 @@ class BrowserToolbarSearchMiddlewareTest {
         val captorMiddleware = CaptureActionsMiddleware<AppState, AppAction>()
         val appStore = AppStore(middlewares = listOf(captorMiddleware))
         val (_, store) = buildMiddlewareAndAddToStore(appStore = appStore)
+        appStore.dispatch(SearchStarted())
         store.dispatch(ToggleEditMode(true))
         store.dispatch(SearchQueryUpdated("test"))
         assertTrue(store.state.isEditMode())
+        assertTrue(appStore.state.searchState.isSearchActive)
         assertEquals("test", store.state.editState.query)
 
         store.dispatch(SearchSettingsItemClicked)
 
-        assertFalse(store.state.isEditMode())
+        assertFalse(appStore.state.searchState.isSearchActive)
         assertEquals("", store.state.editState.query)
-        captorMiddleware.assertLastAction(UpdateSearchBeingActiveState::class) {
-            assertFalse(it.isSearchActive)
-        }
-        verify { browserStore.dispatch(AwesomeBarAction.EngagementFinished(abandoned = true)) }
+        captorMiddleware.assertLastAction(SearchEnded::class) {}
+        verify { browserStore.dispatch(EngagementFinished(abandoned = true)) }
         verify {
             navController.navigate(
                 BrowserFragmentDirections.actionGlobalSearchEngineFragment(),
@@ -168,7 +172,7 @@ class BrowserToolbarSearchMiddlewareTest {
 
         store.dispatch(SearchSelectorItemClicked(newEngineSelection))
 
-        assertTrue(store.state.isEditMode())
+        assertTrue(appStore.state.searchState.isSearchActive)
     }
 
     @Test
@@ -342,6 +346,44 @@ class BrowserToolbarSearchMiddlewareTest {
             expectedSearchSelector(newSearchEngines[0], newSearchEngines),
             store.state.editState.editActionsStart[0] as SearchSelectorAction,
         )
+    }
+
+    @Test
+    fun `GIVEN a search engine is already selected WHEN the search engines are updated in BrowserStore THEN don't change the selected search engine`() {
+        Dispatchers.setMain(Handler(Looper.getMainLooper()).asCoroutineDispatcher())
+
+        val selectedSearchEngine = fakeSearchState().applicationSearchEngines.first().copy(id = "test")
+        val appStore = AppStore(
+            AppState(
+                searchState = AppSearchState.EMPTY.copy(
+                    selectedSearchEngine = SelectedSearchEngine(selectedSearchEngine, true),
+                ),
+            ),
+        )
+        val browserStore = BrowserStore()
+        val (_, store) = buildMiddlewareAndAddToStore(appStore, browserStore)
+        store.dispatch(ToggleEditMode(true))
+        val newSearchEngines = fakeSearchState().applicationSearchEngines
+
+        browserStore.dispatch(ApplicationSearchEnginesLoaded(newSearchEngines)).joinBlocking()
+        shadowOf(Looper.getMainLooper()).idle() // wait for observing and processing the search engines update
+
+        assertSearchSelectorEquals(
+            expectedSearchSelector(selectedSearchEngine, newSearchEngines),
+            store.state.editState.editActionsStart[0] as SearchSelectorAction,
+        )
+    }
+
+    @Test
+    fun `WHEN the search is aborted THEN sync this in application and browser state`() {
+        val appStore: AppStore = mockk(relaxed = true)
+        val browserStore: BrowserStore = mockk(relaxed = true)
+        val (_, store) = buildMiddlewareAndAddToStore(appStore, browserStore)
+
+        store.dispatch(SearchAborted)
+
+        verify { appStore.dispatch(SearchEnded) }
+        verify { browserStore.dispatch(EngagementFinished(abandoned = true)) }
     }
 
     private fun expectedSearchSelector(

@@ -35,6 +35,12 @@ DEFINE_CODECAPI_GUID(AVEncAdaptiveMode, "4419b185-da1f-4f53-bc76-097d0c1efb1e",
 #define MFT_ENC_LOGE(arg, ...)                        \
   MOZ_LOG(mozilla::sPEMLog, mozilla::LogLevel::Error, \
           ("MFTEncoder(0x%p)::%s: " arg, this, __func__, ##__VA_ARGS__))
+#define MFT_ENC_LOGW(arg, ...)                          \
+  MOZ_LOG(mozilla::sPEMLog, mozilla::LogLevel::Warning, \
+          ("MFTEncoder(0x%p)::%s: " arg, this, __func__, ##__VA_ARGS__))
+#define MFT_ENC_LOGV(arg, ...)                          \
+  MOZ_LOG(mozilla::sPEMLog, mozilla::LogLevel::Verbose, \
+          ("MFTEncoder(0x%p)::%s: " arg, this, __func__, ##__VA_ARGS__))
 #define MFT_ENC_SLOGD(arg, ...)                       \
   MOZ_LOG(mozilla::sPEMLog, mozilla::LogLevel::Debug, \
           ("MFTEncoder::%s: " arg, __func__, ##__VA_ARGS__))
@@ -89,6 +95,10 @@ DEFINE_CODECAPI_GUID(AVEncAdaptiveMode, "4419b185-da1f-4f53-bc76-097d0c1efb1e",
     }                                                                      \
   } while (false)
 
+#undef MFT_RETURN_ERROR_IF_FAILED
+#define MFT_RETURN_ERROR_IF_FAILED(x) \
+  MFT_RETURN_ERROR_IF_FAILED_IMPL(x, MFT_ENC_LOGE)
+
 #undef MFT_RETURN_ERROR_IF_FAILED_S
 #define MFT_RETURN_ERROR_IF_FAILED_S(x) \
   MFT_RETURN_ERROR_IF_FAILED_IMPL(x, MFT_ENC_SLOGE)
@@ -110,12 +120,18 @@ static const char* ErrorStr(HRESULT hr) {
       return "TRANSFORM_PROCESSING";
     case MF_E_TRANSFORM_ASYNC_LOCKED:
       return "TRANSFORM_ASYNC_LOCKED";
+    case MF_E_TRANSFORM_NEED_MORE_INPUT:
+      return "TRANSFORM_NEED_MORE_INPUT";
     case MF_E_TRANSFORM_TYPE_NOT_SET:
       return "TRANSFORM_TYPE_NO_SET";
     case MF_E_UNSUPPORTED_D3D_TYPE:
       return "UNSUPPORTED_D3D_TYPE";
     case E_INVALIDARG:
       return "INVALIDARG";
+    case MF_E_MULTIPLE_SUBSCRIBERS:
+      return "MULTIPLE_SUBSCRIBERS";
+    case MF_E_NO_EVENTS_AVAILABLE:
+      return "NO_EVENTS_AVAILABLE";
     case MF_E_NO_SAMPLE_DURATION:
       return "NO_SAMPLE_DURATION";
     case MF_E_NO_SAMPLE_TIMESTAMP:
@@ -407,11 +423,14 @@ static Result<Ok, nsCString> IsSupported(
                            aCodecSpecific.is<H264Specific>() &&
                            aCodecSpecific.as<H264Specific>().mProfile ==
                                H264_PROFILE::H264_PROFILE_HIGH;
+  // This is an empirically safe limit.
   bool isFrameSizeGreaterThan4K =
       aFrameSize.width > 3840 || aFrameSize.height > 2160;
 
-  // TODO: Check if this limit applies to other HW encoders.
-  if (aFactory.mProvider == MFTEncoder::Factory::Provider::HW_AMD &&
+  // For Intel and AMD hardware encoders, initializing the H.264 High profile
+  // with large frame sizes such as 7680×4320 may cause SetOutputType to fail or
+  // prevent the encoder from producing output.
+  if (aFactory.mProvider != MFTEncoder::Factory::Provider::SW &&
       isH264HighProfile && isFrameSizeGreaterThan4K) {
     return Err(nsFmtCString(
         FMT_STRING(
@@ -601,6 +620,8 @@ HRESULT MFTEncoder::GetStreamIDs() {
     MFT_ENC_LOGE("failed to get stream IDs: %s", ErrorMessage(hr).get());
     return hr;
   }
+  MFT_ENC_LOGD("input stream ID: %lu, output stream ID: %lu", mInputStreamID,
+               mOutputStreamID);
   return S_OK;
 }
 
@@ -813,7 +834,7 @@ HRESULT MFTEncoder::ProcessInput() {
   return mEventSource.QueueSyncMFTEvent(evType);
 }
 
-HRESULT MFTEncoder::ProcessEvents() {
+HRESULT MFTEncoder::ProcessEventsInternal() {
   MOZ_ASSERT(mscom::IsCurrentThreadMTA());
   MOZ_ASSERT(mEncoder);
 
@@ -826,6 +847,7 @@ HRESULT MFTEncoder::ProcessEvents() {
     }
 
     MediaEventType evType = event.unwrap();
+    MFT_ENC_LOGV("processing event: %s", MediaEventTypeStr(evType));
     switch (evType) {
       case METransformNeedInput:
         ++mNumNeedInput;
@@ -852,6 +874,30 @@ HRESULT MFTEncoder::ProcessEvents() {
   }
 }
 
+HRESULT MFTEncoder::ProcessEvents() {
+  MOZ_ASSERT(mscom::IsCurrentThreadMTA());
+  MOZ_ASSERT(mEncoder);
+
+  HRESULT hr = ProcessEventsInternal();
+  if (hr == MF_E_TRANSFORM_STREAM_CHANGE) {
+    auto r = GetMPEGSequenceHeader();
+    if (r.isErr()) {
+      MFT_ENC_LOGE("GetMPEGSequenceHeader failed: %s",
+                   ErrorMessage(r.unwrapErr()).get());
+      return r.unwrapErr();
+    }
+    mOutputHeader = r.unwrap();
+    MFT_ENC_LOGD("MPEG sequence header length: %zu. Try getting output again",
+                 mOutputHeader.Length());
+    // Try to get output again after output format negotiation.
+    if (mEventSource.IsSync()) {
+      mEventSource.QueueSyncMFTEvent(METransformHaveOutput);
+    }
+    return ProcessEventsInternal();
+  }
+  return hr;
+}
+
 HRESULT MFTEncoder::ProcessOutput() {
   MOZ_ASSERT(mscom::IsCurrentThreadMTA());
   MOZ_ASSERT(mEncoder);
@@ -872,7 +918,7 @@ HRESULT MFTEncoder::ProcessOutput() {
   DWORD status = 0;
   HRESULT hr = mEncoder->ProcessOutput(0, 1, &output, &status);
   if (hr == MF_E_TRANSFORM_STREAM_CHANGE) {
-    MFT_ENC_LOGD("output stream change");
+    MFT_ENC_LOGW("output stream change");
     if (output.dwStatus & MFT_OUTPUT_DATA_BUFFER_FORMAT_CHANGE) {
       // Follow the instructions in Microsoft doc:
       // https://docs.microsoft.com/en-us/windows/win32/medfound/handling-stream-changes#output-type
@@ -881,6 +927,8 @@ HRESULT MFTEncoder::ProcessOutput() {
           mEncoder->GetOutputAvailableType(mOutputStreamID, 0, &outputType));
       MFT_RETURN_IF_FAILED(
           mEncoder->SetOutputType(mOutputStreamID, outputType, 0));
+      MFT_ENC_LOGW("stream format has been re-negotiated for output stream %lu",
+                   mOutputStreamID);
     }
     return MF_E_TRANSFORM_STREAM_CHANGE;
   }
@@ -900,7 +948,10 @@ HRESULT MFTEncoder::ProcessOutput() {
     return hr;
   }
 
-  mOutputs.AppendElement(output.pSample);
+  mOutputs.AppendElement(OutputSample{.mSample = output.pSample});
+  if (!mOutputHeader.IsEmpty()) {
+    mOutputs.LastElement().mHeader = std::move(mOutputHeader);
+  }
   if (mOutputStreamProvidesSample) {
     // Release MFT provided sample.
     output.pSample->Release();
@@ -910,13 +961,11 @@ HRESULT MFTEncoder::ProcessOutput() {
   return S_OK;
 }
 
-HRESULT MFTEncoder::TakeOutput(nsTArray<RefPtr<IMFSample>>& aOutput) {
-  MOZ_ASSERT(aOutput.Length() == 0);
-  aOutput.SwapElements(mOutputs);
-  return S_OK;
+nsTArray<MFTEncoder::OutputSample> MFTEncoder::TakeOutput() {
+  return std::move(mOutputs);
 }
 
-HRESULT MFTEncoder::Drain(nsTArray<RefPtr<IMFSample>>& aOutput) {
+HRESULT MFTEncoder::Drain(nsTArray<OutputSample>& aOutput) {
   MOZ_ASSERT(mscom::IsCurrentThreadMTA());
   MOZ_ASSERT(mEncoder);
   MOZ_ASSERT(aOutput.Length() == 0);
@@ -937,7 +986,7 @@ HRESULT MFTEncoder::Drain(nsTArray<RefPtr<IMFSample>>& aOutput) {
       [[fallthrough]];  // To collect and return outputs.
     case DrainState::DRAINING:
       // Collect remaining outputs.
-      while (mOutputs.Length() == 0 && mDrainState != DrainState::DRAINED) {
+      while (mDrainState != DrainState::DRAINED) {
         if (mEventSource.IsSync()) {
           // Step 8 in
           // https://docs.microsoft.com/en-us/windows/win32/medfound/basic-mft-processing-model#process-data
@@ -953,32 +1002,34 @@ HRESULT MFTEncoder::Drain(nsTArray<RefPtr<IMFSample>>& aOutput) {
   }
 }
 
-HRESULT MFTEncoder::GetMPEGSequenceHeader(nsTArray<UINT8>& aHeader) {
+Result<nsTArray<UINT8>, HRESULT> MFTEncoder::GetMPEGSequenceHeader() {
   MOZ_ASSERT(mscom::IsCurrentThreadMTA());
   MOZ_ASSERT(mEncoder);
-  MOZ_ASSERT(aHeader.Length() == 0);
 
   RefPtr<IMFMediaType> outputType;
-  MFT_RETURN_IF_FAILED(mEncoder->GetOutputCurrentType(
+  MFT_RETURN_ERROR_IF_FAILED(mEncoder->GetOutputCurrentType(
       mOutputStreamID, getter_AddRefs(outputType)));
   UINT32 length = 0;
   HRESULT hr = outputType->GetBlobSize(MF_MT_MPEG_SEQUENCE_HEADER, &length);
-  if (hr == MF_E_ATTRIBUTENOTFOUND || length == 0) {
-    return S_OK;
-  }
-  if (FAILED(hr)) {
+  if (hr == MF_E_ATTRIBUTENOTFOUND) {
+    return nsTArray<UINT8>();
+  } else if (FAILED(hr)) {
     MFT_ENC_LOGE("GetBlobSize MF_MT_MPEG_SEQUENCE_HEADER error: %s",
                  ErrorMessage(hr).get());
-    return hr;
+    return Err(hr);
+  } else if (length == 0) {
+    MFT_ENC_LOGD("GetBlobSize MF_MT_MPEG_SEQUENCE_HEADER: no header");
+    return nsTArray<UINT8>();
   }
   MFT_ENC_LOGD("GetBlobSize MF_MT_MPEG_SEQUENCE_HEADER: %u", length);
 
-  aHeader.SetCapacity(length);
-  hr = outputType->GetBlob(MF_MT_MPEG_SEQUENCE_HEADER, aHeader.Elements(),
+  nsTArray<UINT8> header;
+  header.SetCapacity(length);
+  hr = outputType->GetBlob(MF_MT_MPEG_SEQUENCE_HEADER, header.Elements(),
                            length, nullptr);
-  aHeader.SetLength(SUCCEEDED(hr) ? length : 0);
+  header.SetLength(SUCCEEDED(hr) ? length : 0);
 
-  return hr;
+  return header;
 }
 
 void MFTEncoder::SetDrainState(DrainState aState) {
@@ -1041,11 +1092,14 @@ bool MFTEncoder::EventSource::IsOnCurrentThread() {
 #undef MFT_ENC_SLOGE
 #undef MFT_ENC_SLOGD
 #undef MFT_ENC_LOGE
+#undef MFT_ENC_LOGW
+#undef MFT_ENC_LOGV
 #undef MFT_ENC_LOGD
 #undef MFT_RETURN_IF_FAILED
 #undef MFT_RETURN_IF_FAILED_S
 #undef MFT_RETURN_VALUE_IF_FAILED
 #undef MFT_RETURN_VALUE_IF_FAILED_S
+#undef MFT_RETURN_ERROR_IF_FAILED
 #undef MFT_RETURN_ERROR_IF_FAILED_S
 #undef MFT_RETURN_IF_FAILED_IMPL
 #undef MFT_RETURN_VALUE_IF_FAILED_IMPL

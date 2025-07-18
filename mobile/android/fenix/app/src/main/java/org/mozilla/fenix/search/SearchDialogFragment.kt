@@ -177,6 +177,9 @@ class SearchDialogFragment : AppCompatDialogFragment(), UserInteractionHandler {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val args by navArgs<SearchDialogFragmentArgs>()
+
         if (context?.settings()?.isTabStripEnabled == true) {
             setStyle(STYLE_NO_TITLE, R.style.SearchDialogStyleTabStrip)
         } else {
@@ -194,7 +197,10 @@ class SearchDialogFragment : AppCompatDialogFragment(), UserInteractionHandler {
         }
 
         requireComponents.appStore.dispatch(
-            AppAction.UpdateSearchBeingActiveState(isSearchActive = true),
+            AppAction.SearchAction.SearchStarted(
+                tabId = args.sessionId,
+                source = args.searchAccessPoint,
+            ),
         )
     }
 
@@ -273,7 +279,9 @@ class SearchDialogFragment : AppCompatDialogFragment(), UserInteractionHandler {
             clearToolbar = {
                 inlineAutocompleteEditText.setText("")
             },
-            dismissDialogAndGoBack = ::dismissDialogAndGoBack,
+            dismissDialogAndGoBack = {
+                dismissDialogAndGoBack()
+            },
         )
         nullableInteractor = SearchDialogInteractor(searchController = requireNotNull(controller))
 
@@ -650,7 +658,7 @@ class SearchDialogFragment : AppCompatDialogFragment(), UserInteractionHandler {
         }
 
         requireComponents.appStore.dispatch(
-            AppAction.UpdateSearchBeingActiveState(isSearchActive = false),
+            AppAction.SearchAction.SearchEnded,
         )
     }
 

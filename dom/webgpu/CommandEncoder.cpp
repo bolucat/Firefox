@@ -12,6 +12,7 @@
 #include "ComputePassEncoder.h"
 #include "Device.h"
 #include "RenderPassEncoder.h"
+#include "TextureView.h"
 #include "Utility.h"
 #include "mozilla/webgpu/CanvasContext.h"
 #include "mozilla/webgpu/ffi/wgpu.h"
@@ -219,15 +220,37 @@ already_AddRefed<ComputePassEncoder> CommandEncoder::BeginComputePass(
 
 already_AddRefed<RenderPassEncoder> CommandEncoder::BeginRenderPass(
     const dom::GPURenderPassDescriptor& aDesc) {
-  for (const auto& at : aDesc.mColorAttachments) {
-    TrackPresentationContext(at.mView->GetTargetContext());
+  dom::GPURenderPassDescriptor desc{aDesc};
+
+  for (auto& at : desc.mColorAttachments) {
+    auto coerceToViewInPlace =
+        [](dom::OwningGPUTextureOrGPUTextureView& texOrView)
+        -> RefPtr<TextureView> {
+      RefPtr<TextureView> view;
+      switch (texOrView.GetType()) {
+        case dom::OwningGPUTextureOrGPUTextureView::Type::eGPUTexture: {
+          dom::GPUTextureViewDescriptor defaultDesc{};
+          RefPtr<Texture> tex = texOrView.GetAsGPUTexture();
+          texOrView.SetAsGPUTextureView() = tex->CreateView(defaultDesc);
+          break;
+        }
+
+        case dom::OwningGPUTextureOrGPUTextureView::Type::eGPUTextureView:
+          // Nothing to do, great!
+          break;
+      }
+      view = texOrView.GetAsGPUTextureView();
+      return view;
+    };
+    TrackPresentationContext(coerceToViewInPlace(at.mView)->GetTargetContext());
     if (at.mResolveTarget.WasPassed()) {
-      TrackPresentationContext(at.mResolveTarget.Value().GetTargetContext());
+      TrackPresentationContext(
+          coerceToViewInPlace(at.mResolveTarget.Value())->GetTargetContext());
     }
   }
 
-  RefPtr<RenderPassEncoder> pass = new RenderPassEncoder(this, aDesc);
-  pass->SetLabel(aDesc.mLabel);
+  RefPtr<RenderPassEncoder> pass = new RenderPassEncoder(this, desc);
+  pass->SetLabel(desc.mLabel);
   if (mState == CommandEncoderState::Ended) {
     // Because we do not call wgpu until the pass is ended, we need to generate
     // this error ourselves in order to report it at the correct time.

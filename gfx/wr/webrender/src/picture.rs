@@ -288,7 +288,7 @@ pub const TILE_SIZE_SCROLLBAR_VERTICAL: DeviceIntSize = DeviceIntSize {
 /// The maximum size per axis of a surface, in DevicePixel coordinates.
 /// Render tasks larger than this size are scaled down to fit, which may cause
 /// some blurriness.
-pub const MAX_SURFACE_SIZE: usize = 4096;
+pub const MAX_SURFACE_SIZE: usize = 8192;
 /// Maximum size of a compositor surface.
 const MAX_COMPOSITOR_SURFACES_SIZE: f32 = 8192.0;
 
@@ -4378,15 +4378,15 @@ bitflags! {
     #[derive(Debug, Copy, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
     pub struct BlitReason: u32 {
         /// Mix-blend-mode on a child that requires isolation.
-        const ISOLATE = 1;
+        const ISOLATE = 1 << 0;
         /// Clip node that _might_ require a surface.
-        const CLIP = 2;
+        const CLIP = 1 << 1;
         /// Preserve-3D requires a surface for plane-splitting.
-        const PRESERVE3D = 4;
+        const PRESERVE3D = 1 << 2;
         /// A backdrop that is reused which requires a surface.
-        const BACKDROP = 8;
+        const BACKDROP = 1 << 3;
         /// We may need to render the picture into an image and cache it.
-        const SNAPSHOT = 16;
+        const SNAPSHOT = 1 << 4;
     }
 }
 

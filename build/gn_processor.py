@@ -730,13 +730,13 @@ def generate_gn_config(
                 "visual_studio_path": "/",
                 "visual_studio_version": 2015,
                 "wdk_path": "/",
+                "windows_sdk_version": "n/a",
             }
         )
     if input_variables["target_os"] == "mac":
         input_variables.update(
             {
                 "mac_sdk_path": "/",
-                "enable_wmax_tokens": False,
             }
         )
 

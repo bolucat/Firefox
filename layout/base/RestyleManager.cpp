@@ -842,7 +842,7 @@ static bool RecomputePosition(nsIFrame* aFrame) {
       const auto* styleMargin = aFrame->StyleMargin();
       const auto anchorResolutionParams =
           AnchorPosResolutionParams::From(aFrame);
-      if (styleMargin->HasBlockAxisAuto(wm, anchorResolutionParams.mPosition)) {
+      if (styleMargin->HasBlockAxisAuto(wm, anchorResolutionParams)) {
         return false;
       }
     }
@@ -1145,12 +1145,9 @@ static nsIFrame* ContainingBlockForFrame(nsIFrame* aFrame) {
   if (aFrame->IsScrollContainerFrame()) {
     return insertionFrame;
   }
-  // Combobox frames are easy as well because they can't have positioned
-  // children anyways.
-  // Button and table cell frames are also easy because the containing block is
+  // Table cell frames are also easy because the containing block is
   // the frame itself.
-  if (aFrame->IsComboboxControlFrame() || aFrame->IsHTMLButtonControlFrame() ||
-      aFrame->IsTableCellFrame()) {
+  if (aFrame->IsTableCellFrame()) {
     return aFrame;
   }
   return nullptr;

@@ -15,6 +15,10 @@ export class IPProtectionPanel {
 
   static PANEL_ID = "PanelUI-ipprotection";
   static TITLE_L10N_ID = "ipprotection-title";
+
+  // TODO: this is temporary URL. Update it once finalized (Bug 1972462).
+  static HELP_PAGE_URL =
+    "https://support.mozilla.org/en-US/products/firefox-private-network-vpn";
   /**
    * Loads the ipprotection custom element script
    * into a given window.
@@ -48,6 +52,7 @@ export class IPProtectionPanel {
    */
   state = {};
   panel = null;
+  header = null;
 
   /**
    * Check the state of the enclosing panel to see if
@@ -66,10 +71,10 @@ export class IPProtectionPanel {
    *
    * Inserts the panel component customElements registry script.
    *
-   * @param {Window} _window
+   * @param {Window} window
    *   Window containing the panelView to manage.
    */
-  constructor(_window) {
+  constructor(window) {
     this.handleEvent = this.#handleEvent.bind(this);
 
     // TODO: let proxy assign our starting values (Bug 1976021)
@@ -79,6 +84,10 @@ export class IPProtectionPanel {
       isProtectionEnabled: false,
       protectionEnabledSince: null,
     };
+
+    if (window) {
+      IPProtectionPanel.loadCustomElements(window);
+    }
   }
 
   /**
@@ -126,6 +135,14 @@ export class IPProtectionPanel {
   // TODO: actually disconnect from proxy, hardcode for now (Bug 1976021)
   #stopProxy() {}
 
+  showHelpPage() {
+    let win = this.panel.ownerGlobal;
+    if (win && !Cu.isInAutomation) {
+      win.openWebLinkIn(IPProtectionPanel.HELP_PAGE_URL, "tab");
+      this.close();
+    }
+  }
+
   /**
    * Updates the visibility of the panel components before they will shown.
    *
@@ -137,11 +154,14 @@ export class IPProtectionPanel {
    *   The panelView element from the CustomizableUI widget callback.
    */
   showing(panelView) {
+    if (!this.header) {
+      this.#createHeader(panelView);
+    }
+
     if (this.panel) {
       this.updateState();
     } else {
       this.#createPanel(panelView);
-      this.#createHeader(panelView);
     }
   }
 
@@ -188,6 +208,7 @@ export class IPProtectionPanel {
       IPProtectionPanel.HEADER_TAGNAME
     );
     headerEl.titleId = IPProtectionPanel.TITLE_L10N_ID;
+    this.header = headerEl;
 
     headerRootEl.appendChild(headerEl);
   }
@@ -204,14 +225,18 @@ export class IPProtectionPanel {
   }
 
   /**
-   * Resets the state of the panel, removes listeners and disables updates.
+   * Remove added elements and listeners.
    */
   destroy() {
+    if (this.header) {
+      this.header.remove();
+      this.header = null;
+    }
     if (this.panel) {
       this.panel.remove();
       this.#removePanelListeners(this.panel.ownerDocument);
+      this.panel = null;
     }
-    this.state = {};
   }
 
   #addPanelListeners(doc) {
@@ -219,6 +244,7 @@ export class IPProtectionPanel {
     doc.addEventListener("IPProtection:Close", this.handleEvent);
     doc.addEventListener("IPProtection:UserEnable", this.handleEvent);
     doc.addEventListener("IPProtection:UserDisable", this.handleEvent);
+    doc.addEventListener("IPProtection:ShowHelpPage", this.handleEvent);
   }
 
   #removePanelListeners(doc) {
@@ -226,6 +252,7 @@ export class IPProtectionPanel {
     doc.removeEventListener("IPProtection:Close", this.handleEvent);
     doc.removeEventListener("IPProtection:UserEnable", this.handleEvent);
     doc.removeEventListener("IPProtection:UserDisable", this.handleEvent);
+    doc.removeEventListener("IPProtection:ShowHelpPage", this.handleEvent);
   }
 
   #handleEvent(event) {
@@ -237,6 +264,8 @@ export class IPProtectionPanel {
       this.#startProxy();
     } else if (event.type == "IPProtection:UserDisable") {
       this.#stopProxy();
+    } else if (event.type == "IPProtection:ShowHelpPage") {
+      this.showHelpPage();
     }
   }
 }
