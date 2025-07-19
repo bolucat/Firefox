@@ -23,6 +23,8 @@ const CONTENT_BLOCKING_PREFS = [
   "privacy.trackingprotection.emailtracking.pbmode.enabled",
   "privacy.fingerprintingProtection",
   "privacy.fingerprintingProtection.pbmode",
+  "privacy.trackingprotection.allow_list.baseline.enabled",
+  "privacy.trackingprotection.allow_list.convenience.enabled",
 ];
 
 const PREF_OPT_OUT_STUDIES_ENABLED = "app.shield.optoutstudies.enabled";
@@ -472,6 +474,30 @@ var gPrivacyPane = {
         Services.prefs.removeObserver(pref, trackingProtectionObserver);
       }
     });
+  },
+
+  /**
+   * Ensure the tracking protection exception list is migrated before the privacy
+   * preferences UI is shown.
+   * If the migration has already been run, this is a no-op.
+   */
+  _ensureTrackingProtectionExceptionListMigration() {
+    // Let's check the migration pref here as well to avoid the extra xpcom call
+    // for the common case where we've already migrated.
+    if (
+      Services.prefs.getBoolPref(
+        "privacy.trackingprotection.allow_list.hasMigratedCategoryPrefs",
+        false
+      )
+    ) {
+      return;
+    }
+
+    let exceptionListService = Cc[
+      "@mozilla.org/url-classifier/exception-list-service;1"
+    ].getService(Ci.nsIUrlClassifierExceptionListService);
+
+    exceptionListService.maybeMigrateCategoryPrefs();
   },
 
   _initThirdPartyCertsToggle() {
@@ -934,6 +960,7 @@ var gPrivacyPane = {
     this.fingerprintingProtectionReadPrefs();
     this.networkCookieBehaviorReadPrefs();
     this._initTrackingProtectionExtensionControl();
+    this._ensureTrackingProtectionExceptionListMigration();
     this._initThirdPartyCertsToggle();
     this._initProfilesInfo();
 
