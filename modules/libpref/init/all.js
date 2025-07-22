@@ -4017,7 +4017,7 @@ pref("extensions.formautofill.addresses.capture.enabled", true);
 #endif
 pref("extensions.formautofill.addresses.ignoreAutocompleteOff", true);
 // Supported countries need to follow ISO 3166-1 to align with "browser.search.region"
-pref("extensions.formautofill.addresses.supportedCountries", "US,CA,GB,FR,DE");
+pref("extensions.formautofill.addresses.supportedCountries", "US,CA,GB,FR,DE,BR,ES,JP");
 pref("extensions.formautofill.creditCards.supported", "on");
 pref("extensions.formautofill.creditCards.enabled", true);
 pref("extensions.formautofill.creditCards.ignoreAutocompleteOff", true);
@@ -4033,8 +4033,6 @@ pref("extensions.formautofill.creditCards.heuristics.mode", 2);
 pref("extensions.formautofill.creditCards.heuristics.fathom.types", "cc-number,cc-name");
 // Defines the threshold to identify whether a field is a cc field
 pref("extensions.formautofill.creditCards.heuristics.fathom.confidenceThreshold", "0.5");
-// Defineis the threshold to mark fields that are "high-confidence", see `isValidSection` for details
-pref("extensions.formautofill.creditCards.heuristics.fathom.highConfidenceThreshold", "0.95");
 // This is Only for testing! Set the confidence value (> 0 && <= 1) after a field is identified by fathom
 pref("extensions.formautofill.creditCards.heuristics.fathom.testConfidence", "0");
 
@@ -4052,11 +4050,6 @@ pref("extensions.formautofill.heuristics.refillOnSiteClearingFields", true);
 pref("extensions.formautofill.heuristics.refillOnSiteClearingFields.timeout", 500);
 
 pref("extensions.formautofill.heuristics.autofillSameOriginWithTop", true);
-
-#ifdef NIGHTLY_BUILD
-  pref("extensions.formautofill.ml.experiment.enabled", true);
-  pref("extensions.formautofill.ml.experiment.modelRevision", "v0.1.3");
-#endif
 
 pref("toolkit.osKeyStore.loglevel", "Warn");
 

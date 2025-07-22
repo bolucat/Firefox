@@ -19,6 +19,8 @@
 #include "jsapi-tests/tests.h"
 #include "vm/PlainObject.h"
 
+#include "gc/BufferAllocator-inl.h"
+
 #if defined(XP_WIN)
 #  include "util/WindowsWrapper.h"
 #  include <psapi.h>
@@ -391,13 +393,18 @@ static size_t SomeAllocSizes[] = {16,
                                   240,
                                   256,
                                   1000,
+                                  3000,
+                                  3968,
                                   4096,
                                   5000,
                                   16 * 1024,
                                   100 * 1024,
                                   255 * 1024,
-                                  256 * 1024,
+                                  257 * 1024,
                                   600 * 1024,
+                                  MaxMediumAllocSize,
+                                  MaxMediumAllocSize + 1,
+                                  1020 * 1024,
                                   1 * 1024 * 1024,
                                   3 * 1024 * 1024,
                                   10 * 1024 * 1024};
@@ -480,6 +487,19 @@ void BufferHolderObject::trace(JSTracer* trc, JSObject* obj) {
   }
 }
 
+namespace js::gc {
+size_t TestGetAllocSizeKind(void* alloc) {
+  if (BufferAllocator::IsLargeAlloc(alloc)) {
+    return 2;
+  }
+  if (BufferAllocator::IsMediumAlloc(alloc)) {
+    return 1;
+  }
+  MOZ_RELEASE_ASSERT(BufferAllocator::IsSmallAlloc(alloc));
+  return 0;
+}
+}  // namespace js::gc
+
 BEGIN_TEST(testBufferAllocator_API) {
   AutoLeaveZeal leaveZeal(cx);
 
@@ -521,12 +541,24 @@ BEGIN_TEST(testBufferAllocator_API) {
 
       CHECK(IsNurseryOwned(zone, alloc) == nurseryOwned);
 
+      size_t expectedKind;
+      if (goodSize >= MinLargeAllocSize) {
+        expectedKind = 2;
+      } else if (goodSize >= MinMediumAllocSize) {
+        expectedKind = 1;
+      } else {
+        expectedKind = 0;
+      }
+      CHECK(TestGetAllocSizeKind(alloc) == expectedKind);
+
       WriteAllocData(alloc, actualSize);
       CHECK(CheckAllocData(alloc, actualSize));
 
       CHECK(!IsBufferAllocMarkedBlack(zone, alloc));
 
       CHECK(cx->runtime()->gc.isPointerWithinBufferAlloc(alloc));
+      void* ptr = reinterpret_cast<void*>(uintptr_t(alloc) + 8);
+      CHECK(cx->runtime()->gc.isPointerWithinBufferAlloc(ptr));
 
       holder->setBuffer(alloc);
       if (nurseryOwned) {
@@ -575,7 +607,7 @@ BEGIN_TEST(testBufferAllocator_realloc) {
       }
 
       // Realloc nullptr.
-      void* alloc = ReallocBuffer(zone, nullptr, requestSize, nurseryOwned);
+      void* alloc = ReallocBuffer(zone, nullptr, 0, requestSize, nurseryOwned);
       CHECK(alloc);
       CHECK(IsBufferAlloc(alloc));
       CHECK(IsNurseryOwned(zone, alloc) == nurseryOwned);
@@ -585,7 +617,8 @@ BEGIN_TEST(testBufferAllocator_realloc) {
 
       // Realloc to same size.
       void* prev = alloc;
-      alloc = ReallocBuffer(zone, alloc, requestSize, nurseryOwned);
+      alloc =
+          ReallocBuffer(zone, alloc, requestSize, requestSize, nurseryOwned);
       CHECK(alloc);
       CHECK(alloc == prev);
       CHECK(actualSize == GetAllocSize(zone, alloc));
@@ -593,15 +626,17 @@ BEGIN_TEST(testBufferAllocator_realloc) {
       CHECK(CheckAllocData(alloc, actualSize));
 
       // Grow.
-      size_t newSize = requestSize + requestSize / 2;
-      alloc = ReallocBuffer(zone, alloc, newSize, nurseryOwned);
+      size_t oldSize = requestSize;
+      size_t newSize = oldSize + oldSize / 2;
+      alloc = ReallocBuffer(zone, alloc, oldSize, newSize, nurseryOwned);
       CHECK(alloc);
       CHECK(IsNurseryOwned(zone, alloc) == nurseryOwned);
       CHECK(CheckAllocData(alloc, actualSize));
 
       // Shrink.
-      newSize = newSize / 2;
-      alloc = ReallocBuffer(zone, alloc, newSize, nurseryOwned);
+      oldSize = newSize;
+      newSize = oldSize / 2;
+      alloc = ReallocBuffer(zone, alloc, oldSize, newSize, nurseryOwned);
       CHECK(alloc);
       CHECK(IsNurseryOwned(zone, alloc) == nurseryOwned);
       actualSize = GetAllocSize(zone, alloc);
@@ -640,19 +675,21 @@ BEGIN_TEST(testBufferAllocator_reallocInPlace) {
   // Grow medium -> medium: supported if free space after allocation
   // We should be able to grow in place if it's the last thing allocated.
   // *** If this starts failing we may need to allocate a new zone ***
-  CHECK(TestRealloc(1024, 2048, true));
+  size_t bytes = MinMediumAllocSize;
+  CHECK(TestRealloc(bytes, bytes * 2, true));
 
   // Shrink medium -> medium: supported
-  CHECK(TestRealloc(2048, 1024, true));
+  CHECK(TestRealloc(bytes * 2, bytes, true));
 
   // Grow large -> large: not supported
-  CHECK(TestRealloc(1 * 1024 * 1024, 2 * 1024 * 1024, false));
+  bytes = MinLargeAllocSize;
+  CHECK(TestRealloc(bytes, 2 * bytes, false));
 
   // Shrink large -> large: supported on non-Windows platforms
 #ifdef XP_WIN
-  CHECK(TestRealloc(2 * 1024 * 1024, 1 * 1024 * 1024, false));
+  CHECK(TestRealloc(2 * bytes, bytes, false));
 #else
-  CHECK(TestRealloc(2 * 1024 * 1024, 1 * 1024 * 1024, true));
+  CHECK(TestRealloc(2 * bytes, bytes, true));
 #endif
 
   JS_GC(cx);
@@ -670,7 +707,7 @@ bool TestRealloc(size_t fromSize, size_t toSize, bool expectedInPlace) {
   void* alloc = AllocBuffer(zone, fromSize, false);
   CHECK(alloc);
 
-  void* newAlloc = ReallocBuffer(zone, alloc, toSize, false);
+  void* newAlloc = ReallocBuffer(zone, alloc, fromSize, toSize, false);
   CHECK(newAlloc);
 
   if (expectedInPlace) {
@@ -683,6 +720,46 @@ bool TestRealloc(size_t fromSize, size_t toSize, bool expectedInPlace) {
   return true;
 }
 END_TEST(testBufferAllocator_reallocInPlace)
+
+namespace js::gc {
+void* TestAllocAligned(Zone* zone, size_t bytes) {
+  return zone->bufferAllocator.allocMediumAligned(bytes, false);
+}
+}  // namespace js::gc
+
+BEGIN_TEST(testBufferAllocator_alignedAlloc) {
+  AutoLeaveZeal leaveZeal(cx);
+
+  Rooted<BufferHolderObject*> holder(cx, BufferHolderObject::create(cx));
+  CHECK(holder);
+
+  JS::NonIncrementalGC(cx, JS::GCOptions::Shrink, JS::GCReason::API);
+
+  Zone* zone = cx->zone();
+  size_t initialGCHeapSize = zone->gcHeapSize.bytes();
+  size_t initialMallocHeapSize = zone->mallocHeapSize.bytes();
+
+  for (size_t requestSize = MinMediumAllocSize;
+       requestSize <= MaxAlignedAllocSize; requestSize *= 2) {
+    void* alloc = TestAllocAligned(zone, requestSize);
+    CHECK(alloc);
+    CHECK((uintptr_t(alloc) % requestSize) == 0);
+
+    CHECK(IsBufferAlloc(alloc));
+    size_t actualSize = GetAllocSize(zone, alloc);
+    CHECK(actualSize == requestSize);
+
+    CHECK(!IsNurseryOwned(zone, alloc));
+    FreeBuffer(zone, alloc);
+  }
+
+  JS_GC(cx);
+  CHECK(zone->gcHeapSize.bytes() == initialGCHeapSize);
+  CHECK(zone->mallocHeapSize.bytes() == initialMallocHeapSize);
+
+  return true;
+}
+END_TEST(testBufferAllocator_alignedAlloc)
 
 BEGIN_TEST(testBufferAllocator_predicatesOnOtherAllocs) {
   if (!cx->runtime()->gc.nursery().isEnabled()) {
@@ -730,7 +807,9 @@ BEGIN_TEST(testBufferAllocator_stress) {
   size_t initialMallocHeapSize = zone->mallocHeapSize.bytes();
 
   void* liveAllocs[MaxLiveAllocs];
-  mozilla::PodZero(&liveAllocs);
+  size_t allocSize[MaxLiveAllocs];
+  mozilla::PodArrayZero(liveAllocs);
+  mozilla::PodArrayZero(allocSize);
 
   AutoGCParameter setMaxHeap(cx, JSGC_MAX_BYTES, uint32_t(-1));
   AutoGCParameter param1(cx, JSGC_INCREMENTAL_GC_ENABLED, true);
@@ -748,11 +827,21 @@ BEGIN_TEST(testBufferAllocator_stress) {
     size_t bytes = randomSize();
 
     if (!liveAllocs[index]) {
-      liveAllocs[index] = AllocBuffer(zone, bytes, false);
+      if ((std::rand() % 4) == 0 && bytes >= MinMediumAllocSize &&
+          bytes <= ChunkSize / 4) {
+        bytes = mozilla::RoundUpPow2(bytes);
+        liveAllocs[index] = TestAllocAligned(zone, bytes);
+        allocSize[index] = bytes;
+      } else {
+        liveAllocs[index] = AllocBuffer(zone, bytes, false);
+        allocSize[index] = bytes;
+      }
     } else {
-      void* ptr = ReallocBuffer(zone, liveAllocs[index], bytes, false);
+      void* ptr = ReallocBuffer(zone, liveAllocs[index], allocSize[index],
+                                bytes, false);
       if (ptr) {
         liveAllocs[index] = ptr;
+        allocSize[index] = bytes;
       }
     }
 
@@ -762,6 +851,7 @@ BEGIN_TEST(testBufferAllocator_stress) {
         FreeBuffer(zone, liveAllocs[index]);
       }
       liveAllocs[index] = nullptr;
+      allocSize[index] = 0;
     }
 
     // Trigger zeal GCs.
@@ -812,38 +902,3 @@ static void traceAllocs(JSTracer* trc, void* data) {
   }
 }
 END_TEST(testBufferAllocator_stress)
-
-BEGIN_TEST(testBufferAllocator_encodedSize) {
-  CHECK(EncodedSize(0).get() == 0);
-
-  for (size_t i = 0; i < 4096; i += 7) {
-    CHECK(testEncodeDecode<3>(i));
-  }
-
-  for (size_t i = 0; i < 1024 * 1024; i += 10 * 1024) {
-    CHECK(testEncodeDecode<6>(i));
-  }
-
-  return true;
-}
-
-template <size_t GranularityShift = 4>
-bool testEncodeDecode(size_t requested) {
-  using Encoded = EncodedSize<GranularityShift>;
-  Encoded encoded(requested);
-
-  size_t bytes = encoded.get();
-  CHECK(bytes >= requested);
-
-  size_t wastedBytes = bytes - requested;
-  double wastedPercent = 0.0;
-  if (bytes != requested) {
-    wastedPercent = 100.0 * double(wastedBytes) / double(bytes);
-  }
-
-  CHECK((bytes % (1 << GranularityShift)) == 0);
-  CHECK(wastedBytes <= 8 || wastedPercent <= 6.0);
-
-  return true;
-}
-END_TEST(testBufferAllocator_encodedSize)

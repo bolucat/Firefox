@@ -221,7 +221,11 @@ RemoteAccessible* DocAccessibleParent::CreateAcc(
   RemoteAccessible* newProxy;
   if ((newProxy = GetAccessible(aAccData.ID()))) {
     // This is a move. Reuse the Accessible; don't destroy it.
-    MOZ_ASSERT(!newProxy->RemoteParent());
+    if (newProxy->RemoteParent()) {
+      MOZ_ASSERT_UNREACHABLE(
+          "Attempt to move RemoteAccessible which still has a parent!");
+      return nullptr;
+    }
     return newProxy;
   }
 
@@ -497,7 +501,7 @@ mozilla::ipc::IPCResult DocAccessibleParent::RecvCaretMoveEvent(
   }
 
   PlatformCaretMoveEvent(proxy, aOffset, aIsSelectionCollapsed, aGranularity,
-                         aCaretRect, aFromUser);
+                         aFromUser);
 
   if (!nsCoreUtils::AccEventObserversExist()) {
     return IPC_OK();
@@ -1160,7 +1164,7 @@ mozilla::ipc::IPCResult DocAccessibleParent::RecvFocusEvent(
 
   mFocus = aID;
   mCaretRect = aCaretRect;
-  PlatformFocusEvent(proxy, aCaretRect);
+  PlatformFocusEvent(proxy);
 
   if (!nsCoreUtils::AccEventObserversExist()) {
     return IPC_OK();

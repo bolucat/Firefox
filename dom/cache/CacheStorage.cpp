@@ -67,8 +67,6 @@ struct CacheStorage::Entry final {
   SafeRefPtr<InternalRequest> mRequest;
 };
 
-namespace {
-
 bool IsTrusted(const PrincipalInfo& aPrincipalInfo, bool aTestingPrefEnabled) {
   // Can happen on main thread or worker thread
 
@@ -129,8 +127,6 @@ bool IsTrusted(const PrincipalInfo& aPrincipalInfo, bool aTestingPrefEnabled) {
   return nsMixedContentBlocker::IsPotentiallyTrustworthyLoopbackHost(
       nsDependentCSubstring(url + authPos + hostPos, hostLen));
 }
-
-}  // namespace
 
 // static
 already_AddRefed<CacheStorage> CacheStorage::CreateOnMainThread(
@@ -506,7 +502,7 @@ JSObject* CacheStorage::WrapObject(JSContext* aContext,
   return mozilla::dom::CacheStorage_Binding::Wrap(aContext, this, aGivenProto);
 }
 
-void CacheStorage::DestroyInternal(CacheStorageChild* aActor) {
+void CacheStorage::OnActorDestroy(CacheStorageChild* aActor) {
   NS_ASSERT_OWNINGTHREAD(CacheStorage);
   MOZ_DIAGNOSTIC_ASSERT(mActor);
   MOZ_DIAGNOSTIC_ASSERT(mActor == aActor);
@@ -527,18 +523,11 @@ void CacheStorage::AssertOwningThread() const {
 }
 #endif
 
-PBackgroundChild* CacheStorage::GetIPCManager() {
-  // This is true because CacheStorage always uses IgnoreBody for requests.
-  // So we should never need to get the IPC manager during Request or
-  // Response serialization.
-  MOZ_CRASH("CacheStorage does not implement TypeUtils::GetIPCManager()");
-}
-
 CacheStorage::~CacheStorage() {
   NS_ASSERT_OWNINGTHREAD(CacheStorage);
   if (mActor) {
     mActor->StartDestroyFromListener();
-    // DestroyInternal() is called synchronously by StartDestroyFromListener().
+    // OnActorDestroy() is called synchronously by StartDestroyFromListener().
     // So we should have already cleared the mActor.
     MOZ_DIAGNOSTIC_ASSERT(!mActor);
   }

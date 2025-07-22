@@ -7570,6 +7570,7 @@ static bool ByteSize(JSContext* cx, unsigned argc, Value* vp) {
   {
     // We can't tolerate the GC moving things around while we're using a
     // ubi::Node. Check that nothing we do causes a GC.
+    cx->runtime()->gc.nursery().joinSweepTask();
     JS::AutoCheckCannotGC autoCannotGC;
 
     JS::ubi::Node node = args.get(0);
@@ -9798,6 +9799,13 @@ static bool WaitForDone(JSContext* cx, unsigned argc, Value* vp) {
   return true;
 }
 
+static bool TestingFunc_SupportDifferentialTesting(JSContext* cx, unsigned argc,
+                                                   Value* vp) {
+  CallArgs args = CallArgsFromVp(argc, vp);
+  args.rval().setBoolean(SupportDifferentialTesting());
+  return true;
+}
+
 // clang-format off
 static const JSFunctionSpecWithHelp TestingFunctions[] = {
     JS_FN_HELP("gc", ::GC, 0, 0,
@@ -10892,6 +10900,10 @@ JS_FN_HELP("isSmallFunction", IsSmallFunction, 1, 0,
 "hadOutOfMemory()",
 "  Return the runtime's internal hadOutOfMemory flag that is set when\n"
 "  out of memory is hit with an exception being propagated. "),
+
+JS_FN_HELP("supportDifferentialTesting", TestingFunc_SupportDifferentialTesting, 0, 0,
+"supportDifferentialTesting()",
+"  Return the value of JS::SupportDifferentialTesting."),
 
   JS_FS_HELP_END
 };

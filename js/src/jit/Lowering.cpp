@@ -4419,16 +4419,6 @@ void LIRGenerator::visitResizableTypedArrayLength(
   define(lir, ins);
 }
 
-void LIRGenerator::visitResizableTypedArrayByteOffsetMaybeOutOfBounds(
-    MResizableTypedArrayByteOffsetMaybeOutOfBounds* ins) {
-  MOZ_ASSERT(ins->object()->type() == MIRType::Object);
-  MOZ_ASSERT(ins->type() == MIRType::IntPtr);
-
-  auto* lir = new (alloc()) LResizableTypedArrayByteOffsetMaybeOutOfBounds(
-      useRegister(ins->object()), temp());
-  define(lir, ins);
-}
-
 void LIRGenerator::visitResizableDataViewByteLength(
     MResizableDataViewByteLength* ins) {
   MOZ_ASSERT(ins->object()->type() == MIRType::Object);
@@ -4747,10 +4737,14 @@ void LIRGenerator::visitStoreElementHole(MStoreElementHole* ins) {
   assignSafepoint(lir, ins);
 }
 
-void LIRGenerator::visitEffectiveAddress(MEffectiveAddress* ins) {
-  define(new (alloc()) LEffectiveAddress(useRegister(ins->base()),
-                                         useRegister(ins->index())),
+void LIRGenerator::visitEffectiveAddress3(MEffectiveAddress3* ins) {
+  define(new (alloc()) LEffectiveAddress3(useRegister(ins->base()),
+                                          useRegister(ins->index())),
          ins);
+}
+
+void LIRGenerator::visitEffectiveAddress2(MEffectiveAddress2* ins) {
+  define(new (alloc()) LEffectiveAddress2(useRegister(ins->index())), ins);
 }
 
 void LIRGenerator::visitArrayPopShift(MArrayPopShift* ins) {

@@ -29,6 +29,8 @@
 #include "nsIMemoryReporter.h"
 
 #include "GLContext.h"
+#include "GLScreenBuffer.h"
+#include "SharedSurface.h"
 #include "WebGLContext.h"
 #include "WebGL2Context.h"
 #include "WebGLChild.h"
@@ -2196,7 +2198,8 @@ void DrawTargetWebgl::DrawRectFallback(const Rect& aRect,
 }
 
 inline already_AddRefed<WebGLTexture> SharedContextWebgl::GetCompatibleSnapshot(
-    SourceSurface* aSurface, RefPtr<TextureHandle>* aHandle) const {
+    SourceSurface* aSurface, RefPtr<TextureHandle>* aHandle,
+    bool aCheckTarget) const {
   if (aSurface->GetUnderlyingType() == SurfaceType::WEBGL) {
     RefPtr<SourceSurfaceWebgl> webglSurf =
         aSurface->GetUnderlyingSurface().downcast<SourceSurfaceWebgl>();
@@ -2214,7 +2217,7 @@ inline already_AddRefed<WebGLTexture> SharedContextWebgl::GetCompatibleSnapshot(
         // texture directly. This is only safe if the targets don't match, but
         // MarkChanged should ensure that any snapshots were copied into a
         // texture handle before we ever get here.
-        if (!IsCurrentTarget(webglDT)) {
+        if (!aCheckTarget || !IsCurrentTarget(webglDT)) {
           return do_AddRef(webglDT->mTex);
         }
       }
@@ -3403,37 +3406,35 @@ already_AddRefed<SourceSurface> SharedContextWebgl::DownscaleBlurInput(
     }
   }
 
-  IntSize scaleFactor(1, 1);
+  // If the full-size source surface is not actually a texture, downscale it
+  // with a software filter as it will still improve upload performance while
+  // reducing the final blur cost.
+  IntRect sourceRect = aSourceRect;
+  RefPtr<SourceSurface> fullSurface = aSurface;
   for (int i = 0; i < aIters; ++i) {
-    if ((2 << i) <= aSourceRect.width) {
-      scaleFactor.width *= 2;
+    IntSize halfSize = (sourceRect.Size() + IntSize(1, 1)) / 2;
+    RefPtr<DrawTarget> halfDT = Factory::CreateDrawTarget(
+        BackendType::SKIA, halfSize, aSurface->GetFormat());
+    if (!halfDT) {
+      break;
     }
-    if ((2 << i) <= aSourceRect.height) {
-      scaleFactor.height *= 2;
+    halfDT->DrawSurface(
+        fullSurface, Rect(halfDT->GetRect()), Rect(sourceRect),
+        DrawSurfaceOptions(SamplingFilter::LINEAR),
+        DrawOptions(1.0f, aSurface->GetFormat() == SurfaceFormat::A8
+                              ? CompositionOp::OP_OVER
+                              : CompositionOp::OP_SOURCE));
+    RefPtr<SourceSurface> halfSurface = halfDT->Snapshot();
+    if (!halfSurface) {
+      break;
     }
+    fullSurface = halfSurface;
+    sourceRect = halfSurface->GetRect();
   }
-  IntSize scaleSize =
-      (aSourceRect.Size() + scaleFactor - IntSize(1, 1)) / scaleFactor;
-  if (RefPtr<DataSourceSurface> fullData = aSurface->GetDataSurface()) {
-    // If the full-size source surface is not actually a texture, downscale it
-    // with a software filter as it will still improve upload performance while
-    // reducing the final blur cost.
-    if (RefPtr<DataSourceSurface> scaleData = Factory::CreateDataSourceSurface(
-            scaleSize, aSurface->GetFormat(), false)) {
-      DataSourceSurface::ScopedMap srcMap(fullData, DataSourceSurface::READ);
-      DataSourceSurface::ScopedMap dstMap(scaleData, DataSourceSurface::WRITE);
-      if (srcMap.IsMapped() && dstMap.IsMapped()) {
-        if (Scale(srcMap.GetData() + aSourceRect.y * srcMap.GetStride() +
-                      aSourceRect.x * BytesPerPixel(aSurface->GetFormat()),
-                  aSourceRect.width, aSourceRect.height, srcMap.GetStride(),
-                  dstMap.GetData(), scaleSize.width, scaleSize.height,
-                  dstMap.GetStride(), aSurface->GetFormat())) {
-          return scaleData.forget();
-        }
-      }
-    }
+  if (sourceRect.IsEqualEdges(aSourceRect)) {
+    return nullptr;
   }
-  return nullptr;
+  return fullSurface.forget();
 }
 
 // Blurs a surface and draws the result at the specified offset.
@@ -5961,6 +5962,86 @@ bool DrawTargetWebgl::CopyToSwapChain(
   options.remoteTextureOwnerId = aOwnerId;
   return mSharedContext->mWebgl->CopyToSwapChain(mFramebuffer, aTextureType,
                                                  options, aOwnerClient);
+}
+
+std::shared_ptr<gl::SharedSurface> SharedContextWebgl::ExportSharedSurface(
+    layers::TextureType aTextureType, SourceSurface* aSurface) {
+  RefPtr<WebGLTexture> tex = GetCompatibleSnapshot(aSurface, nullptr, false);
+  if (!tex) {
+    return nullptr;
+  }
+  if (!mExportFramebuffer) {
+    mExportFramebuffer = mWebgl->CreateFramebuffer();
+  }
+  mWebgl->BindFramebuffer(LOCAL_GL_FRAMEBUFFER, mExportFramebuffer);
+  webgl::FbAttachInfo attachInfo;
+  attachInfo.tex = tex;
+  mWebgl->FramebufferAttach(LOCAL_GL_FRAMEBUFFER, LOCAL_GL_COLOR_ATTACHMENT0,
+                            LOCAL_GL_TEXTURE_2D, attachInfo);
+  // Copy and swizzle the WebGL framebuffer to the swap chain front buffer.
+  webgl::SwapChainOptions options;
+  options.bgra = true;
+  std::shared_ptr<gl::SharedSurface> sharedSurface;
+  if (mWebgl->CopyToSwapChain(mExportFramebuffer, aTextureType, options)) {
+    if (gl::SwapChain* swapChain =
+            mWebgl->GetSwapChain(mExportFramebuffer, false)) {
+      sharedSurface = swapChain->FrontBuffer();
+    }
+  }
+  RestoreCurrentTarget();
+  return sharedSurface;
+}
+
+already_AddRefed<SourceSurface> SharedContextWebgl::ImportSurfaceDescriptor(
+    const layers::SurfaceDescriptor& aDesc, const IntSize& aSize,
+    SurfaceFormat aFormat) {
+  if (IsContextLost()) {
+    return nullptr;
+  }
+
+  RefPtr<TextureHandle> handle =
+      AllocateTextureHandle(aFormat, aSize, true, true);
+  if (!handle) {
+    return nullptr;
+  }
+  BackingTexture* backing = handle->GetBackingTexture();
+  RefPtr<WebGLTexture> tex = backing->GetWebGLTexture();
+  if (mLastTexture != tex) {
+    mWebgl->BindTexture(LOCAL_GL_TEXTURE_2D, tex);
+    mLastTexture = tex;
+  }
+  if (!backing->IsInitialized()) {
+    backing->MarkInitialized();
+    InitTexParameters(tex);
+    if (handle->GetSize() != backing->GetSize()) {
+      UploadSurface(nullptr, backing->GetFormat(),
+                    IntRect(IntPoint(), backing->GetSize()), IntPoint(), true,
+                    true);
+    }
+  }
+
+  IntRect bounds = handle->GetBounds();
+  webgl::TexUnpackBlobDesc texDesc = {
+      LOCAL_GL_TEXTURE_2D, {uint32_t(aSize.width), uint32_t(aSize.height), 1}};
+  texDesc.sd = Some(aDesc);
+  texDesc.structuredSrcSize = uvec2::FromSize(aSize);
+  GLenum intFormat =
+      aFormat == SurfaceFormat::A8 ? LOCAL_GL_R8 : LOCAL_GL_RGBA8;
+  GLenum extFormat =
+      aFormat == SurfaceFormat::A8 ? LOCAL_GL_RED : LOCAL_GL_RGBA;
+  webgl::PackingInfo texPI = {extFormat, LOCAL_GL_UNSIGNED_BYTE};
+  mWebgl->TexImage(0, handle->GetSize() == backing->GetSize() ? intFormat : 0,
+                   {uint32_t(bounds.x), uint32_t(bounds.y), 0}, texPI, texDesc);
+
+  RefPtr<SourceSurfaceWebgl> surface = new SourceSurfaceWebgl(this);
+  surface->SetHandle(handle);
+  return surface.forget();
+}
+
+already_AddRefed<SourceSurface> DrawTargetWebgl::ImportSurfaceDescriptor(
+    const layers::SurfaceDescriptor& aDesc, const IntSize& aSize,
+    SurfaceFormat aFormat) {
+  return mSharedContext->ImportSurfaceDescriptor(aDesc, aSize, aFormat);
 }
 
 already_AddRefed<DrawTarget> DrawTargetWebgl::CreateSimilarDrawTarget(

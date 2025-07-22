@@ -11,6 +11,7 @@
 #include "HelpersSkia.h"
 
 #include "mozilla/CheckedInt.h"
+#include "mozilla/StaticPrefs_gfx.h"
 #include "mozilla/Vector.h"
 
 #include "skia/include/core/SkBitmap.h"
@@ -475,6 +476,9 @@ static void SetPaintPattern(SkPaint& aPaint, const Pattern& aPattern,
       break;
     }
     case PatternType::LINEAR_GRADIENT: {
+      if (StaticPrefs::gfx_skia_dithering_AtStartup()) {
+        aPaint.setDither(true);
+      }
       const LinearGradientPattern& pat =
           static_cast<const LinearGradientPattern&>(aPattern);
       GradientStopsSkia* stops =
@@ -589,7 +593,9 @@ static void SetPaintPattern(SkPaint& aPaint, const Pattern& aPattern,
     case PatternType::SURFACE: {
       const SurfacePattern& pat = static_cast<const SurfacePattern&>(aPattern);
       Matrix offsetMatrix = pat.mMatrix;
-      offsetMatrix.PreTranslate(pat.mSurface->GetRect().TopLeft());
+      if (pat.mSurface) {
+        offsetMatrix.PreTranslate(pat.mSurface->GetRect().TopLeft());
+      }
       sk_sp<SkImage> image =
           GetSkImageForSurface(pat.mSurface, &aLock, aBounds, &offsetMatrix);
       if (!image) {

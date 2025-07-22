@@ -21,6 +21,9 @@
 namespace mozilla {
 
 struct LimitersAndCaretData;  // Declared in nsFrameSelection.h
+namespace dom {
+class HTMLBRElement;
+};
 
 /*****************************************************************************
  * AutoInlineStyleSetter is a temporary class to set an inline style to
@@ -570,44 +573,50 @@ class MOZ_STACK_CLASS HTMLEditor::AutoInsertParagraphHandler final {
 
   /**
    * SplitParagraphWithTransaction() splits the parent block, aParentDivOrP, at
-   * aStartOfRightNode.
+   * aPointToSplit.
    *
-   * @param aParentDivOrP       The parent block to be split.  This must be <p>
-   *                            or <div> element.
-   * @param aStartOfRightNode   The point to be start of right node after
-   *                            split.  This must be descendant of
-   *                            aParentDivOrP.
-   * @param aMayBecomeVisibleBRElement
-   *                            Next <br> element of the split point if there
-   *                            is.  Otherwise, nullptr. If this is not nullptr,
-   *                            the <br> element may be removed if it becomes
-   *                            visible.
+   * @param aBlockElementToSplit    The current paragraph which should be split.
+   * @param aPointToSplit           The point to split aBlockElementToSplit.
    */
   [[nodiscard]] MOZ_CAN_RUN_SCRIPT Result<SplitNodeResult, nsresult>
-  SplitParagraphWithTransaction(Element& aParentDivOrP,
-                                const EditorDOMPoint& aStartOfRightNode,
-                                dom::HTMLBRElement* aMayBecomeVisibleBRElement);
+  SplitParagraphWithTransaction(Element& aBlockElementToSplit,
+                                const EditorDOMPoint& aPointToSplit);
 
   /**
-   * Do the right thing for Enter key press or 'insertParagraph' command in
-   * aParentDivOrP.  aParentDivOrP will be split **around**
-   * aCandidatePointToSplit.  If this thinks that it should be handled to insert
-   * a <br> instead, this returns "not handled".
+   * Delete preceding invisible line break before aPointToSplit if and only if
+   * there is.
    *
-   * @param aParentDivOrP   The parent block.  This must be <p> or <div>
-   *                        element.
-   * @param aCandidatePointToSplit
-   *                        The point where the caller want to split
-   *                        aParentDivOrP.  However, in some cases, this is not
-   *                        used as-is.  E.g., this method avoids to create new
-   *                        empty <a href> in the right paragraph.  So this may
-   *                        be adjusted to proper position around it.
-   * @return                If the caller should default to inserting <br>
-   *                        element, returns "not handled".
+   * @return New point to split aBlockElementToSplit
    */
-  [[nodiscard]] MOZ_CAN_RUN_SCRIPT Result<SplitNodeResult, nsresult>
-  HandleInParagraph(Element& aParentDivOrP,
-                    const EditorDOMPoint& aCandidatePointToSplit);
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT Result<EditorDOMPoint, nsresult>
+  EnsureNoInvisibleLineBreakBeforePointToSplit(
+      const Element& aBlockElementToSplit, const EditorDOMPoint& aPointToSplit);
+
+  /**
+   * Maybe insert a <br> element if it's required to keep the inline container
+   * visible after splitting aBlockElementToSplit at aPointToSplit.
+   *
+   * @return New point to split aBlockElementToSplit
+   */
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT Result<EditorDOMPoint, nsresult>
+  MaybeInsertFollowingBRElementToPreserveRightBlock(
+      const Element& aBlockElementToSplit, const EditorDOMPoint& aPointToSplit);
+
+  /**
+   * Return true if the HTMLEditor is in the mode which `insertParagraph` should
+   * always create a new paragraph or in the cases that we create a new
+   * paragraph in the legacy mode.
+   */
+  [[nodiscard]] bool ShouldCreateNewParagraph(
+      Element& aParentDivOrP, const EditorDOMPoint& aPointToSplit) const;
+
+  /**
+   * Return true if aBRElement is nullptr or an invisible <br> or a padding <br>
+   * for making the last empty line visible.
+   */
+  [[nodiscard]] static bool
+  IsNullOrInvisibleBRElementOrPaddingOneForEmptyLastLine(
+      const dom::HTMLBRElement* aBRElement);
 
   /**
    * Handle insertParagraph command (i.e., handling Enter key press) in a
@@ -624,6 +633,12 @@ class MOZ_STACK_CLASS HTMLEditor::AutoInsertParagraphHandler final {
   [[nodiscard]] MOZ_CAN_RUN_SCRIPT Result<InsertParagraphResult, nsresult>
   HandleInHeadingElement(Element& aHeadingElement,
                          const EditorDOMPoint& aPointToSplit);
+
+  /**
+   * Handle insertParagraph command at end of a heading element.
+   */
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT Result<InsertParagraphResult, nsresult>
+  HandleAtEndOfHeadingElement(Element& aHeadingElement);
 
   /**
    * Handle insertParagraph command (i.e., handling Enter key press) in a list
@@ -722,11 +737,63 @@ class MOZ_STACK_CLASS HTMLEditor::AutoInsertParagraphHandler final {
 
   /**
    * Return a better point to split the paragraph to avoid to keep a typing in a
-   * link in the new paragraph.
+   * link or a paragraph in list item in the new paragraph.
    */
-  [[nodiscard]] EditorDOMPoint GetBetterSplitPointToAvoidToContinueLink(
-      const EditorDOMPoint& aCandidatePointToSplit,
-      const Element& aElementToSplit);
+  [[nodiscard]] EditorDOMPoint GetBetterPointToSplitParagraph(
+      const Element& aBlockElementToSplit,
+      const EditorDOMPoint& aCandidatePointToSplit);
+
+  enum class IgnoreBlockBoundaries : bool { No, Yes };
+
+  /**
+   * Return true if splitting aBlockElementToSplit at aPointToSplit will create
+   * empty left element.
+   *
+   * @param aBlockElementToSplit    The paragraph element which we want to
+   *                                split.
+   * @param aPointToSplit           The split position in aBlockElementToSplit.
+   * @param aIgnoreBlockBoundaries  If No, return true only when aPointToSplit
+   *                                is immediately after a block boundary of
+   *                                aBlockElementToSplit.  In other words,
+   *                                may return true only when aPointToSplit
+   *                                is not in a child block of
+   *                                aBlockElementToSplit.
+   *                                If Yes, return true even when aPointToSplit
+   *                                is immediately after any current block
+   *                                boundary which is followed by the block
+   *                                boundary of aBlockElementToSplit.  In other
+   *                                words, return true when aPointToSplit is in
+   *                                a child block which is start of any ancestor
+   *                                block elements.
+   */
+  [[nodiscard]] static bool SplitPointIsStartOfSplittingBlock(
+      const Element& aBlockElementToSplit, const EditorDOMPoint& aPointToSplit,
+      IgnoreBlockBoundaries aIgnoreBlockBoundaries);
+
+  /**
+   * Return true if splitting aBlockElementToSplit at aPointToSplit will create
+   * empty right element.
+   *
+   * @param aBlockElementToSplit    The paragraph element which we want to
+   *                                split.
+   * @param aPointToSplit           The split position in aBlockElementToSplit.
+   * @param aIgnoreBlockBoundaries  If No, return true only when aPointToSplit
+   *                                is immediately before a block boundary of
+   *                                aBlockElementToSplit.  In other words,
+   *                                may return true only when aPointToSplit
+   *                                is not in a child block of
+   *                                aBlockElementToSplit.
+   *                                If Yes, return true even when aPointToSplit
+   *                                is immediately before any current block
+   *                                boundary which is followed by the block
+   *                                boundary of aBlockElementToSplit.  In other
+   *                                words, return true when aPointToSplit is in
+   *                                a child block which is end of any ancestor
+   *                                block elements.
+   */
+  [[nodiscard]] static bool SplitPointIsEndOfSplittingBlock(
+      const Element& aBlockElementToSplit, const EditorDOMPoint& aPointToSplit,
+      IgnoreBlockBoundaries aIgnoreBlockBoundaries);
 
   MOZ_KNOWN_LIVE HTMLEditor& mHTMLEditor;
   MOZ_KNOWN_LIVE const Element& mEditingHost;

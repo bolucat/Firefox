@@ -398,10 +398,9 @@ class ElementSpecific {
    * Act as if the assignments occurred from a fresh copy of |source|, in
    * case the two memory ranges overlap.
    */
-  static bool setFromTypedArray(Handle<TypedArrayObject*> target,
-                                size_t targetLength,
-                                Handle<TypedArrayObject*> source,
-                                size_t sourceLength, size_t offset) {
+  static bool setFromTypedArray(TypedArrayObject* target, size_t targetLength,
+                                TypedArrayObject* source, size_t sourceLength,
+                                size_t offset) {
     // WARNING: |source| may be an unwrapped typed array from a different
     // compartment. Proceed with caution!
 
@@ -410,6 +409,8 @@ class ElementSpecific {
     MOZ_ASSERT(Scalar::isBigIntType(target->type()) ==
                    Scalar::isBigIntType(source->type()),
                "can't convert between BigInt and Number");
+    MOZ_ASSERT(!target->is<ImmutableTypedArrayObject>(),
+               "target is not an immutable typed array");
     MOZ_ASSERT(!target->hasDetachedBuffer(), "target isn't detached");
     MOZ_ASSERT(!source->hasDetachedBuffer(), "source isn't detached");
     MOZ_ASSERT(*target->length() >= targetLength, "target isn't shrunk");
@@ -460,6 +461,8 @@ class ElementSpecific {
                                    size_t offset = 0) {
     MOZ_ASSERT(target->type() == TypeIDOfType<T>::id,
                "target type and NativeType must match");
+    MOZ_ASSERT(!target->is<ImmutableTypedArrayObject>(),
+               "target is not an immutable typed array");
     MOZ_ASSERT(!source->is<TypedArrayObject>(),
                "use setFromTypedArray instead of this method");
     MOZ_ASSERT_IF(target->hasDetachedBuffer(), target->length().isNothing());
@@ -588,9 +591,9 @@ class ElementSpecific {
   }
 
  private:
-  static bool setFromOverlappingTypedArray(Handle<TypedArrayObject*> target,
+  static bool setFromOverlappingTypedArray(TypedArrayObject* target,
                                            size_t targetLength,
-                                           Handle<TypedArrayObject*> source,
+                                           TypedArrayObject* source,
                                            size_t sourceLength, size_t offset) {
     // WARNING: |source| may be an unwrapped typed array from a different
     // compartment. Proceed with caution!

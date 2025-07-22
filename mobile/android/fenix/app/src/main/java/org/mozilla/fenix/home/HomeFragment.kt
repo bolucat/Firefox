@@ -315,6 +315,7 @@ class HomeFragment : Fragment() {
             container = binding.navigationBarContainer,
             appStore = components.appStore,
             browserStore = store,
+            hideWhenKeyboardShown = true,
         )
 
         if (requireContext().settings().isExperimentationEnabled) {
@@ -463,6 +464,7 @@ class HomeFragment : Fragment() {
             reloadUrlUseCase = components.useCases.sessionUseCases.reload,
             topSitesUseCases = components.useCases.topSitesUseCase,
             marsUseCases = components.useCases.marsUseCases,
+            fenixBrowserUseCases = components.useCases.fenixBrowserUseCases,
             appStore = components.appStore,
             navControllerRef = WeakReference(findNavController()),
             viewLifecycleScope = viewLifecycleOwner.lifecycleScope,
@@ -541,9 +543,12 @@ class HomeFragment : Fragment() {
                 navController = findNavController(),
             ),
             toolbarController = DefaultToolbarController(
-                activity = activity,
-                store = components.core.store,
+                appStore = components.appStore,
+                browserStore = components.core.store,
+                nimbusComponents = components.nimbus,
                 navController = findNavController(),
+                settings = components.settings,
+                fenixBrowserUseCases = components.useCases.fenixBrowserUseCases,
             ),
             homeSearchController = DefaultHomeSearchController(
                 appStore = components.appStore,

@@ -782,6 +782,21 @@ class TypedArrayObjectTemplate {
     return fromBufferWrapped(cx, bufobj, byteOffset, lengthIndex, nullptr);
   }
 
+  static TypedArrayObject* fromBuffer(
+      JSContext* cx, Handle<ArrayBufferObjectMaybeShared*> buffer,
+      size_t byteOffset) {
+    MOZ_ASSERT(byteOffset % BYTES_PER_ELEMENT == 0);
+    return fromBufferSameCompartment(cx, buffer, byteOffset, UINT64_MAX,
+                                     nullptr);
+  }
+
+  static TypedArrayObject* fromBuffer(
+      JSContext* cx, Handle<ArrayBufferObjectMaybeShared*> buffer,
+      size_t byteOffset, size_t length) {
+    MOZ_ASSERT(byteOffset % BYTES_PER_ELEMENT == 0);
+    return fromBufferSameCompartment(cx, buffer, byteOffset, length, nullptr);
+  }
+
   static bool maybeCreateArrayBuffer(JSContext* cx, uint64_t count,
                                      MutableHandle<ArrayBufferObject*> buffer) {
     if (count > ByteLengthLimit / BYTES_PER_ELEMENT) {
@@ -1208,9 +1223,11 @@ bool TypedArrayObjectTemplate<NativeType>::convertValue(JSContext* cx,
     return false;
   }
 
-  if (js::SupportDifferentialTesting()) {
-    // See the comment in ElementSpecific::doubleToNative.
-    d = JS::CanonicalizeNaN(d);
+  if constexpr (!std::numeric_limits<NativeType>::is_integer) {
+    if (js::SupportDifferentialTesting()) {
+      // See the comment in ElementSpecific::doubleToNative.
+      d = JS::CanonicalizeNaN(d);
+    }
   }
 
   // Assign based on characteristics of the destination type
@@ -1730,9 +1747,9 @@ static bool TypedArray_toStringTagGetter(JSContext* cx, unsigned argc,
 };
 
 template <typename T>
-static inline bool SetFromTypedArray(Handle<TypedArrayObject*> target,
+static inline bool SetFromTypedArray(TypedArrayObject* target,
                                      size_t targetLength,
-                                     Handle<TypedArrayObject*> source,
+                                     TypedArrayObject* source,
                                      size_t sourceLength, size_t offset) {
   // WARNING: |source| may be an unwrapped typed array from a different
   // compartment. Proceed with caution!
@@ -3151,6 +3168,47 @@ static TypedArrayObject* TypedArrayCreateSameType(
   }
 }
 
+/**
+ * TypedArrayCreateSameType ( exemplar, argumentList )
+ *
+ * ES2025 draft rev c4042979a7cdd96b663ffcc43aeee90af8d7a576
+ */
+static TypedArrayObject* TypedArrayCreateSameType(
+    JSContext* cx, Handle<TypedArrayObject*> exemplar,
+    Handle<ArrayBufferObjectMaybeShared*> buffer, size_t byteOffset) {
+  switch (exemplar->type()) {
+#define TYPED_ARRAY_CREATE(_, NativeType, Name)                         \
+  case Scalar::Name:                                                    \
+    return TypedArrayObjectTemplate<NativeType>::fromBuffer(cx, buffer, \
+                                                            byteOffset);
+    JS_FOR_EACH_TYPED_ARRAY(TYPED_ARRAY_CREATE)
+#undef TYPED_ARRAY_CREATE
+    default:
+      MOZ_CRASH("Unsupported TypedArray type");
+  }
+}
+
+/**
+ * TypedArrayCreateSameType ( exemplar, argumentList )
+ *
+ * ES2025 draft rev c4042979a7cdd96b663ffcc43aeee90af8d7a576
+ */
+static TypedArrayObject* TypedArrayCreateSameType(
+    JSContext* cx, Handle<TypedArrayObject*> exemplar,
+    Handle<ArrayBufferObjectMaybeShared*> buffer, size_t byteOffset,
+    size_t length) {
+  switch (exemplar->type()) {
+#define TYPED_ARRAY_CREATE(_, NativeType, Name)              \
+  case Scalar::Name:                                         \
+    return TypedArrayObjectTemplate<NativeType>::fromBuffer( \
+        cx, buffer, byteOffset, length);
+    JS_FOR_EACH_TYPED_ARRAY(TYPED_ARRAY_CREATE)
+#undef TYPED_ARRAY_CREATE
+    default:
+      MOZ_CRASH("Unsupported TypedArray type");
+  }
+}
+
 template <typename NativeType>
 static void TypedArrayCopyElements(TypedArrayObject* source,
                                    TypedArrayObject* target, size_t length) {
@@ -3364,6 +3422,538 @@ static bool TypedArray_with(JSContext* cx, unsigned argc, Value* vp) {
   AutoJSMethodProfilerEntry pseudoFrame(cx, "[TypedArray].prototype", "with");
   CallArgs args = CallArgsFromVp(argc, vp);
   return CallNonGenericMethod<IsTypedArrayObject, TypedArray_with>(cx, args);
+}
+
+/**
+ * TypedArrayCreateFromConstructor ( constructor, argumentList )
+ */
+template <typename... Args>
+static TypedArrayObject* TypedArrayCreateFromConstructor(
+    JSContext* cx, Handle<JSObject*> constructor, Args... args) {
+  // Step 1.
+  Rooted<JSObject*> resultObj(cx);
+  {
+    auto toNumberOrObjectValue = [](auto v) {
+      if constexpr (std::is_arithmetic_v<decltype(v)>) {
+        return NumberValue(v);
+      } else {
+        return ObjectValue(*v);
+      }
+    };
+
+    FixedConstructArgs<sizeof...(args)> cargs(cx);
+
+    size_t i = 0;
+    ((cargs[i].set(toNumberOrObjectValue(args)), i++), ...);
+
+    Rooted<Value> ctorVal(cx, ObjectValue(*constructor));
+    if (!Construct(cx, ctorVal, cargs, ctorVal, &resultObj)) {
+      return nullptr;
+    }
+  }
+
+  // Step 2.
+  auto* unwrapped = resultObj->maybeUnwrapIf<TypedArrayObject>();
+  if (!unwrapped) {
+    JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
+                              JSMSG_NON_TYPED_ARRAY_RETURNED);
+    return nullptr;
+  }
+
+  auto resultLength = unwrapped->length();
+  if (!resultLength) {
+    ReportOutOfBounds(cx, unwrapped);
+    return nullptr;
+  }
+
+  // Step 3. (Assertion not applicable in our implementation.)
+
+  // Step 4.
+  if constexpr (sizeof...(args) == 1) {
+    // Use nested if-statements because GCC miscompiles `decltype((args, ...))`.
+    auto length = (args, ...);
+    if constexpr (std::is_arithmetic_v<decltype(length)>) {
+      // Additional step from <https://tc39.es/proposal-immutable-arraybuffer>.
+      if (unwrapped->is<ImmutableTypedArrayObject>()) {
+        JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
+                                  JSMSG_ARRAYBUFFER_IMMUTABLE);
+        return nullptr;
+      }
+
+      // Steps 4.a-b. (Performed above)
+
+      // Step 4.c.
+      if (*resultLength < length) {
+        ToCStringBuf lengthBuf;
+        ToCStringBuf resultLengthBuf;
+        JS_ReportErrorNumberASCII(
+            cx, GetErrorMessage, nullptr, JSMSG_SHORT_TYPED_ARRAY_RETURNED,
+            NumberToCString(&lengthBuf, length),
+            NumberToCString(&resultLengthBuf, *resultLength));
+        return nullptr;
+      }
+    }
+  }
+
+  // Step 5.
+  return unwrapped;
+}
+
+static bool HasBuiltinTypedArraySpecies(TypedArrayObject* obj, JSContext* cx) {
+  // Ensure `%TypedArray%.prototype.constructor` and `%TypedArray%[@@species]`
+  // haven't been mutated. Ensure concrete `TypedArray.prototype.constructor`
+  // and the prototype of `TypedArray.prototype` haven't been mutated.
+  if (!cx->realm()->realmFuses.optimizeTypedArraySpeciesFuse.intact()) {
+    return false;
+  }
+
+  auto protoKey = StandardProtoKeyOrNull(obj);
+
+  // Ensure |obj|'s prototype is the actual concrete TypedArray.prototype.
+  auto* proto = cx->global()->maybeGetPrototype(protoKey);
+  if (!proto || obj->staticPrototype() != proto) {
+    return false;
+  }
+
+  // Fail if |obj| has an own `constructor` property.
+  if (obj->containsPure(cx->names().constructor)) {
+    return false;
+  }
+
+  return true;
+}
+
+static bool IsTypedArraySpecies(JSContext* cx, JSFunction* species) {
+  return IsSelfHostedFunctionWithName(species,
+                                      cx->names().dollar_TypedArraySpecies_);
+}
+
+/**
+ * TypedArraySpeciesCreate ( exemplar, argumentList )
+ *
+ * ES2026 draft rev 60c4df0b65e1c2e6b6581a5bc08a9311223be1da
+ */
+template <typename... Args>
+static TypedArrayObject* TypedArraySpeciesCreateImpl(
+    JSContext* cx, Handle<TypedArrayObject*> exemplar, Args... args) {
+  if (HasBuiltinTypedArraySpecies(exemplar, cx)) {
+    return TypedArrayCreateSameType(cx, exemplar, args...);
+  }
+
+  // Step 1.
+  auto ctorKey = StandardProtoKeyOrNull(exemplar);
+  Rooted<JSObject*> defaultCtor(
+      cx, GlobalObject::getOrCreateConstructor(cx, ctorKey));
+  if (!defaultCtor) {
+    return nullptr;
+  }
+
+  // Steps 1-2.
+  Rooted<JSObject*> constructor(
+      cx, SpeciesConstructor(cx, exemplar, defaultCtor, IsTypedArraySpecies));
+  if (!constructor) {
+    return nullptr;
+  }
+
+  if (constructor == defaultCtor) {
+    return TypedArrayCreateSameType(cx, exemplar, args...);
+  }
+
+  // Step 3.
+  auto* unwrappedResult =
+      TypedArrayCreateFromConstructor(cx, constructor, args...);
+  if (!unwrappedResult) {
+    return nullptr;
+  }
+
+  // Step 4.
+  if (Scalar::isBigIntType(exemplar->type()) !=
+      Scalar::isBigIntType(unwrappedResult->type())) {
+    JS_ReportErrorNumberASCII(
+        cx, GetErrorMessage, nullptr, JSMSG_TYPED_ARRAY_NOT_COMPATIBLE,
+        exemplar->getClass()->name, unwrappedResult->getClass()->name);
+    return nullptr;
+  }
+
+  // Step 5.
+  return unwrappedResult;
+}
+
+/**
+ * TypedArraySpeciesCreate ( exemplar, argumentList )
+ *
+ * ES2026 draft rev 60c4df0b65e1c2e6b6581a5bc08a9311223be1da
+ */
+static TypedArrayObject* TypedArraySpeciesCreate(
+    JSContext* cx, Handle<TypedArrayObject*> exemplar, size_t length) {
+  return TypedArraySpeciesCreateImpl(cx, exemplar, length);
+}
+
+/**
+ * TypedArraySpeciesCreate ( exemplar, argumentList )
+ *
+ * ES2026 draft rev 60c4df0b65e1c2e6b6581a5bc08a9311223be1da
+ */
+static TypedArrayObject* TypedArraySpeciesCreate(
+    JSContext* cx, Handle<TypedArrayObject*> exemplar,
+    Handle<ArrayBufferObjectMaybeShared*> buffer, size_t byteOffset) {
+  return TypedArraySpeciesCreateImpl(cx, exemplar, buffer, byteOffset);
+}
+
+/**
+ * TypedArraySpeciesCreate ( exemplar, argumentList )
+ *
+ * ES2026 draft rev 60c4df0b65e1c2e6b6581a5bc08a9311223be1da
+ */
+static TypedArrayObject* TypedArraySpeciesCreate(
+    JSContext* cx, Handle<TypedArrayObject*> exemplar,
+    Handle<ArrayBufferObjectMaybeShared*> buffer, size_t byteOffset,
+    size_t length) {
+  return TypedArraySpeciesCreateImpl(cx, exemplar, buffer, byteOffset, length);
+}
+
+static void TypedArrayBitwiseSlice(TypedArrayObject* source, size_t startIndex,
+                                   size_t count, TypedArrayObject* target) {
+  MOZ_ASSERT(CanUseBitwiseCopy(target->type(), source->type()));
+  MOZ_ASSERT(!source->hasDetachedBuffer());
+  MOZ_ASSERT(!target->hasDetachedBuffer());
+  MOZ_ASSERT(!target->is<ImmutableTypedArrayObject>());
+  MOZ_ASSERT(count > 0);
+  MOZ_ASSERT(startIndex + count <= source->length().valueOr(0));
+  MOZ_ASSERT(count <= target->length().valueOr(0));
+
+  size_t elementSize = TypedArrayElemSize(source->type());
+  MOZ_ASSERT(elementSize == TypedArrayElemSize(target->type()));
+
+  SharedMem<uint8_t*> sourceData =
+      source->dataPointerEither().cast<uint8_t*>() + startIndex * elementSize;
+
+  SharedMem<uint8_t*> targetData = target->dataPointerEither().cast<uint8_t*>();
+
+  size_t byteLength = count * elementSize;
+
+  // The same-type case requires exact copying preserving the bit-level encoding
+  // of the source data, so use memcpy if possible. If source and target are the
+  // same buffer, we can't use memcpy (or memmove), because the specification
+  // requires sequential copying of the values. This case is only possible if a
+  // @@species constructor created a specifically crafted typed array. It won't
+  // happen in normal code and hence doesn't need to be optimized.
+  if (!TypedArrayObject::sameBuffer(source, target)) {
+    if (source->isSharedMemory() || target->isSharedMemory()) {
+      jit::AtomicOperations::memcpySafeWhenRacy(targetData, sourceData,
+                                                byteLength);
+    } else {
+      std::memcpy(targetData.unwrapUnshared(), sourceData.unwrapUnshared(),
+                  byteLength);
+    }
+  } else {
+    for (; byteLength > 0; byteLength--) {
+      jit::AtomicOperations::storeSafeWhenRacy(
+          targetData++, jit::AtomicOperations::loadSafeWhenRacy(sourceData++));
+    }
+  }
+}
+
+template <typename NativeType>
+static double TypedArraySliceCopySlowGet(TypedArrayObject* tarray,
+                                         size_t index) {
+  return static_cast<double>(
+      TypedArrayObjectTemplate<NativeType>::getIndex(tarray, index));
+}
+
+template <typename NativeType>
+static void TypedArraySliceCopySlowSet(TypedArrayObject* tarray, size_t index,
+                                       double value) {
+  if constexpr (!std::numeric_limits<NativeType>::is_integer) {
+    if (js::SupportDifferentialTesting()) {
+      // See the comment in ElementSpecific::doubleToNative.
+      value = JS::CanonicalizeNaN(value);
+    }
+  }
+  TypedArrayObjectTemplate<NativeType>::setIndex(
+      *tarray, index, ConvertNumber<NativeType>(value));
+}
+
+template <>
+void TypedArraySliceCopySlowSet<int64_t>(TypedArrayObject* tarray, size_t index,
+                                         double value) {
+  // Specialization because ConvertNumber doesn't allow double to int64_t.
+  MOZ_CRASH("unexpected set with int64_t");
+}
+
+template <>
+void TypedArraySliceCopySlowSet<uint64_t>(TypedArrayObject* tarray,
+                                          size_t index, double value) {
+  // Specialization because ConvertNumber doesn't allow double to uint64_t.
+  MOZ_CRASH("unexpected set with uint64_t");
+}
+
+static void TypedArraySliceCopySlow(TypedArrayObject* source, size_t startIndex,
+                                    size_t count, TypedArrayObject* target) {
+  MOZ_ASSERT(!CanUseBitwiseCopy(target->type(), source->type()));
+  MOZ_ASSERT(!source->hasDetachedBuffer());
+  MOZ_ASSERT(!target->hasDetachedBuffer());
+  MOZ_ASSERT(!target->is<ImmutableTypedArrayObject>());
+  MOZ_ASSERT(count > 0);
+  MOZ_ASSERT(startIndex + count <= source->length().valueOr(0));
+  MOZ_ASSERT(count <= target->length().valueOr(0));
+
+  static_assert(
+      CanUseBitwiseCopy(Scalar::BigInt64, Scalar::BigUint64) &&
+          CanUseBitwiseCopy(Scalar::BigUint64, Scalar::BigInt64),
+      "BigInt contents, even if sign is different, can be copied bitwise");
+
+  MOZ_ASSERT(!Scalar::isBigIntType(target->type()) &&
+             !Scalar::isBigIntType(source->type()));
+
+  // Step 14.h.i.
+  size_t n = 0;
+
+  // Step 14.h.ii.
+  size_t k = startIndex;
+
+  // Step 14.h.iii.
+  while (n < count) {
+    // Step 14.h.iii.1. (Not applicable)
+
+    // Step 14.h.iii.2.
+    double value;
+    switch (source->type()) {
+#define GET_ELEMENT(_, T, N)                          \
+  case Scalar::N:                                     \
+    value = TypedArraySliceCopySlowGet<T>(source, k); \
+    break;
+      JS_FOR_EACH_TYPED_ARRAY(GET_ELEMENT)
+#undef GET_ELEMENT
+      case Scalar::MaxTypedArrayViewType:
+      case Scalar::Int64:
+      case Scalar::Simd128:
+        break;
+    }
+
+    // Step 14.h.iii.3.
+    switch (target->type()) {
+#define SET_ELEMENT(_, T, N)                         \
+  case Scalar::N:                                    \
+    TypedArraySliceCopySlowSet<T>(target, n, value); \
+    break;
+      JS_FOR_EACH_TYPED_ARRAY(SET_ELEMENT)
+#undef SET_ELEMENT
+      case Scalar::MaxTypedArrayViewType:
+      case Scalar::Int64:
+      case Scalar::Simd128:
+        break;
+    }
+
+    // Step 14.h.iii.4.
+    k += 1;
+
+    // Step 14.h.iii.5.
+    n += 1;
+  }
+}
+
+/**
+ * %TypedArray%.prototype.slice ( start, end )
+ *
+ * ES2026 draft rev 60c4df0b65e1c2e6b6581a5bc08a9311223be1da
+ */
+static bool TypedArray_slice(JSContext* cx, const CallArgs& args) {
+  MOZ_ASSERT(IsTypedArrayObject(args.thisv()));
+
+  // Steps 1-3.
+  Rooted<TypedArrayObject*> tarray(
+      cx, &args.thisv().toObject().as<TypedArrayObject>());
+
+  auto arrayLength = tarray->length();
+  if (!arrayLength) {
+    ReportOutOfBounds(cx, tarray);
+    return false;
+  }
+  size_t len = *arrayLength;
+
+  // Steps 4-7.
+  size_t startIndex = 0;
+  if (args.hasDefined(0)) {
+    if (!ToIntegerIndex(cx, args[0], len, &startIndex)) {
+      return false;
+    }
+  }
+
+  // Steps 8-11.
+  size_t endIndex = len;
+  if (args.hasDefined(1)) {
+    if (!ToIntegerIndex(cx, args[1], len, &endIndex)) {
+      return false;
+    }
+  }
+
+  // Step 12.
+  size_t count = endIndex >= startIndex ? endIndex - startIndex : 0;
+
+  // Step 13.
+  Rooted<TypedArrayObject*> unwrappedResult(
+      cx, TypedArraySpeciesCreate(cx, tarray, count));
+  if (!unwrappedResult) {
+    return false;
+  }
+
+  // Additional step from <https://tc39.es/proposal-immutable-arraybuffer>.
+  MOZ_ASSERT(!unwrappedResult->is<ImmutableTypedArrayObject>());
+
+  // Step 14.
+  if (count > 0) {
+    // Steps 14.a-b.
+    auto arrayLength = tarray->length();
+    if (!arrayLength) {
+      ReportOutOfBounds(cx, tarray);
+      return false;
+    }
+
+    // Step 14.c.
+    endIndex = std::min(endIndex, *arrayLength);
+
+    // Step 14.d.
+    count = endIndex >= startIndex ? endIndex - startIndex : 0;
+
+    // Copy if updated |count| is still non-zero.
+    if (count > 0) {
+      // Step 14.e.
+      auto srcType = tarray->type();
+
+      // Step 14.f.
+      auto targetType = unwrappedResult->type();
+
+      // Steps 14.g-h.
+      //
+      // The specification requires us to perform bitwise copying when |result|
+      // and |tarray| have the same type. Additionally, as an optimization, we
+      // can also perform bitwise copying when both types have compatible
+      // bit-level representations.
+      if (MOZ_LIKELY(CanUseBitwiseCopy(targetType, srcType))) {
+        TypedArrayBitwiseSlice(tarray, startIndex, count, unwrappedResult);
+      } else {
+        TypedArraySliceCopySlow(tarray, startIndex, count, unwrappedResult);
+      }
+    }
+  }
+
+  // Step 15.
+  if (MOZ_LIKELY(cx->compartment() == unwrappedResult->compartment())) {
+    args.rval().setObject(*unwrappedResult);
+  } else {
+    Rooted<JSObject*> wrappedResult(cx, unwrappedResult);
+    if (!cx->compartment()->wrap(cx, &wrappedResult)) {
+      return false;
+    }
+    args.rval().setObject(*wrappedResult);
+  }
+  return true;
+}
+
+/**
+ * %TypedArray%.prototype.slice ( start, end )
+ *
+ * ES2026 draft rev 60c4df0b65e1c2e6b6581a5bc08a9311223be1da
+ */
+static bool TypedArray_slice(JSContext* cx, unsigned argc, Value* vp) {
+  AutoJSMethodProfilerEntry pseudoFrame(cx, "[TypedArray].prototype", "slice");
+  CallArgs args = CallArgsFromVp(argc, vp);
+  return CallNonGenericMethod<IsTypedArrayObject, TypedArray_slice>(cx, args);
+}
+
+/**
+ * %TypedArray%.prototype.subarray ( start, end )
+ *
+ * ES2026 draft rev 60c4df0b65e1c2e6b6581a5bc08a9311223be1da
+ */
+static bool TypedArray_subarray(JSContext* cx, const CallArgs& args) {
+  MOZ_ASSERT(IsTypedArrayObject(args.thisv()));
+
+  // Steps 1-3.
+  Rooted<TypedArrayObject*> tarray(
+      cx, &args.thisv().toObject().as<TypedArrayObject>());
+
+  // Step 4.
+  if (!TypedArrayObject::ensureHasBuffer(cx, tarray)) {
+    return false;
+  }
+  Rooted<ArrayBufferObjectMaybeShared*> buffer(cx, tarray->bufferEither());
+
+  // Steps 5-7.
+  size_t srcLength = tarray->length().valueOr(0);
+
+  // Step 13.
+  //
+  // Reordered because otherwise it'd be observable that we reset
+  // the byteOffset to zero when the underlying array buffer gets detached.
+  size_t srcByteOffset = tarray->byteOffsetMaybeOutOfBounds();
+
+  // Steps 8-11.
+  size_t startIndex = 0;
+  if (args.hasDefined(0)) {
+    if (!ToIntegerIndex(cx, args[0], srcLength, &startIndex)) {
+      return false;
+    }
+  }
+
+  // Step 12.
+  size_t elementSize = TypedArrayElemSize(tarray->type());
+
+  // Step 14.
+  size_t beginByteOffset = srcByteOffset + (startIndex * elementSize);
+
+  // Steps 15-16.
+  TypedArrayObject* unwrappedResult;
+  if (!args.hasDefined(1) && tarray->is<ResizableTypedArrayObject>() &&
+      tarray->as<ResizableTypedArrayObject>().isAutoLength()) {
+    // Step 15.a.
+    unwrappedResult =
+        TypedArraySpeciesCreate(cx, tarray, buffer, beginByteOffset);
+  } else {
+    // Steps 16.a-d.
+    size_t endIndex = srcLength;
+    if (args.hasDefined(1)) {
+      if (!ToIntegerIndex(cx, args[1], srcLength, &endIndex)) {
+        return false;
+      }
+    }
+
+    // Step 16.e.
+    size_t newLength = endIndex >= startIndex ? endIndex - startIndex : 0;
+
+    // Step 16.f.
+    unwrappedResult =
+        TypedArraySpeciesCreate(cx, tarray, buffer, beginByteOffset, newLength);
+  }
+  if (!unwrappedResult) {
+    return false;
+  }
+
+  // Step 17.
+  if (MOZ_LIKELY(cx->compartment() == unwrappedResult->compartment())) {
+    args.rval().setObject(*unwrappedResult);
+  } else {
+    Rooted<JSObject*> wrappedResult(cx, unwrappedResult);
+    if (!cx->compartment()->wrap(cx, &wrappedResult)) {
+      return false;
+    }
+    args.rval().setObject(*wrappedResult);
+  }
+  return true;
+}
+
+/**
+ * %TypedArray%.prototype.subarray ( start, end )
+ *
+ * ES2026 draft rev 60c4df0b65e1c2e6b6581a5bc08a9311223be1da
+ */
+static bool TypedArray_subarray(JSContext* cx, unsigned argc, Value* vp) {
+  AutoJSMethodProfilerEntry pseudoFrame(cx, "[TypedArray].prototype",
+                                        "subarray");
+  CallArgs args = CallArgsFromVp(argc, vp);
+  return CallNonGenericMethod<IsTypedArrayObject, TypedArray_subarray>(cx,
+                                                                       args);
 }
 
 // Byte vector with large enough inline storage to allow constructing small
@@ -4468,7 +5058,7 @@ static bool uint8array_toHex(JSContext* cx, unsigned argc, Value* vp) {
 }
 
 /* static */ const JSFunctionSpec TypedArrayObject::protoFunctions[] = {
-    JS_SELF_HOSTED_FN("subarray", "TypedArraySubarray", 2, 0),
+    JS_FN("subarray", TypedArray_subarray, 2, 0),
     JS_FN("set", TypedArray_set, 1, 0),
     JS_FN("copyWithin", TypedArray_copyWithin, 2, 0),
     JS_SELF_HOSTED_FN("every", "TypedArrayEvery", 1, 0),
@@ -4486,7 +5076,7 @@ static bool uint8array_toHex(JSContext* cx, unsigned argc, Value* vp) {
     JS_SELF_HOSTED_FN("reduce", "TypedArrayReduce", 1, 0),
     JS_SELF_HOSTED_FN("reduceRight", "TypedArrayReduceRight", 1, 0),
     JS_FN("reverse", TypedArray_reverse, 0, 0),
-    JS_SELF_HOSTED_FN("slice", "TypedArraySlice", 2, 0),
+    JS_FN("slice", TypedArray_slice, 2, 0),
     JS_SELF_HOSTED_FN("some", "TypedArraySome", 1, 0),
     JS_TRAMPOLINE_FN("sort", TypedArrayObject::sort, 1, 0, TypedArraySort),
     JS_SELF_HOSTED_FN("entries", "TypedArrayEntries", 0, 0),
@@ -4527,7 +5117,7 @@ static const ClassSpec TypedArrayObjectSharedTypedArrayPrototypeClassSpec = {
     TypedArrayObject::staticProperties,
     TypedArrayObject::protoFunctions,
     TypedArrayObject::protoAccessors,
-    nullptr,
+    GenericFinishInit<WhichHasFuseProperty::ProtoAndCtor>,
     ClassSpec::DontDefineConstructor,
 };
 
@@ -4856,7 +5446,7 @@ static const ClassSpec
       static_prototype_properties[Scalar::Type::Name],              \
       TypedArrayMethods(Scalar::Type::Name),                        \
       static_prototype_properties[Scalar::Type::Name],              \
-      nullptr,                                                      \
+      GenericFinishInit<WhichHasFuseProperty::Proto>,               \
       JSProto_TypedArray,                                           \
   },
 

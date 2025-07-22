@@ -393,12 +393,7 @@ void GCRuntime::releaseArena(Arena* arena, const AutoLockGC& lock) {
   MOZ_ASSERT(!arena->onDelayedMarkingList());
   MOZ_ASSERT(TlsGCContext.get()->isFinalizing());
 
-  if (IsBufferAllocKind(arena->getAllocKind())) {
-    size_t usableBytes = ArenaSize - arena->getFirstThingOffset();
-    arena->zone()->mallocHeapSize.removeBytes(usableBytes, true);
-  } else {
-    arena->zone()->gcHeapSize.removeBytes(ArenaSize, true, heapSize);
-  }
+  arena->zone()->gcHeapSize.removeBytes(ArenaSize, true, heapSize);
   if (arena->zone()->isAtomsZone()) {
     arena->freeAtomMarkingBitmapIndex(this, lock);
   }
@@ -5138,6 +5133,7 @@ void GCRuntime::waitForBackgroundTasks() {
 
   allocTask.join();
   freeTask.join();
+  nursery().joinSweepTask();
   nursery().joinDecommitTask();
 }
 
@@ -5419,6 +5415,10 @@ AutoEmptyNursery::AutoEmptyNursery(JSContext* cx) {
   cx->runtime()->gc.stats().suspendPhases();
   cx->runtime()->gc.evictNursery(JS::GCReason::EVICT_NURSERY);
   cx->runtime()->gc.stats().resumePhases();
+
+  // Also wait for nursery sweeping to end as required by gc::GetAllocSize.
+  cx->runtime()->gc.nursery().joinSweepTask();
+
   checkCondition(cx);
 }
 
