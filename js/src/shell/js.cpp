@@ -6016,7 +6016,22 @@ static bool ModuleLink(JSContext* cx, unsigned argc, Value* vp) {
 
   Rooted<ModuleObject*> module(cx,
                                object->as<ShellModuleObjectWrapper>().get());
-  if (!JS::ModuleLink(cx, module)) {
+
+  // TODO: Bug 1968904: Update ModuleLink
+  if (!JS::LoadRequestedModules(
+          cx, module, UndefinedHandleValue,
+          [&module](JSContext* cx, JS::Handle<JS::Value> val) {
+            if (!JS::ModuleLink(cx, module)) {
+              return false;
+            }
+
+            return true;
+          },
+          [](JSContext* cx, JS::Handle<JS::Value> val,
+             Handle<JS::Value> error) {
+            JS_SetPendingException(cx, error);
+            return true;
+          })) {
     return false;
   }
 
@@ -11502,6 +11517,15 @@ static bool InstanceClassHasProtoAtDepth(const JSClass* clasp, uint32_t protoID,
 
 static bool InstanceClassIsError(const JSClass* clasp) { return false; }
 
+static bool ExtractExceptionInfo(JSContext* cx, JS::HandleObject obj,
+                                 bool* isException,
+                                 JS::MutableHandle<JSString*> fileName,
+                                 uint32_t* line, uint32_t* column,
+                                 JS::MutableHandle<JSString*> message) {
+  *isException = false;
+  return true;
+}
+
 static bool ShellBuildId(JS::BuildIdCharVector* buildId) {
   // The browser embeds the date into the buildid and the buildid is embedded
   // in the binary, so every 'make' necessarily builds a new firefox binary.
@@ -11641,7 +11665,8 @@ static JSObject* NewGlobalObject(JSContext* cx, JS::RealmOptions& options,
 
     /* Initialize FakeDOMObject. */
     static const js::DOMCallbacks DOMcallbacks = {InstanceClassHasProtoAtDepth,
-                                                  InstanceClassIsError};
+                                                  InstanceClassIsError,
+                                                  ExtractExceptionInfo};
     SetDOMCallbacks(cx, &DOMcallbacks);
 
     RootedObject domProto(

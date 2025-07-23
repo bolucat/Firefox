@@ -84,12 +84,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.launch
 import mozilla.appservices.places.BookmarkRoot
+import mozilla.components.browser.state.action.AwesomeBarAction
 import mozilla.components.browser.state.search.SearchEngine
 import mozilla.components.compose.base.Divider
 import mozilla.components.compose.base.annotation.FlexibleWindowLightDarkPreview
 import mozilla.components.compose.base.textfield.TextField
 import mozilla.components.compose.base.textfield.TextFieldColors
 import mozilla.components.compose.base.theme.AcornTheme
+import mozilla.components.compose.base.utils.BackInvokedHandler
 import mozilla.components.compose.browser.awesomebar.AwesomeBar
 import mozilla.components.compose.browser.awesomebar.AwesomeBarDefaults
 import mozilla.components.compose.browser.awesomebar.AwesomeBarOrientation
@@ -224,6 +226,7 @@ private fun BookmarksList(
     bookmarksSearchEngine: SearchEngine?,
     useNewSearchUX: Boolean = false,
 ) {
+    val browserStore = components.core.store
     val state by store.observeAsState(store.state) { it }
     val searchState = searchStore.observeAsComposableState { it }.value
     val awesomebarBackground = AcornTheme.colors.layer1
@@ -306,10 +309,15 @@ private fun BookmarksList(
             false -> {
                 appStore.dispatch(AppAction.SearchAction.SearchEnded)
                 toolbarStore.dispatch(BrowserEditToolbarAction.SearchQueryUpdated(""))
+                browserStore.dispatch(AwesomeBarAction.EngagementFinished(abandoned = true))
                 focusManager.clearFocus()
                 keyboardController?.hide()
             }
         }
+    }
+
+    BackInvokedHandler(state.isSearching) {
+        store.dispatch(SearchDismissed)
     }
 
     WarnDialog(store = store)
@@ -341,12 +349,10 @@ private fun BookmarksList(
             }
         },
         topBar = {
-            Box {
+            if (useNewSearchUX && state.isSearching) {
+                BrowserToolbar(toolbarStore)
+            } else {
                 BookmarksListTopBar(store = store)
-
-                if (useNewSearchUX && state.isSearching) {
-                    BrowserToolbar(toolbarStore)
-                }
             }
         },
         containerColor = FirefoxTheme.colors.layer1,
@@ -501,6 +507,7 @@ private fun BookmarksList(
             Box(
                 modifier = Modifier
                     .background(awesomebarScrim)
+                    .padding(paddingValues)
                     .fillMaxSize()
                     .pointerInput(WindowInsets.isImeVisible) {
                         detectTapGestures(

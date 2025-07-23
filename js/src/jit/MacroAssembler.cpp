@@ -50,6 +50,7 @@
 #include "wasm/WasmBuiltins.h"
 #include "wasm/WasmCodegenConstants.h"
 #include "wasm/WasmCodegenTypes.h"
+#include "wasm/WasmInstance.h"
 #include "wasm/WasmInstanceData.h"
 #include "wasm/WasmMemory.h"
 #include "wasm/WasmTypeDef.h"
@@ -6316,9 +6317,7 @@ CodeOffset MacroAssembler::asmCallIndirect(const wasm::CallSiteDesc& desc,
 
 void MacroAssembler::wasmCallIndirect(const wasm::CallSiteDesc& desc,
                                       const wasm::CalleeDesc& callee,
-                                      Label* boundsCheckFailedLabel,
                                       Label* nullCheckFailedLabel,
-                                      mozilla::Maybe<uint32_t> tableSize,
                                       CodeOffset* fastCallOffset,
                                       CodeOffset* slowCallOffset) {
   static_assert(sizeof(wasm::FunctionTableElem) == 2 * sizeof(void*),
@@ -6328,28 +6327,6 @@ void MacroAssembler::wasmCallIndirect(const wasm::CallSiteDesc& desc,
   const int shift = sizeof(wasm::FunctionTableElem) == 8 ? 3 : 4;
   const Register calleeScratch = WasmTableCallScratchReg0;
   const Register index = WasmTableCallIndexReg;
-
-  // Check the table index and throw if out-of-bounds.
-  //
-  // Frequently the table size is known, so optimize for that.  Otherwise
-  // compare with a memory operand when that's possible.  (There's little sense
-  // in hoisting the load of the bound into a register at a higher level and
-  // reusing that register, because a hoisted value would either have to be
-  // spilled and re-loaded before the next call_indirect, or would be abandoned
-  // because we could not trust that a hoisted value would not have changed.)
-
-  if (boundsCheckFailedLabel) {
-    if (tableSize.isSome()) {
-      branch32(Assembler::Condition::AboveOrEqual, index, Imm32(*tableSize),
-               boundsCheckFailedLabel);
-    } else {
-      branch32(
-          Assembler::Condition::BelowOrEqual,
-          Address(InstanceReg, wasm::Instance::offsetInData(
-                                   callee.tableLengthInstanceDataOffset())),
-          index, boundsCheckFailedLabel);
-    }
-  }
 
   // Write the functype-id into the ABI functype-id register.
 
@@ -6454,9 +6431,7 @@ void MacroAssembler::wasmCallIndirect(const wasm::CallSiteDesc& desc,
 
 void MacroAssembler::wasmReturnCallIndirect(
     const wasm::CallSiteDesc& desc, const wasm::CalleeDesc& callee,
-    Label* boundsCheckFailedLabel, Label* nullCheckFailedLabel,
-    mozilla::Maybe<uint32_t> tableSize,
-    const ReturnCallAdjustmentInfo& retCallInfo) {
+    Label* nullCheckFailedLabel, const ReturnCallAdjustmentInfo& retCallInfo) {
   static_assert(sizeof(wasm::FunctionTableElem) == 2 * sizeof(void*),
                 "Exactly two pointers or index scaling won't work correctly");
   MOZ_ASSERT(callee.which() == wasm::CalleeDesc::WasmTable);
@@ -6464,28 +6439,6 @@ void MacroAssembler::wasmReturnCallIndirect(
   const int shift = sizeof(wasm::FunctionTableElem) == 8 ? 3 : 4;
   const Register calleeScratch = WasmTableCallScratchReg0;
   const Register index = WasmTableCallIndexReg;
-
-  // Check the table index and throw if out-of-bounds.
-  //
-  // Frequently the table size is known, so optimize for that.  Otherwise
-  // compare with a memory operand when that's possible.  (There's little sense
-  // in hoisting the load of the bound into a register at a higher level and
-  // reusing that register, because a hoisted value would either have to be
-  // spilled and re-loaded before the next call_indirect, or would be abandoned
-  // because we could not trust that a hoisted value would not have changed.)
-
-  if (boundsCheckFailedLabel) {
-    if (tableSize.isSome()) {
-      branch32(Assembler::Condition::AboveOrEqual, index, Imm32(*tableSize),
-               boundsCheckFailedLabel);
-    } else {
-      branch32(
-          Assembler::Condition::BelowOrEqual,
-          Address(InstanceReg, wasm::Instance::offsetInData(
-                                   callee.tableLengthInstanceDataOffset())),
-          index, boundsCheckFailedLabel);
-    }
-  }
 
   // Write the functype-id into the ABI functype-id register.
 
@@ -7342,6 +7295,13 @@ void MacroAssembler::wasmNewStructObject(Register instance, Register result,
   jump(fail);
 #endif
 
+  // Don't execute the inline path if there is an allocation metadata builder
+  // on the realm.
+  branchPtr(
+      Assembler::NotEqual,
+      Address(instance, wasm::Instance::offsetOfAllocationMetadataBuilder()),
+      ImmWord(0), fail);
+
 #ifdef JS_GC_ZEAL
   // Don't execute the inline path if gc zeal or tracing are active.
   loadPtr(Address(instance, wasm::Instance::offsetOfAddressOfGCZealModeBits()),
@@ -7391,6 +7351,13 @@ void MacroAssembler::wasmNewArrayObject(Register instance, Register result,
 #ifdef JS_GC_PROBES
   jump(fail);
 #endif
+
+  // Don't execute the inline path if there is an allocation metadata builder
+  // on the realm.
+  branchPtr(
+      Assembler::NotEqual,
+      Address(instance, wasm::Instance::offsetOfAllocationMetadataBuilder()),
+      ImmWord(0), fail);
 
 #ifdef JS_GC_ZEAL
   // Don't execute the inline path if gc zeal or tracing are active.
@@ -7548,6 +7515,13 @@ void MacroAssembler::wasmNewArrayObjectFixed(
 #ifdef JS_GC_PROBES
   jump(fail);
 #endif
+
+  // Don't execute the inline path if there is an allocation metadata builder
+  // on the realm.
+  branchPtr(
+      Assembler::NotEqual,
+      Address(instance, wasm::Instance::offsetOfAllocationMetadataBuilder()),
+      ImmWord(0), fail);
 
 #ifdef JS_GC_ZEAL
   // Don't execute the inline path if gc zeal or tracing are active.

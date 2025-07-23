@@ -1373,6 +1373,12 @@ class nsContentUtils {
 
   static bool PrefetchPreloadEnabled(nsIDocShell* aDocShell);
 
+  static bool ExtractExceptionValues(JSContext* aCx,
+                                     JS::Handle<JSObject*> aException,
+                                     nsACString& aFilename, uint32_t* aLineOut,
+                                     uint32_t* aColumnOut,
+                                     nsString& aMessageOut);
+
   static void ExtractErrorValues(JSContext* aCx, JS::Handle<JS::Value> aValue,
                                  nsACString& aSourceSpecOut, uint32_t* aLineOut,
                                  uint32_t* aColumnOut, nsString& aMessageOut);
@@ -3596,6 +3602,8 @@ class nsContentUtils {
   static nsIContent* AttachDeclarativeShadowRoot(
       nsIContent* aHost, mozilla::dom::ShadowRootMode aMode, bool aIsClonable,
       bool aIsSerializable, bool aDelegatesFocus);
+
+  static bool NavigationMustBeAReplace(nsIURI& aURI, const Document& aDocument);
 
  private:
   static bool InitializeEventTable();

@@ -6,6 +6,7 @@
 
 #include "FFmpegEncoderModule.h"
 
+#include "EncoderConfig.h"
 #include "FFmpegLog.h"
 #include "FFmpegAudioEncoder.h"
 #include "FFmpegUtils.h"
@@ -116,7 +117,16 @@ EncodeSupportSet FFmpegEncoderModule<V>::Supports(
       return EncodeSupportSet{};
     }
   }
-  return SupportsCodec(aConfig.mCodec);
+  auto support = SupportsCodec(aConfig.mCodec);
+  if (aConfig.mHardwarePreference == HardwarePreference::RequireHardware &&
+      !support.contains(EncodeSupport::HardwareEncode)) {
+    return {};
+  }
+  if (aConfig.mHardwarePreference == HardwarePreference::RequireSoftware &&
+      !support.contains(EncodeSupport::SoftwareEncode)) {
+    return {};
+  }
+  return support;
 }
 
 template <int V>

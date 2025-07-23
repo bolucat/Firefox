@@ -9247,6 +9247,15 @@
   mirror: always
   set_spidermonkey_pref: always
 
+
+# Whether to treat "ducktyped" error objects like `{message: "<message>", fileName: "foo", lineNumber: 1}`
+# as real Error objects during exception handling.
+- name: javascript.options.ducktyped_errors
+  type: bool
+  value: false
+  mirror: always
+  set_spidermonkey_pref: always
+
 # Whether to support parsing '//(#@) source(Mapping)?URL=' pragmas.
 - name: javascript.options.source_pragmas
   type: bool
@@ -10181,6 +10190,13 @@
   type: AtomicFloat
   value: 0.750f
   mirror: always
+
+# Whether container scroll-state queries are enabled.
+- name: layout.css.scroll-state.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+  rust: true
 
 # Stylo thread-pool size.
 # Negative means auto, 0 disables the thread-pool (main-thread styling), other

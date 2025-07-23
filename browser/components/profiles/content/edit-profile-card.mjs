@@ -118,7 +118,6 @@ export class EditProfileCard extends MozLitElement {
 
     window.addEventListener("beforeunload", this);
     window.addEventListener("pagehide", this);
-    document.addEventListener("click", this);
     document.addEventListener("Profiles:CustomAvatarUpload", this);
     document.addEventListener("Profiles:AvatarSelected", this);
 
@@ -193,23 +192,6 @@ export class EditProfileCard extends MozLitElement {
       }
       case "pagehide": {
         RPMSendAsyncMessage("Profiles:PageHide");
-        break;
-      }
-      case "click": {
-        if (this.avatarSelector.view === "crop") {
-          return;
-        }
-
-        let element = event.originalTarget;
-        while (element && element !== this.avatarSelector) {
-          element = element?.getRootNode()?.host;
-        }
-
-        if (element === this.avatarSelector) {
-          return;
-        }
-
-        this.avatarSelector.hidden = true;
         break;
       }
       case "Profiles:CustomAvatarUpload": {
@@ -416,7 +398,9 @@ export class EditProfileCard extends MozLitElement {
       />
       <a
         id="profile-avatar-selector-link"
+        tabindex="0"
         @click=${this.toggleAvatarSelectorCard}
+        @keydown=${this.handleAvatarSelectorKeyDown}
         data-l10n-id="edit-profile-page-avatar-selector-opener-link"
       ></a>
       <div class="avatar-selector-parent">
@@ -430,7 +414,14 @@ export class EditProfileCard extends MozLitElement {
 
   toggleAvatarSelectorCard(event) {
     event.stopPropagation();
-    this.avatarSelector.hidden = !this.avatarSelector.hidden;
+    this.avatarSelector.toggleHidden();
+  }
+
+  handleAvatarSelectorKeyDown(event) {
+    if (event.code === "Enter" || event.code === "Space") {
+      event.preventDefault();
+      this.toggleAvatarSelectorCard(event);
+    }
   }
 
   onDeleteClick() {

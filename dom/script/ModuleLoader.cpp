@@ -362,14 +362,10 @@ already_AddRefed<ModuleLoadRequest> ModuleLoader::CreateTopLevel(
     ScriptFetchOptions* aFetchOptions, const SRIMetadata& aIntegrity,
     nsIURI* aReferrer, ScriptLoadContext* aContext,
     ScriptLoadRequestType aRequestType) {
-  RefPtr<VisitedURLSet> visitedSet =
-      ModuleLoadRequest::NewVisitedSetForTopLevelImport(
-          aURI, JS::ModuleType::JavaScript);
-
-  RefPtr<ModuleLoadRequest> request = new ModuleLoadRequest(
-      aURI, JS::ModuleType::JavaScript, aReferrerPolicy, aFetchOptions,
-      aIntegrity, aReferrer, aContext, ModuleLoadRequest::Kind::TopLevel, this,
-      visitedSet, nullptr);
+  RefPtr<ModuleLoadRequest> request =
+      new ModuleLoadRequest(aURI, JS::ModuleType::JavaScript, aReferrerPolicy,
+                            aFetchOptions, aIntegrity, aReferrer, aContext,
+                            ModuleLoadRequest::Kind::TopLevel, this, nullptr);
 
   GetScriptLoader()->TryUseCache(request, aElement, aFetchOptions->mNonce,
                                  aRequestType);
@@ -378,19 +374,22 @@ already_AddRefed<ModuleLoadRequest> ModuleLoader::CreateTopLevel(
 }
 
 already_AddRefed<ModuleLoadRequest> ModuleLoader::CreateStaticImport(
-    nsIURI* aURI, JS::ModuleType aModuleType, ModuleLoadRequest* aParent,
-    const mozilla::dom::SRIMetadata& aSriMetadata) {
+    nsIURI* aURI, JS::ModuleType aModuleType, ModuleScript* aReferrerScript,
+    const mozilla::dom::SRIMetadata& aSriMetadata,
+    JS::loader::LoadContextBase* aLoadContext,
+    JS::loader::ModuleLoaderBase* aLoader) {
   RefPtr<ScriptLoadContext> newContext = new ScriptLoadContext();
   newContext->mIsInline = false;
   // Propagated Parent values. TODO: allow child modules to use root module's
   // script mode.
-  newContext->mScriptMode = aParent->GetScriptLoadContext()->mScriptMode;
+  newContext->mScriptMode = aLoadContext->AsWindowContext()->mScriptMode;
 
   RefPtr<ModuleLoadRequest> request = new ModuleLoadRequest(
-      aURI, aModuleType, aParent->ReferrerPolicy(), aParent->mFetchOptions,
-      aSriMetadata, aParent->mURI, newContext,
-      ModuleLoadRequest::Kind::StaticImport, aParent->mLoader,
-      aParent->mVisitedSet, aParent->GetRootModule());
+      aURI, aModuleType, aReferrerScript->ReferrerPolicy(),
+      aReferrerScript->GetFetchOptions(), aSriMetadata,
+      aReferrerScript->GetURI(), newContext,
+      ModuleLoadRequest::Kind::StaticImport, aLoader,
+      aLoadContext->mRequest->AsModuleRequest()->GetRootModule());
 
   GetScriptLoader()->TryUseCache(request);
 
@@ -398,10 +397,9 @@ already_AddRefed<ModuleLoadRequest> ModuleLoader::CreateStaticImport(
 }
 
 already_AddRefed<ModuleLoadRequest> ModuleLoader::CreateDynamicImport(
-    JSContext* aCx, nsIURI* aURI, JS::ModuleType aModuleType,
-    LoadedScript* aMaybeActiveScript, JS::Handle<JSString*> aSpecifier,
-    JS::Handle<JSObject*> aPromise) {
-  MOZ_ASSERT(aSpecifier);
+    JSContext* aCx, nsIURI* aURI, LoadedScript* aMaybeActiveScript,
+    JS::Handle<JSObject*> aModuleRequestObj, JS::Handle<JSObject*> aPromise) {
+  MOZ_ASSERT(aModuleRequestObj);
   MOZ_ASSERT(aPromise);
 
   RefPtr<ScriptFetchOptions> options = nullptr;
@@ -447,21 +445,18 @@ already_AddRefed<ModuleLoadRequest> ModuleLoader::CreateDynamicImport(
   context->mIsInline = false;
   context->mScriptMode = ScriptLoadContext::ScriptMode::eAsync;
 
-  RefPtr<VisitedURLSet> visitedSet =
-      ModuleLoadRequest::NewVisitedSetForTopLevelImport(aURI, aModuleType);
-
+  JS::ModuleType moduleType = JS::GetModuleRequestType(aCx, aModuleRequestObj);
   SRIMetadata sriMetadata;
   GetImportMapSRI(aURI, baseURL, mLoader->GetConsoleReportCollector(),
                   &sriMetadata);
 
   RefPtr<ModuleLoadRequest> request = new ModuleLoadRequest(
-      aURI, aModuleType, referrerPolicy, options, sriMetadata, baseURL, context,
-      ModuleLoadRequest::Kind::DynamicImport, this, visitedSet, nullptr);
+      aURI, moduleType, referrerPolicy, options, sriMetadata, baseURL, context,
+      ModuleLoadRequest::Kind::DynamicImport, this, nullptr);
 
-  request->SetDynamicImport(aMaybeActiveScript, aSpecifier, aPromise);
+  request->SetDynamicImport(aMaybeActiveScript, aModuleRequestObj, aPromise);
 
   GetScriptLoader()->TryUseCache(request);
-
   return request.forget();
 }
 

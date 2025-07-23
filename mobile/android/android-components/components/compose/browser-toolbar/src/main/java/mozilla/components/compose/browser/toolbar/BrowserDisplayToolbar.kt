@@ -12,12 +12,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
+import mozilla.components.compose.base.Divider
 import mozilla.components.compose.base.progressbar.AnimatedProgressBar
 import mozilla.components.compose.base.theme.AcornTheme
 import mozilla.components.compose.browser.toolbar.concept.Action
@@ -28,21 +30,23 @@ import mozilla.components.compose.browser.toolbar.concept.Action.SearchSelectorA
 import mozilla.components.compose.browser.toolbar.concept.PageOrigin
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteraction.BrowserToolbarEvent
 import mozilla.components.compose.browser.toolbar.store.ProgressBarConfig
-import mozilla.components.compose.browser.toolbar.store.ProgressBarGravity
-import mozilla.components.compose.browser.toolbar.store.ProgressBarGravity.Bottom
-import mozilla.components.compose.browser.toolbar.store.ProgressBarGravity.Top
+import mozilla.components.compose.browser.toolbar.store.ToolbarGravity
+import mozilla.components.compose.browser.toolbar.store.ToolbarGravity.Bottom
+import mozilla.components.compose.browser.toolbar.store.ToolbarGravity.Top
 import mozilla.components.compose.browser.toolbar.ui.Origin
 import mozilla.components.ui.icons.R as iconsR
 
-private val ROUNDED_CORNER_SHAPE = RoundedCornerShape(8.dp)
 private const val NO_TOOLBAR_PADDING_DP = 0
 private const val TOOLBAR_PADDING_DP = 8
+private const val MINIMUM_PROGRESS_BAR_STATE = 1
+private const val MAXIMUM_PROGRESS_BAR_STATE = 99
 
 /**
  * Sub-component of the [BrowserToolbar] responsible for displaying the URL and related
  * controls ("display mode").
  *
  * @param pageOrigin Details about the website origin.
+ * @param gravity [ToolbarGravity] for where the toolbar is being placed on the screen.
  * @param progressBarConfig [ProgressBarConfig] configuration for the progress bar.
  * If `null` a progress bar will not be displayed.
  * @param browserActionsStart List of browser [Action]s to be displayed at the start of the
@@ -64,9 +68,10 @@ private const val TOOLBAR_PADDING_DP = 8
  * @param onInteraction Callback for handling [BrowserToolbarEvent]s on user interactions.
  */
 @Composable
-@Suppress("LongMethod")
+@Suppress("LongMethod", "CyclomaticComplexMethod")
 fun BrowserDisplayToolbar(
     pageOrigin: PageOrigin,
+    gravity: ToolbarGravity,
     progressBarConfig: ProgressBarConfig?,
     browserActionsStart: List<Action> = emptyList(),
     pageActionsStart: List<Action> = emptyList(),
@@ -74,6 +79,11 @@ fun BrowserDisplayToolbar(
     browserActionsEnd: List<Action> = emptyList(),
     onInteraction: (BrowserToolbarEvent) -> Unit,
 ) {
+    val isProgressBarShown = remember(progressBarConfig) {
+        progressBarConfig != null &&
+            progressBarConfig.progress in MINIMUM_PROGRESS_BAR_STATE..MAXIMUM_PROGRESS_BAR_STATE
+    }
+
     Box(
         modifier = Modifier
             .background(color = AcornTheme.colors.layer1)
@@ -103,10 +113,10 @@ fun BrowserDisplayToolbar(
                         },
                         bottom = TOOLBAR_PADDING_DP.dp,
                     )
-                    .height(40.dp)
+                    .height(48.dp)
                     .background(
                         color = AcornTheme.colors.layer3,
-                        shape = ROUNDED_CORNER_SHAPE,
+                        shape = RoundedCornerShape(90.dp),
                     )
                     .padding(
                         start = when (pageActionsStart.isEmpty()) {
@@ -133,7 +143,7 @@ fun BrowserDisplayToolbar(
                 Origin(
                     hint = pageOrigin.hint,
                     modifier = Modifier
-                        .height(48.dp)
+                        .height(56.dp)
                         .weight(1f),
                     url = pageOrigin.url,
                     title = pageOrigin.title,
@@ -164,10 +174,23 @@ fun BrowserDisplayToolbar(
             AnimatedProgressBar(
                 progress = progressBarConfig.progress,
                 color = progressBarConfig.color,
-                modifier = when (progressBarConfig.gravity) {
-                    Top -> Modifier.align(Alignment.TopCenter)
-                    Bottom -> Modifier.align(Alignment.BottomCenter)
-                },
+                modifier = Modifier.align(
+                    when (gravity) {
+                        Top -> Alignment.BottomCenter
+                        Bottom -> Alignment.TopCenter
+                    },
+                ),
+            )
+        }
+
+        if (!isProgressBarShown) {
+            Divider(
+                modifier = Modifier.align(
+                    when (gravity) {
+                        Top -> Alignment.BottomCenter
+                        Bottom -> Alignment.TopCenter
+                    },
+                ),
             )
         }
     }
@@ -180,10 +203,8 @@ private fun BrowserDisplayToolbarPreview(
 ) {
     AcornTheme {
         BrowserDisplayToolbar(
-            progressBarConfig = ProgressBarConfig(
-                progress = 66,
-                gravity = config.progressBarGravity,
-            ),
+            gravity = config.gravity,
+            progressBarConfig = ProgressBarConfig(progress = 66),
             browserActionsStart = config.browserStartActions,
             pageActionsStart = config.pageActionsStart,
             pageOrigin = PageOrigin(
@@ -204,7 +225,7 @@ private data class DisplayToolbarPreviewModel(
     val pageActionsStart: List<Action>,
     val title: String?,
     val url: String?,
-    val progressBarGravity: ProgressBarGravity,
+    val gravity: ToolbarGravity,
     val pageActionsEnd: List<Action>,
     val browserEndActions: List<Action>,
 )
@@ -247,7 +268,7 @@ private class DisplayToolbarDataProvider : PreviewParameterProvider<DisplayToolb
             pageActionsStart = pageActionsStart,
             title = title,
             url = url,
-            progressBarGravity = Top,
+            gravity = Top,
             pageActionsEnd = pageActionsEnd,
             browserEndActions = browserActionsEnd,
         ),
@@ -256,7 +277,7 @@ private class DisplayToolbarDataProvider : PreviewParameterProvider<DisplayToolb
             pageActionsStart = pageActionsStart,
             title = null,
             url = url,
-            progressBarGravity = Bottom,
+            gravity = Bottom,
             pageActionsEnd = pageActionsEnd,
             browserEndActions = emptyList(),
         ),
@@ -265,7 +286,7 @@ private class DisplayToolbarDataProvider : PreviewParameterProvider<DisplayToolb
             pageActionsStart = emptyList(),
             title = title,
             url = url,
-            progressBarGravity = Top,
+            gravity = Top,
             pageActionsEnd = emptyList(),
             browserEndActions = browserActionsEnd,
         ),
@@ -274,7 +295,7 @@ private class DisplayToolbarDataProvider : PreviewParameterProvider<DisplayToolb
             pageActionsStart = emptyList(),
             title = null,
             url = null,
-            progressBarGravity = Bottom,
+            gravity = Bottom,
             pageActionsEnd = emptyList(),
             browserEndActions = emptyList(),
         ),

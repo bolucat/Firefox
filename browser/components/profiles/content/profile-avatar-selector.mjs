@@ -3,8 +3,39 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { MozLitElement } from "chrome://global/content/lit-utils.mjs";
-import { html } from "chrome://global/content/vendor/lit.all.mjs";
+import { html, ifDefined } from "chrome://global/content/vendor/lit.all.mjs";
 import { Region, ViewDimensions } from "./avatarSelectionHelpers.mjs";
+
+const AVATARS = [
+  "barbell",
+  "bike",
+  "book",
+  "briefcase",
+  "canvas",
+  "craft",
+  "default-favicon",
+  "diamond",
+  "flower",
+  "folder",
+  "hammer",
+  "heart",
+  "heart-rate",
+  "history",
+  "leaf",
+  "lightbulb",
+  "makeup",
+  "message",
+  "musical-note",
+  "palette",
+  "paw-print",
+  "plane",
+  "present",
+  "shopping",
+  "soccer",
+  "sparkle-single",
+  "star",
+  "video-game-controller",
+];
 
 const VIEWS = {
   ICON: "icon",
@@ -28,6 +59,8 @@ export class ProfileAvatarSelector extends MozLitElement {
   static properties = {
     value: { type: String },
     view: { type: String },
+    state: { type: String },
+    avatarLabels: { type: Object, state: true },
   };
 
   static queries = {
@@ -55,6 +88,26 @@ export class ProfileAvatarSelector extends MozLitElement {
     this.avatarRegion = new Region(this.viewDimensions);
 
     this.state = STATES.SELECTED;
+    this.avatarLabels = {};
+  }
+
+  async connectedCallback() {
+    super.connectedCallback();
+
+    await this.loadAvatarLabels();
+  }
+
+  async loadAvatarLabels() {
+    const avatarL10nData = await document.l10n.formatValues(
+      AVATARS.map(avatar => this.getAvatarL10nId(avatar))
+    );
+
+    this.avatarLabels = {};
+    for (let i = 0; i < AVATARS.length; i++) {
+      this.avatarLabels[AVATARS[i]] = avatarL10nData[i];
+    }
+
+    this.requestUpdate();
   }
 
   setView(newView) {
@@ -76,11 +129,46 @@ export class ProfileAvatarSelector extends MozLitElement {
     }
   }
 
+  toggleHidden(force = null) {
+    if (force === true) {
+      this.hidden = true;
+    } else if (force === false) {
+      this.hidden = false;
+    } else {
+      this.hidden = !this.hidden;
+    }
+
+    // Add or remove event listeners as necessary
+    if (this.hidden) {
+      document.removeEventListener("click", this);
+      window.removeEventListener("keydown", this);
+    } else {
+      document.addEventListener("click", this);
+      window.addEventListener("keydown", this);
+    }
+  }
+
+  show() {
+    this.toggleHidden(false);
+  }
+
+  hide() {
+    this.toggleHidden(true);
+  }
+
+  maybeHide() {
+    if (this.view === VIEWS.CROP) {
+      this.setView(VIEWS.CUSTOM);
+      return;
+    }
+
+    this.hide();
+  }
+
   cropViewStart() {
     window.addEventListener("pointerdown", this);
     window.addEventListener("pointermove", this);
     window.addEventListener("pointerup", this);
-    window.addEventListener("keydown", this);
     document.documentElement.classList.add("disable-text-selection");
   }
 
@@ -88,7 +176,6 @@ export class ProfileAvatarSelector extends MozLitElement {
     window.removeEventListener("pointerdown", this);
     window.removeEventListener("pointermove", this);
     window.removeEventListener("pointerup", this);
-    window.removeEventListener("keydown", this);
     document.documentElement.classList.remove("disable-text-selection");
   }
 
@@ -114,6 +201,8 @@ export class ProfileAvatarSelector extends MozLitElement {
         return "flower-avatar";
       case "folder":
         return "folder-avatar";
+      case "hammer":
+        return "hammer-avatar";
       case "heart":
         return "heart-avatar";
       case "heart-rate":
@@ -130,12 +219,20 @@ export class ProfileAvatarSelector extends MozLitElement {
         return "message-avatar";
       case "musical-note":
         return "musical-note-avatar";
+      case "palette":
+        return "palette-avatar";
       case "paw-print":
         return "paw-print-avatar";
-      case "sparkle-single":
-        return "sparkle-single-avatar";
+      case "plane":
+        return "plane-avatar";
+      case "present":
+        return "present-avatar";
+      case "shopping":
+        return "shopping-avatar";
       case "soccer":
         return "soccer-avatar";
+      case "sparkle-single":
+        return "sparkle-single-avatar";
       case "star":
         return "star-avatar";
       case "video-game-controller":
@@ -165,47 +262,16 @@ export class ProfileAvatarSelector extends MozLitElement {
   }
 
   iconTabContentTemplate() {
-    let avatars = [
-      "star",
-      "flower",
-      "briefcase",
-      "heart",
-      "book",
-      "shopping",
-      "present",
-      "plane",
-      "barbell",
-      "bike",
-      "craft",
-      "diamond",
-      "hammer",
-      "heart-rate",
-      "leaf",
-      "makeup",
-      "palette",
-      "musical-note",
-      "paw-print",
-      "sparkle-single",
-      "soccer",
-      "video-game-controller",
-      "default-favicon",
-      "canvas",
-      "history",
-      "folder",
-      "message",
-      "lightbulb",
-    ];
-
     return html`<moz-visual-picker
       type="listbox"
       value=${this.avatar}
       name="avatar"
       id="avatars"
       @change=${this.handleAvatarChange}
-      >${avatars.map(
+      >${AVATARS.map(
         avatar =>
           html`<moz-visual-picker-item
-            l10nId=${this.getAvatarL10nId(avatar)}
+            aria-label=${ifDefined(this.avatarLabels[avatar])}
             value=${avatar}
             ?checked=${this.value === avatar}
             ><moz-button
@@ -248,6 +314,7 @@ export class ProfileAvatarSelector extends MozLitElement {
         <moz-button
           id="back-button"
           @click=${this.handleCancelClick}
+          @keydown=${this.handleBackKeyDown}
           type="icon ghost"
           iconSrc="chrome://global/skin/icons/arrow-left.svg"
         ></moz-button>
@@ -300,12 +367,14 @@ export class ProfileAvatarSelector extends MozLitElement {
       <moz-button-group class="custom-avatar-actions"
         ><moz-button
           @click=${this.handleCancelClick}
+          @keydown=${this.handleCancelKeyDown}
           data-l10n-id="avatar-selector-cancel-button"
         ></moz-button
         ><moz-button
           type="primary"
           id="save-button"
           @click=${this.handleSaveClick}
+          @keydown=${this.handleSaveKeyDown}
           data-l10n-id="avatar-selector-save-button"
         ></moz-button
       ></moz-button-group>`;
@@ -319,6 +388,27 @@ export class ProfileAvatarSelector extends MozLitElement {
       URL.revokeObjectURL(this.blobURL);
     }
     this.file = null;
+  }
+
+  handleBackKeyDown(event) {
+    if (event.code === "Enter" || event.code === "Space") {
+      event.preventDefault();
+      this.handleCancelClick(event);
+    }
+  }
+
+  handleCancelKeyDown(event) {
+    if (event.code === "Enter" || event.code === "Space") {
+      event.preventDefault();
+      this.handleCancelClick(event);
+    }
+  }
+
+  handleSaveKeyDown(event) {
+    if (event.code === "Enter" || event.code === "Space") {
+      event.preventDefault();
+      this.handleSaveClick(event);
+    }
   }
 
   async handleSaveClick(event) {
@@ -384,7 +474,7 @@ export class ProfileAvatarSelector extends MozLitElement {
     }
 
     this.setView(VIEWS.CUSTOM);
-    this.hidden = true;
+    this.hide();
   }
 
   updateViewDimensions() {
@@ -443,23 +533,40 @@ export class ProfileAvatarSelector extends MozLitElement {
   }
 
   handleEvent(event) {
-    if (this.view !== VIEWS.CROP) {
-      return;
-    }
-
     switch (event.type) {
-      case "pointerdown":
+      case "pointerdown": {
         this.handlePointerDown(event);
         break;
-      case "pointermove":
+      }
+      case "pointermove": {
         this.handlePointerMove(event);
         break;
-      case "pointerup":
+      }
+      case "pointerup": {
         this.handlePointerUp(event);
         break;
-      case "keydown":
+      }
+      case "keydown": {
         this.handleKeyDown(event);
         break;
+      }
+      case "click": {
+        if (this.view === VIEWS.CROP) {
+          return;
+        }
+
+        let element = event.originalTarget;
+        while (element && element !== this) {
+          element = element?.getRootNode()?.host;
+        }
+
+        if (element === this) {
+          return;
+        }
+
+        this.hide();
+        break;
+      }
     }
   }
 
@@ -555,6 +662,14 @@ export class ProfileAvatarSelector extends MozLitElement {
   }
 
   handleKeyDown(event) {
+    if (event.key === "Escape") {
+      this.maybeHide();
+    }
+
+    if (this.view !== VIEWS.CROP) {
+      return;
+    }
+
     switch (event.key) {
       case "ArrowLeft":
         this.handleArrowLeftKeyDown(event);

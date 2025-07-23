@@ -4214,8 +4214,15 @@ nsresult nsDocShell::ReloadDocument(nsDocShell* aDocShell, Document* aDocument,
 // TODO: Convert this to MOZ_CAN_RUN_SCRIPT (bug 1415230)
 MOZ_CAN_RUN_SCRIPT_BOUNDARY NS_IMETHODIMP
 nsDocShell::Stop(uint32_t aStopFlags) {
+  return StopInternal(aStopFlags, UnsetOngoingNavigation::Yes);
+}
+
+nsresult nsDocShell::StopInternal(
+    uint32_t aStopFlags, UnsetOngoingNavigation aUnsetOngoingNavigation) {
   RefPtr kungFuDeathGrip = this;
-  if (RefPtr<Document> doc = GetDocument(); doc && !doc->ShouldIgnoreOpens()) {
+  if (RefPtr<Document> doc = GetDocument();
+      aUnsetOngoingNavigation == UnsetOngoingNavigation::Yes && doc &&
+      !doc->ShouldIgnoreOpens()) {
     SetOngoingNavigation(Nothing());
   }
 
@@ -9829,9 +9836,10 @@ nsresult nsDocShell::InternalLoad(nsDocShellLoadState* aLoadState,
     // starts arriving from the new URI...
     if ((mDocumentViewer && mDocumentViewer->GetPreviousViewer()) ||
         LOAD_TYPE_HAS_FLAGS(aLoadState->LoadType(), LOAD_FLAGS_STOP_CONTENT)) {
-      rv = Stop(nsIWebNavigation::STOP_ALL);
+      rv = StopInternal(nsIWebNavigation::STOP_ALL, UnsetOngoingNavigation::No);
     } else {
-      rv = Stop(nsIWebNavigation::STOP_NETWORK);
+      rv = StopInternal(nsIWebNavigation::STOP_NETWORK,
+                        UnsetOngoingNavigation::No);
     }
 
     if (NS_FAILED(rv)) {
@@ -13639,17 +13647,6 @@ nsresult nsDocShell::OnLinkClickSync(nsIContent* aContent,
   // referrer could be null here in some odd cases, but that's ok,
   // we'll just load the link w/o sending a referrer in those cases.
 
-  // If this is an anchor element, grab its type property to use as a hint
-  nsAutoString typeHint;
-  RefPtr<HTMLAnchorElement> anchor = HTMLAnchorElement::FromNode(aContent);
-  if (anchor) {
-    anchor->GetType(typeHint);
-    NS_ConvertUTF16toUTF8 utf8Hint(typeHint);
-    nsAutoCString type, dummy;
-    NS_ParseRequestContentType(utf8Hint, type, dummy);
-    CopyUTF8toUTF16(type, typeHint);
-  }
-
   uint32_t loadType = LOAD_LINK;
   if (aLoadState->IsFormSubmission()) {
     if (aLoadState->Target().IsEmpty()) {
@@ -13678,7 +13675,6 @@ nsresult nsDocShell::OnLinkClickSync(nsIContent* aContent,
   aLoadState->SetTriggeringStorageAccess(triggeringStorageAccess);
   aLoadState->SetReferrerInfo(referrerInfo);
   aLoadState->SetInternalLoadFlags(flags);
-  aLoadState->SetTypeHint(NS_ConvertUTF16toUTF8(typeHint));
   aLoadState->SetLoadType(loadType);
   aLoadState->SetSourceBrowsingContext(mBrowsingContext);
   aLoadState->SetSourceElement(aContent->AsElement());

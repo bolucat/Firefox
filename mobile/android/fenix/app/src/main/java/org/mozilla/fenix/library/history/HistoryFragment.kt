@@ -32,12 +32,14 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.toColorInt
@@ -62,6 +64,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import mozilla.components.browser.state.action.AwesomeBarAction.EngagementFinished
 import mozilla.components.browser.state.action.EngineAction
 import mozilla.components.browser.state.action.HistoryMetadataAction
 import mozilla.components.browser.state.action.RecentlyClosedAction
@@ -69,10 +72,12 @@ import mozilla.components.browser.state.state.searchEngines
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.browser.storage.sync.PlacesHistoryStorage
 import mozilla.components.compose.base.theme.AcornTheme
+import mozilla.components.compose.base.utils.BackInvokedHandler
 import mozilla.components.compose.browser.awesomebar.AwesomeBar
 import mozilla.components.compose.browser.awesomebar.AwesomeBarDefaults
 import mozilla.components.compose.browser.awesomebar.AwesomeBarOrientation
 import mozilla.components.compose.browser.toolbar.BrowserToolbar
+import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarState
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarStore
 import mozilla.components.compose.browser.toolbar.store.EnvironmentCleared
@@ -83,6 +88,7 @@ import mozilla.components.lib.state.ext.consumeFrom
 import mozilla.components.lib.state.ext.flowScoped
 import mozilla.components.lib.state.ext.observeAsComposableState
 import mozilla.components.support.base.feature.UserInteractionHandler
+import mozilla.components.support.base.feature.ViewBoundFeatureWrapper
 import mozilla.components.support.ktx.android.view.hideKeyboard
 import mozilla.components.support.ktx.kotlin.toShortUrl
 import mozilla.components.ui.widgets.withCenterAlignedButtons
@@ -137,7 +143,7 @@ private const val MATERIAL_DESIGN_SCRIM = "#52000000"
 @SuppressWarnings("TooManyFunctions", "LargeClass")
 class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, MenuProvider {
     private lateinit var historyStore: HistoryFragmentStore
-    private val toolbarStore by lazy { buildToolbarStore() }
+    private lateinit var toolbarStore: BrowserToolbarStore
     private val searchStore by lazy { buildSearchStore(toolbarStore) }
 
     private lateinit var historyProvider: DefaultPagedHistoryProvider
@@ -160,9 +166,7 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
     private val binding get() = _binding!!
     private var searchLayout: ComposeView? = null
 
-    private val pendingDeletionBinding by lazy {
-        PendingDeletionBinding(requireContext().components.appStore, historyView)
-    }
+    private val pendingDeletionBinding = ViewBoundFeatureWrapper<PendingDeletionBinding>()
 
     private var verificationResultLauncher: ActivityResultLauncher<Intent> =
         registerForVerification(onVerified = ::openHistoryInPrivate)
@@ -210,6 +214,10 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
             accountManager = requireContext().components.backgroundServices.accountManager,
             scope = lifecycleScope,
         )
+
+        if (requireContext().settings().shouldUseComposableToolbar) {
+            toolbarStore = buildToolbarStore()
+        }
 
         return view
     }
@@ -290,15 +298,19 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
         }
 
         startStateBindings()
+
+        pendingDeletionBinding.set(
+            feature = PendingDeletionBinding(requireContext().components.appStore, historyView),
+            owner = this,
+            view = view,
+        )
     }
 
     private fun startStateBindings() {
-        pendingDeletionBinding.start()
         menuBinding.start()
     }
 
     private fun stopStateBindings() {
-        pendingDeletionBinding.stop()
         menuBinding.stop()
     }
 
@@ -315,7 +327,9 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
     override fun onResume() {
         super.onResume()
 
-        (activity as NavHostActivity).getSupportActionBarAndInflateIfNecessary().show()
+        if (context?.components?.appStore?.state?.searchState?.isSearchActive != true) {
+            (activity as NavHostActivity).getSupportActionBarAndInflateIfNecessary().show()
+        }
     }
 
     override fun onCreateMenu(menu: Menu, inflater: MenuInflater) {
@@ -431,13 +445,12 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
 
                         LaunchedEffect(historyState.isSearching) {
                             if (!historyState.isSearching) {
-                                (activity as? AppCompatActivity)?.supportActionBar?.show()
-                                binding.historyLayout.updateLayoutParams {
-                                    (this as? ViewGroup.MarginLayoutParams)?.topMargin = 0
-                                }
-                                requireComponents.appStore.dispatch(AppAction.SearchAction.SearchEnded)
-                                searchLayout?.isVisible = false
+                                closeSearchUx(searchLayout, focusManager, keyboardController)
                             }
+                        }
+
+                        BackInvokedHandler(historyState.isSearching) {
+                            historyStore.dispatch(SearchDismissed)
                         }
 
                         Column {
@@ -448,13 +461,11 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
                                     .fillMaxSize()
                                     .pointerInput(WindowInsets.isImeVisible) {
                                         detectTapGestures(
-                                            // Hide the keyboard for any touches in the empty area of the awesomebar
+                                            // Exit search for any touches in the empty area of the awesomebar
                                             onPress = {
                                                 focusManager.clearFocus()
                                                 keyboardController?.hide()
-                                                if (searchState.query.isEmpty()) {
-                                                    historyStore.dispatch(SearchDismissed)
-                                                }
+                                                historyStore.dispatch(SearchDismissed)
                                             },
                                         )
                                     },
@@ -486,13 +497,6 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
                 }
             }
         }
-        (activity as? AppCompatActivity)?.supportActionBar?.hide()
-        binding.historyLayout.updateLayoutParams {
-            (this as? ViewGroup.MarginLayoutParams)?.topMargin =
-                requireContext().resources.getDimensionPixelSize(R.dimen.browser_toolbar_height)
-        }
-        searchLayout?.isVisible = true
-
         val appStore = requireComponents.appStore
         val historySearchEngine = requireComponents.core.store.state.search.searchEngines.firstOrNull {
             it.id == HISTORY_SEARCH_ENGINE_ID
@@ -501,6 +505,35 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
             appStore.dispatch(AppAction.SearchAction.SearchEngineSelected(it, false))
         }
         appStore.dispatch(AppAction.SearchAction.SearchStarted())
+
+        showSearchUx()
+    }
+
+    private fun showSearchUx() {
+        (activity as? AppCompatActivity)?.supportActionBar?.hide()
+        binding.historyLayout.updateLayoutParams {
+            (this as? ViewGroup.MarginLayoutParams)?.topMargin =
+                requireContext().resources.getDimensionPixelSize(R.dimen.composable_browser_toolbar_height)
+        }
+        searchLayout?.isVisible = true
+    }
+
+    private fun closeSearchUx(
+        searchLayout: ComposeView?,
+        focusManager: FocusManager,
+        keyboardController: SoftwareKeyboardController?,
+    ) {
+        focusManager.clearFocus()
+        keyboardController?.hide()
+
+        (activity as? AppCompatActivity)?.supportActionBar?.show()
+        binding.historyLayout.updateLayoutParams {
+            (this as? ViewGroup.MarginLayoutParams)?.topMargin = 0
+        }
+        searchLayout?.isVisible = false
+        requireComponents.appStore.dispatch(AppAction.SearchAction.SearchEnded)
+        toolbarStore.dispatch(BrowserEditToolbarAction.SearchQueryUpdated(""))
+        requireComponents.core.store.dispatch(EngagementFinished(abandoned = true))
     }
 
     private fun handleOpenHistoryInPrivateTabsMultiSelectMenuItem() {

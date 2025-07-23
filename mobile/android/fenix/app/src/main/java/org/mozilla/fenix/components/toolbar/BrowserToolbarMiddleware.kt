@@ -51,7 +51,6 @@ import mozilla.components.compose.browser.toolbar.store.BrowserToolbarState
 import mozilla.components.compose.browser.toolbar.store.EnvironmentCleared
 import mozilla.components.compose.browser.toolbar.store.EnvironmentRehydrated
 import mozilla.components.compose.browser.toolbar.store.ProgressBarConfig
-import mozilla.components.compose.browser.toolbar.store.ProgressBarGravity
 import mozilla.components.concept.engine.EngineSession.LoadUrlFlags
 import mozilla.components.concept.engine.cookiehandling.CookieBannersStorage
 import mozilla.components.concept.engine.permission.SitePermissions
@@ -120,6 +119,7 @@ import org.mozilla.fenix.components.toolbar.TabCounterInteractions.TabCounterLon
 import org.mozilla.fenix.ext.isLargeWindow
 import org.mozilla.fenix.ext.nav
 import org.mozilla.fenix.ext.navigateSafe
+import org.mozilla.fenix.nimbus.FxNimbus
 import org.mozilla.fenix.settings.quicksettings.protections.cookiebanners.getCookieBannerUIMode
 import org.mozilla.fenix.tabstray.DefaultTabManagementFeatureHelper
 import org.mozilla.fenix.tabstray.Page
@@ -666,13 +666,14 @@ class BrowserToolbarMiddleware(
 
     private fun buildStartBrowserActions(): List<Action> {
         val environment = environment ?: return emptyList()
-        val isLargeWindowOrLandscape = environment.context.isLargeWindow() ||
-                appStore.state.orientation == OrientationMode.Landscape
+        val isLargeWindow = environment.context.isLargeWindow()
+        val isLandscape = appStore.state.orientation == OrientationMode.Landscape
+        val shouldNavigationButtonBeVisible = isLargeWindow || (settings.shouldUseExpandedToolbar && isLandscape)
 
         return listOf(
-            ToolbarActionConfig(ToolbarAction.Back) { isLargeWindowOrLandscape },
-            ToolbarActionConfig(ToolbarAction.Forward) { isLargeWindowOrLandscape },
-            ToolbarActionConfig(ToolbarAction.RefreshOrStop) { isLargeWindowOrLandscape },
+            ToolbarActionConfig(ToolbarAction.Back) { shouldNavigationButtonBeVisible },
+            ToolbarActionConfig(ToolbarAction.Forward) { shouldNavigationButtonBeVisible },
+            ToolbarActionConfig(ToolbarAction.RefreshOrStop) { shouldNavigationButtonBeVisible },
         ).filter { config ->
             config.isVisible()
         }.map { config ->
@@ -681,13 +682,20 @@ class BrowserToolbarMiddleware(
     }
 
     private fun buildEndPageActions(): List<Action> {
+        val isLargeWindowOrLandscape = environment?.context?.isLargeWindow() == true ||
+            appStore.state.orientation == OrientationMode.Landscape
+
         return listOf(
             ToolbarActionConfig(ToolbarAction.ReaderMode) {
                 browserScreenStore.state.readerModeStatus.isAvailable
             },
             ToolbarActionConfig(ToolbarAction.Translate) {
                 browserScreenStore.state.pageTranslationStatus.isTranslationPossible &&
-                        settings.shouldUseExpandedToolbar
+                    (settings.shouldUseExpandedToolbar || isLargeWindowOrLandscape) &&
+                    FxNimbus.features.translations.value().mainFlowToolbarEnabled
+            },
+            ToolbarActionConfig(ToolbarAction.Share) {
+                isLargeWindowOrLandscape && !settings.isTabStripEnabled && !settings.shouldUseExpandedToolbar
             },
         ).filter { config ->
             config.isVisible()
@@ -697,6 +705,8 @@ class BrowserToolbarMiddleware(
     }
 
     private fun buildEndBrowserActions(): List<Action> {
+        val isLargeWindowOrLandscape = environment?.context?.isLargeWindow() == true ||
+                appStore.state.orientation == OrientationMode.Landscape
         val isExpandedAndPortrait = settings.shouldUseExpandedToolbar &&
                 appStore.state.orientation == OrientationMode.Portrait
 
@@ -706,6 +716,9 @@ class BrowserToolbarMiddleware(
             },
             ToolbarActionConfig(ToolbarAction.TabCounter) {
                 !settings.isTabStripEnabled && !isExpandedAndPortrait
+            },
+            ToolbarActionConfig(ToolbarAction.Share) {
+                isLargeWindowOrLandscape && settings.isTabStripEnabled && !settings.shouldUseExpandedToolbar
             },
             ToolbarActionConfig(ToolbarAction.Menu) { !isExpandedAndPortrait },
         ).filter { config ->
@@ -777,13 +790,7 @@ class BrowserToolbarMiddleware(
         )
     }
 
-    private fun buildProgressBar(progress: Int = 0) = ProgressBarConfig(
-        progress = progress,
-        gravity = when (settings.shouldUseBottomToolbar) {
-            true -> ProgressBarGravity.Top
-            false -> ProgressBarGravity.Bottom
-        },
-    )
+    private fun buildProgressBar(progress: Int = 0) = ProgressBarConfig(progress)
 
     private fun openNewTab(
         browsingMode: BrowsingMode,
