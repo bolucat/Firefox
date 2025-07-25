@@ -3918,11 +3918,7 @@
 # See bug 1953860 for background and additional details.
 - name: dom.quotaManager.loadQuotaFromSecondaryCache
   type: RelaxedAtomicBool
-#if defined(NIGHTLY_BUILD) && !defined(ANDROID)
-  value: true
-#else
-  value: false
-#endif
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Should we check build ID as part of the cache validation?
@@ -4057,11 +4053,7 @@
 # L2 cache to all users on all platforms in the release channel.
 - name: dom.quotaManager.originInitialization.updateOriginMetadata
   type: RelaxedAtomicBool
-#if defined(NIGHTLY_BUILD) && !defined(ANDROID)
-  value: true
-#else
-  value: false
-#endif
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # A pref that is used to slow down origin initialization for testing purposes.
@@ -8014,6 +8006,11 @@
 
 #if defined(MOZ_WAYLAND)
 - name: gfx.wayland.hdr
+  type: bool
+  value: false
+  mirror: once
+
+- name: gfx.wayland.hdr.force-enabled
   type: bool
   value: false
   mirror: once
@@ -14626,7 +14623,7 @@
 # Whether to use the connection info that is generated asynchronously.
 - name: network.trr.async_connInfo
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # If true, a failed TRR request that contains an extended DNS error
@@ -15078,6 +15075,14 @@
 
 # When network.http.http3.sni-slicing is set, TLS SNI slicing is enabled.
 - name: network.http.http3.sni-slicing
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+  rust: true
+
+# Whether to enable Zlib for H3/QUIC certificate compression.
+# Has no effect unless security.tls.enable_certificate_compression_zlib is true.
+- name: network.http.http3.enable_certificate_compression_zlib
   type: RelaxedAtomicBool
   value: true
   mirror: always
@@ -15923,7 +15928,8 @@
   mirror: always
 
 # Enable the "convenience" allow-list for less severe site breakage (e.g. embeds
-# or images missing).
+# or images missing). "convenience" can only be enabled if "baseline" is
+# enabled. When "baseline" is false this pref is ignored.
 - name: privacy.trackingprotection.allow_list.convenience.enabled
   type: bool
   value: true

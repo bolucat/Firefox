@@ -14,8 +14,6 @@
     TabMetrics: "moz-src:///browser/components/tabbrowser/TabMetrics.sys.mjs",
   });
 
-  const TAB_PREVIEW_PREF = "browser.tabs.hoverPreview.enabled";
-
   const DIRECTION_BACKWARD = -1;
   const DIRECTION_FORWARD = 1;
 
@@ -42,6 +40,8 @@
       this.addEventListener("TabShow", this);
       this.addEventListener("TabHoverStart", this);
       this.addEventListener("TabHoverEnd", this);
+      this.addEventListener("TabGroupLabelHoverStart", this);
+      this.addEventListener("TabGroupLabelHoverEnd", this);
       this.addEventListener("TabGroupExpand", this);
       this.addEventListener("TabGroupCollapse", this);
       this.addEventListener("TabGroupCreate", this);
@@ -204,10 +204,17 @@
 
       XPCOMUtils.defineLazyPreferenceGetter(
         this,
-        "_showCardPreviews",
-        TAB_PREVIEW_PREF,
+        "_showTabHoverPreview",
+        "browser.tabs.hoverPreview.enabled",
         false
       );
+      XPCOMUtils.defineLazyPreferenceGetter(
+        this,
+        "_showTabGroupHoverPreview",
+        "browser.tabs.groups.hoverPreview.enabled",
+        false
+      );
+
       this.tooltip = "tabbrowser-tab-tooltip";
     }
 
@@ -266,7 +273,7 @@
     }
 
     on_TabHoverStart(event) {
-      if (!this._showCardPreviews) {
+      if (!this._showTabHoverPreview) {
         return;
       }
       if (!this.previewPanel) {
@@ -283,6 +290,30 @@
 
     on_TabHoverEnd(event) {
       this.previewPanel?.deactivate(event.target);
+    }
+
+    on_TabGroupLabelHoverStart(event) {
+      if (!this._showTabGroupHoverPreview) {
+        return;
+      }
+
+      if (!this.tabGroupPreviewPanel) {
+        const TabGroupHoverPreviewPanel = ChromeUtils.importESModule(
+          "chrome://browser/content/tabbrowser/tabgroup-hover-preview.mjs"
+        ).default;
+        this.tabGroupPreviewPanel = new TabGroupHoverPreviewPanel(
+          document.getElementById("tabgroup-preview-panel")
+        );
+      }
+      this.tabGroupPreviewPanel.activate(event.target);
+    }
+
+    on_TabGroupLabelHoverEnd(event) {
+      // TODO bug1971237: determine a more appropriate value for this delay
+      // and consider making it adjustable
+      setTimeout(() => {
+        this.tabGroupPreviewPanel?.deactivate(event.target);
+      }, 50);
     }
 
     on_TabGroupExpand() {
@@ -1149,6 +1180,7 @@
           let tabSize = this.verticalMode ? tabHeight : tabWidth;
           let firstTab = tabs[0];
           let lastTab = tabs.at(-1);
+          let pinnedTabsStartEdge = this.pinnedDropIndicator[screenAxis];
           let pinnedTabsEndEdge =
             window.windowUtils.getBoundsWithoutFlushing(
               this.pinnedDropIndicator
@@ -1175,8 +1207,9 @@
             newTranslateX = RTL_UI
               ? Math.min(Math.max(oldTranslateX, lastBound), firstBound)
               : Math.min(Math.max(oldTranslateX, firstBound), lastBound);
-            withinPinnedBounds =
-              firstMovingTabScreen + oldTranslateX <= pinnedTabsEndEdge;
+            withinPinnedBounds = RTL_UI
+              ? lastMovingTabScreen + oldTranslateX >= pinnedTabsStartEdge
+              : firstMovingTabScreen + oldTranslateX <= pinnedTabsEndEdge;
           }
         }
 
@@ -1194,18 +1227,21 @@
         }
 
         let shouldPin =
-          (withinPinnedBounds && !numPinned) ||
-          ((this.pinnedTabsContainer.contains(event.target) ||
+          isTab(draggedTab) &&
+          !draggedTab.pinned &&
+          ((withinPinnedBounds && !numPinned) ||
+            this.pinnedTabsContainer.contains(event.target) ||
             ["pinned-tabs-container", "pinned-drop-indicator"].includes(
               event.target.id
-            )) &&
-            !draggedTab.pinned);
+            ));
         let shouldUnpin =
+          isTab(draggedTab) &&
+          draggedTab.pinned &&
           this.arrowScrollbox.contains(event.target) &&
           !["pinned-tabs-container", "pinned-drop-indicator"].includes(
             event.target.id
-          ) &&
-          draggedTab.pinned;
+          );
+
         let shouldTranslate =
           !gReduceMotion &&
           !shouldCreateGroupOnDrop &&
@@ -2212,16 +2248,18 @@
         t.style.maxWidth = tabRect.width + "px";
       }
 
-      let rect = window.windowUtils.getBoundsWithoutFlushing(
-        isTabGroupLabel(tab) ? tab.parentElement : tab
-      );
+      // Use .tab-group-label-container or .tabbrowser-tab for size/position
+      // calculations.
+      let tabStripItemElement = isTabGroupLabel(tab) ? tab.parentElement : tab;
+      let rect =
+        window.windowUtils.getBoundsWithoutFlushing(tabStripItemElement);
       let { movingTabs } = tab._dragData;
       // Vertical tabs live under the #sidebar-main element which gets animated and has a
       // transform style property, making it the containing block for all its descendants.
       // Position:absolute elements need to account for this when updating position using
       // other measurements whose origin is the viewport or documentElement's 0,0
       let movingTabsOffsetX = window.windowUtils.getBoundsWithoutFlushing(
-        tab.offsetParent
+        tabStripItemElement.offsetParent
       ).x;
 
       let movingTabsIndex = movingTabs.findIndex(t => t._tPos == tab._tPos);
@@ -2652,25 +2690,30 @@
       // Constrain the range over which the moving tabs can move between the pinned container and last tab
       let firstBound = pinnedTabsStartEdge - firstMovingTabScreen;
       // Use periphery when the lastBound would otherwise be the dragged tab.
-      let lastBound =
-        !numPinned && lastTab == draggedTab
-          ? periphery[screenAxis] -
-            lastMovingTabScreen +
-            bounds(draggedTab)[size]
-          : endEdge(lastTab) - lastMovingTabScreen;
+      let lastBound;
+      if (!numPinned && lastTab == draggedTab) {
+        lastBound =
+          periphery[screenAxis] -
+          lastMovingTabScreen +
+          // Use periphery width only in horizontal rtl mode since we are moving the other direction.
+          // (tab width results in a bounds that falls short, whilst periphery width is accurate)
+          (this.#rtlMode ? bounds(periphery).width : bounds(draggedTab)[size]);
+      } else {
+        lastBound = endEdge(lastTab) - lastMovingTabScreen;
+      }
+
       translate = this.#rtlMode
         ? Math.min(Math.max(translate, lastBound), firstBound)
         : Math.min(Math.max(translate, firstBound), lastBound);
-      if (
-        (!this.#rtlMode &&
-          firstMovingTabScreen + translate <= pinnedTabsEndEdge) ||
-        (this.#rtlMode &&
-          lastMovingTabScreen + translate >= pinnedTabsStartEdge)
-      ) {
-        this.#onDragIntoPinnedContainer();
-      } else {
-        this.pinnedDropIndicator.removeAttribute("interactive");
-      }
+
+      this.#checkWithinPinnedContainerBounds(
+        firstMovingTabScreen,
+        lastMovingTabScreen,
+        pinnedTabsStartEdge,
+        pinnedTabsEndEdge,
+        translate,
+        draggedTab
+      );
 
       for (let item of movingTabs) {
         if (isTabGroupLabel(item)) {
@@ -3076,17 +3119,50 @@
       }
     }
 
-    #onDragIntoPinnedContainer() {
-      if (!gBrowser.pinnedTabCount) {
-        let tabbrowserTabsRect =
-          window.windowUtils.getBoundsWithoutFlushing(this);
-        if (!this.verticalMode) {
-          // The tabbrowser container expands with the expansion of the
-          // drop indicator - prevent that by setting maxWidth first.
-          this.style.maxWidth = tabbrowserTabsRect.width + "px";
+    #checkWithinPinnedContainerBounds(
+      firstMovingTabScreen,
+      lastMovingTabScreen,
+      pinnedTabsStartEdge,
+      pinnedTabsEndEdge,
+      translate,
+      draggedTab
+    ) {
+      // Display the pinned drop indicator based on the position of the moving tabs
+      // If the indicator is not yet shown, display once we are within a pinned tab width/height
+      // distance
+      let firstMovingTabPosition = firstMovingTabScreen + translate;
+      let lastMovingTabPosition = lastMovingTabScreen + translate;
+      // Approximation of pinned tabs width and height in horizontal or grid mode (40) is sufficient
+      // distance to display the pinned drop indicator slightly before dragging over it. Exact
+      // value is not necessary.
+      let pinnedTabSize = 40;
+      let inPinnedRange = this.#rtlMode
+        ? lastMovingTabPosition >= pinnedTabsStartEdge
+        : firstMovingTabPosition <= pinnedTabsEndEdge;
+      let inVisibleRange = this.#rtlMode
+        ? lastMovingTabPosition >= pinnedTabsStartEdge - pinnedTabSize
+        : firstMovingTabPosition <= pinnedTabsEndEdge + pinnedTabSize;
+      if (
+        isTab(draggedTab) &&
+        ((inVisibleRange &&
+          !this.pinnedDropIndicator.hasAttribute("visible")) ||
+          (inPinnedRange &&
+            !this.pinnedDropIndicator.hasAttribute("interactive")))
+      ) {
+        // On drag into pinned container
+        if (!gBrowser.pinnedTabCount) {
+          let tabbrowserTabsRect =
+            window.windowUtils.getBoundsWithoutFlushing(this);
+          if (!this.verticalMode) {
+            // The tabbrowser container expands with the expansion of the
+            // drop indicator - prevent that by setting maxWidth first.
+            this.style.maxWidth = tabbrowserTabsRect.width + "px";
+          }
+          this.pinnedDropIndicator.setAttribute("visible", "");
+          this.pinnedDropIndicator.setAttribute("interactive", "");
         }
-        this.pinnedDropIndicator.setAttribute("visible", "");
-        this.pinnedDropIndicator.setAttribute("interactive", "");
+      } else if (!inPinnedRange) {
+        this.pinnedDropIndicator.removeAttribute("interactive");
       }
     }
 

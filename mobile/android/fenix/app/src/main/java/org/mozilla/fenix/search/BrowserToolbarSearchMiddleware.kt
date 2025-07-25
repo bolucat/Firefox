@@ -19,13 +19,18 @@ import kotlinx.coroutines.launch
 import mozilla.components.browser.state.action.AwesomeBarAction.EngagementFinished
 import mozilla.components.browser.state.search.SearchEngine
 import mozilla.components.browser.state.search.SearchEngine.Type.APPLICATION
+import mozilla.components.browser.state.search.SearchEngine.Type.CUSTOM
 import mozilla.components.browser.state.state.selectedOrDefaultSearchEngine
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.compose.browser.toolbar.BrowserToolbar
+import mozilla.components.compose.browser.toolbar.concept.Action
+import mozilla.components.compose.browser.toolbar.concept.Action.ActionButton
+import mozilla.components.compose.browser.toolbar.concept.Action.ActionButtonRes
 import mozilla.components.compose.browser.toolbar.concept.Action.SearchSelectorAction
 import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction.AutocompleteProvidersUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction.HintUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction.SearchAborted
+import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction.SearchActionsEndUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction.SearchActionsStartUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction.SearchQueryUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction.UrlSuggestionAutocompleted
@@ -40,6 +45,7 @@ import mozilla.components.compose.browser.toolbar.store.BrowserToolbarState
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarStore
 import mozilla.components.compose.browser.toolbar.store.EnvironmentCleared
 import mozilla.components.compose.browser.toolbar.store.EnvironmentRehydrated
+import mozilla.components.concept.engine.EngineSession
 import mozilla.components.lib.state.Middleware
 import mozilla.components.lib.state.MiddlewareContext
 import mozilla.components.lib.state.State
@@ -55,6 +61,7 @@ import org.mozilla.fenix.browser.BrowserFragmentDirections
 import org.mozilla.fenix.browser.browsingmode.BrowsingMode.Private
 import org.mozilla.fenix.components.AppStore
 import org.mozilla.fenix.components.Components
+import org.mozilla.fenix.components.appstate.AppAction
 import org.mozilla.fenix.components.appstate.AppAction.SearchAction.SearchEnded
 import org.mozilla.fenix.components.appstate.AppAction.SearchAction.SearchEngineSelected
 import org.mozilla.fenix.components.appstate.AppAction.SearchAction.SearchStarted
@@ -64,6 +71,8 @@ import org.mozilla.fenix.components.search.HISTORY_SEARCH_ENGINE_ID
 import org.mozilla.fenix.components.search.TABS_SEARCH_ENGINE_ID
 import org.mozilla.fenix.ext.toolbarHintRes
 import org.mozilla.fenix.home.toolbar.HomeToolbarEnvironment
+import org.mozilla.fenix.search.EditPageEndActionsInteractions.ClearSearchClicked
+import org.mozilla.fenix.search.EditPageEndActionsInteractions.QrScannerClicked
 import org.mozilla.fenix.search.SearchSelectorEvents.SearchSelectorClicked
 import org.mozilla.fenix.search.SearchSelectorEvents.SearchSelectorItemClicked
 import org.mozilla.fenix.search.SearchSelectorEvents.SearchSettingsItemClicked
@@ -91,6 +100,12 @@ internal sealed class SearchSelectorEvents : BrowserToolbarEvent {
     ) : SearchSelectorEvents()
 }
 
+@VisibleForTesting
+internal sealed class EditPageEndActionsInteractions : BrowserToolbarEvent {
+    data object ClearSearchClicked : EditPageEndActionsInteractions()
+    data object QrScannerClicked : EditPageEndActionsInteractions()
+}
+
 /**
  * [BrowserToolbarStore] middleware handling the configuration of the composable toolbar
  * while in edit mode.
@@ -110,8 +125,9 @@ class BrowserToolbarSearchMiddleware(
     internal var environment: HomeToolbarEnvironment? = null
     private var syncCurrentSearchEngineJob: Job? = null
     private var syncAvailableSearchEnginesJob: Job? = null
+    private var observeQRScannerInputJob: Job? = null
 
-    @Suppress("LongMethod", "CyclomaticComplexMethod")
+    @Suppress("CyclomaticComplexMethod", "LongMethod")
     override fun invoke(
         context: MiddlewareContext<BrowserToolbarState, BrowserToolbarAction>,
         next: (BrowserToolbarAction) -> Unit,
@@ -143,9 +159,15 @@ class BrowserToolbarSearchMiddleware(
                     )
                     syncCurrentSearchEngine(context.store)
                     syncAvailableEngines(context.store)
+                    updateSearchEndPageActions(context.store)
                 } else {
                     syncCurrentSearchEngineJob?.cancel()
                     syncAvailableSearchEnginesJob?.cancel()
+
+                    if (observeQRScannerInputJob?.isActive == true) {
+                        appStore.dispatch(AppAction.QrScannerAction.QrScannerDismissed)
+                    }
+                    observeQRScannerInputJob?.cancel()
                 }
             }
 
@@ -224,6 +246,19 @@ class BrowserToolbarSearchMiddleware(
                 }
 
                 appStore.dispatch(SearchEnded)
+            }
+
+            is ClearSearchClicked -> {
+                context.store.dispatch(SearchQueryUpdated(""))
+            }
+
+            is SearchQueryUpdated -> {
+                updateSearchEndPageActions(context.store)
+            }
+
+            is QrScannerClicked -> {
+                observeQrScannerInput(context.store)
+                appStore.dispatch(AppAction.QrScannerAction.QrScannerRequested)
             }
 
             else -> {
@@ -382,6 +417,68 @@ class BrowserToolbarSearchMiddleware(
     private fun reconcileSelectedEngine(): SearchEngine? =
         appStore.state.searchState.selectedSearchEngine?.searchEngine
             ?: browserStore.state.search.selectedOrDefaultSearchEngine
+
+    private fun updateSearchEndPageActions(
+        store: Store<BrowserToolbarState, BrowserToolbarAction>,
+        selectedSearchEngine: SearchEngine? = reconcileSelectedEngine(),
+    ) = store.dispatch(
+        SearchActionsEndUpdated(
+            buildSearchEndPageActions(
+                store.state.editState.query,
+                selectedSearchEngine,
+            ),
+        ),
+    )
+
+    private fun buildSearchEndPageActions(
+        queryText: String,
+        selectedSearchEngine: SearchEngine?,
+    ): List<Action> = buildList {
+        val isValidSearchEngine = selectedSearchEngine?.isGeneral == true ||
+                selectedSearchEngine?.type == CUSTOM
+        if (isValidSearchEngine) {
+            add(
+                ActionButtonRes(
+                    drawableResId = R.drawable.mozac_ic_qr_code_24,
+                    contentDescription = R.string.mozac_feature_qr_scanner,
+                    state = ActionButton.State.DEFAULT,
+                    onClick = QrScannerClicked,
+                ),
+            )
+        }
+        if (queryText.isNotEmpty()) {
+            add(
+                ActionButtonRes(
+                    drawableResId = R.drawable.mozac_ic_cross_circle_fill_24,
+                    contentDescription = R.string.mozac_clear_button_description,
+                    state = ActionButton.State.DEFAULT,
+                    onClick = ClearSearchClicked,
+                ),
+            )
+        }
+    }
+
+    private fun observeQrScannerInput(store: Store<BrowserToolbarState, BrowserToolbarAction>) {
+        observeQRScannerInputJob = null
+        observeQRScannerInputJob = appStore.observeWhileActive {
+            distinctUntilChangedBy { it.qrScannerState.lastScanData }
+                .collect {
+                    if (it.qrScannerState.lastScanData?.isNotEmpty() == true) {
+                        appStore.dispatch(AppAction.QrScannerAction.QrScannerInputConsumed)
+                        store.dispatch(SearchQueryUpdated(it.qrScannerState.lastScanData))
+                        store.dispatch(SearchQueryUpdated(it.qrScannerState.lastScanData, false))
+                        components.useCases.fenixBrowserUseCases.loadUrlOrSearch(
+                            searchTermOrURL = it.qrScannerState.lastScanData,
+                            newTab = appStore.state.searchState.sourceTabId == null,
+                            flags = EngineSession.LoadUrlFlags.external(),
+                            private = false,
+                        )
+                        environment?.navController?.navigate(R.id.browserFragment)
+                        observeQRScannerInputJob?.cancel()
+                    }
+                }
+        }
+    }
 
     private inline fun <S : State, A : MVIAction> Store<S, A>.observeWhileActive(
         crossinline observe: suspend (Flow<S>.() -> Unit),

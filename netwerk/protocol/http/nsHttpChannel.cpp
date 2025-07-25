@@ -186,26 +186,27 @@ enum ChannelDisposition {
 };
 
 static nsLiteralCString CacheDispositionToTelemetryLabel(
-    CacheDisposition hitOrMiss) {
+    nsICacheInfoChannel::CacheDisposition hitOrMiss) {
   switch (hitOrMiss) {
-    case kCacheUnresolved:
+    case nsICacheInfoChannel::kCacheUnresolved:
       return "Unresolved"_ns;
-    case kCacheHit:
+    case nsICacheInfoChannel::kCacheHit:
       return "Hit"_ns;
-    case kCacheHitViaReval:
+    case nsICacheInfoChannel::kCacheHitViaReval:
       return "HitViaReval"_ns;
-    case kCacheMissedViaReval:
+    case nsICacheInfoChannel::kCacheMissedViaReval:
       return "MissedViaReval"_ns;
-    case kCacheMissed:
+    case nsICacheInfoChannel::kCacheMissed:
       return "Missed"_ns;
-    case kCacheUnknown:
+    case nsICacheInfoChannel::kCacheUnknown:
       return "Unknown"_ns;
+    default:
+      return "Invalid"_ns;
   }
-  return "Unresolved"_ns;
 }
 
-void AccumulateCacheHitTelemetry(CacheDisposition hitOrMiss,
-                                 nsIChannel* aChannel) {
+void AccumulateCacheHitTelemetry(
+    nsICacheInfoChannel::CacheDisposition hitOrMiss, nsIChannel* aChannel) {
   nsCString key("UNKNOWN");
 
   nsCOMPtr<nsILoadInfo> loadInfo = aChannel->LoadInfo();
@@ -6957,6 +6958,9 @@ ProxyDNSStrategy nsHttpChannel::GetProxyDNSStrategy() {
 // BeginConnect.
 nsresult nsHttpChannel::BeginConnect() {
   LOG(("nsHttpChannel::BeginConnect [this=%p]\n", this));
+
+  AUTO_PROFILER_FLOW_MARKER("nsHttpChannel::BeginConnect", NETWORK,
+                            Flow::FromPointer(this));
   nsresult rv;
 
   // It is the caller's responsibility to not call us late in shutdown.
@@ -8136,7 +8140,7 @@ nsHttpChannel::OnStartRequest(nsIRequest* request) {
       if (type == ExtContentPolicy::TYPE_DOCUMENT ||
           type == ExtContentPolicy::TYPE_SUBDOCUMENT) {
         RefPtr<mozilla::dom::BrowsingContext> bc;
-        mLoadInfo->GetBrowsingContext(getter_AddRefs(bc));
+        mLoadInfo->GetTargetBrowsingContext(getter_AddRefs(bc));
         if (bc) {
           bc->SetCurrentIPAddressSpace(docAddressSpace);
         }
@@ -11497,6 +11501,15 @@ nsHttpChannel::GetWebTransportSessionEventListener() {
 NS_IMETHODIMP nsHttpChannel::GetLastTransportStatus(
     nsresult* aLastTransportStatus) {
   *aLastTransportStatus = mLastTransportStatus;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHttpChannel::GetCacheDisposition(CacheDisposition* aDisposition) {
+  if (!aDisposition) {
+    return NS_ERROR_INVALID_ARG;
+  }
+  *aDisposition = mCacheDisposition;
   return NS_OK;
 }
 

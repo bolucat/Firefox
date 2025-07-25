@@ -1328,13 +1328,19 @@ abstract class BaseBrowserFragment :
     ): @Composable () -> Unit = {
         FirefoxTheme {
             TabStrip(
+                showActionButtons = context?.settings()?.shouldUseExpandedToolbar != true,
                 onAddTabClick = {
-                    findNavController().navigate(
-                        NavGraphDirections.actionGlobalHome(
-                            focusOnAddressBar = true,
-                        ),
-                    )
-                    TabStripMetrics.newTabTapped.record()
+                    if (activity.settings().enableHomepageAsNewTab) {
+                        requireComponents.useCases.fenixBrowserUseCases.addNewHomepageTab(
+                            private = activity.browsingModeManager.mode.isPrivate,
+                        )
+                    } else {
+                        findNavController().navigate(
+                            NavGraphDirections.actionGlobalHome(
+                                focusOnAddressBar = true,
+                            ),
+                        )
+                    }
                 },
                 onLastTabClose = { isPrivate ->
                     requireComponents.appStore.dispatch(
@@ -1344,12 +1350,9 @@ abstract class BaseBrowserFragment :
                         BrowserFragmentDirections.actionGlobalHome(),
                     )
                 },
-                onSelectedTabClick = {
-                    TabStripMetrics.selectTab.record()
-                },
+                onSelectedTabClick = {},
                 onCloseTabClick = { isPrivate ->
                     showUndoSnackbar(activity.tabClosedUndoMessage(isPrivate))
-                    TabStripMetrics.closeTab.record()
                 },
                 onTabCounterClick = { onTabCounterClicked(activity.browsingModeManager.mode) },
             )
@@ -1572,7 +1575,7 @@ abstract class BaseBrowserFragment :
                 feature = MessagingFeature(
                     appStore = requireComponents.appStore,
                     surface = FenixMessageSurfaceId.MICROSURVEY,
-                    runWhenReadyQueue = requireComponents.performance.visualCompletenessQueue.queue,
+                    runWhenReadyQueue = requireComponents.performance.visualCompletenessQueue,
                 ),
                 owner = viewLifecycleOwner,
                 view = binding.root,

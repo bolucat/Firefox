@@ -1002,10 +1002,12 @@ pref("browser.tabs.hoverPreview.showThumbnails", true);
 pref("browser.tabs.groups.enabled", true);
 
 #ifdef NIGHTLY_BUILD
-pref("browser.tabs.groups.smart.enabled", true);
+pref("browser.tabs.groups.hoverPreview.enabled", true);
 #else
-pref("browser.tabs.groups.smart.enabled", false);
+pref("browser.tabs.groups.hoverPreview.enabled", false);
 #endif
+
+pref("browser.tabs.groups.smart.enabled", true);
 
 // KMEANS_WITH_ANCHOR or NEAREST_NEIGHBOR or LOGISTIC_REGRESSION
 pref("browser.tabs.groups.smart.suggestOtherTabsMethod", "NEAREST_NEIGHBOR");
@@ -2143,10 +2145,12 @@ pref("sidebar.revamp.round-content-area", false);
 pref("sidebar.animation.enabled", true);
 pref("sidebar.animation.duration-ms", 200);
 pref("sidebar.animation.expand-on-hover.duration-ms", 400);
+
 // This pref is used to store user customized tools in the sidebar launcher and shouldn't be changed.
 // See https://firefox-source-docs.mozilla.org/browser/components/sidebar/docs/index.html for ways
 // you can introduce a new tool to the sidebar launcher.
 pref("sidebar.main.tools", "");
+pref("sidebar.installed.extensions", "");
 pref("sidebar.verticalTabs", false);
 pref("sidebar.visibility", "always-show");
 // Sidebar UI state is stored per-window via session restore. Use this pref

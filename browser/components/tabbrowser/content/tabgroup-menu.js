@@ -479,6 +479,7 @@
 
     get smartTabGroupsEnabled() {
       return (
+        Services.locale.appLocaleAsBCP47.startsWith("en") &&
         this.smartTabGroupsUserEnabled &&
         this.smartTabGroupsFeatureConfigEnabled &&
         !PrivateBrowsingUtils.isWindowPrivate(this.ownerGlobal)
@@ -890,9 +891,13 @@
         flushes.push(TabStateFlusher.flush(tab.linkedBrowser));
       });
       Promise.allSettled(flushes).then(() => {
-        saveAndCloseGroup.disabled = !SessionStore.shouldSaveTabsToGroup(
-          this.activeGroup.tabs
-        );
+        // `this.activeGroup` could be no longer available if the menu was closed
+        // since starting the tab state flushes.
+        if (this.activeGroup?.tabs) {
+          saveAndCloseGroup.disabled = !SessionStore.shouldSaveTabsToGroup(
+            this.activeGroup.tabs
+          );
+        }
       });
     }
 

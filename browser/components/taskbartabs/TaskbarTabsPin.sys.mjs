@@ -41,7 +41,11 @@ export const TaskbarTabsPin = {
     let shortcut = await createShortcut(aTaskbarTab, iconPath);
 
     try {
-      await lazy.ShellService.pinShortcutToTaskbar(aTaskbarTab.id, shortcut);
+      await lazy.ShellService.pinShortcutToTaskbar(
+        aTaskbarTab.id,
+        "Programs",
+        shortcut
+      );
     } catch (e) {
       lazy.logConsole.error(`An error occurred while pinning: ${e.message}`);
     }
@@ -56,21 +60,16 @@ export const TaskbarTabsPin = {
   async unpinTaskbarTab(aTaskbarTab) {
     lazy.logConsole.info("Unpinning Taskbar Tab from the taskbar.");
 
-    // Can't use generateShortcutInfo right now since we need an absolute
-    // path. getTaskbarTabShortcutPath accounts for the subdirectory.
-    let shortcutFilename = generateName(aTaskbarTab);
-    let shortcutPath =
-      lazy.ShellService.getTaskbarTabShortcutPath(shortcutFilename);
-
-    lazy.ShellService.unpinShortcutFromTaskbar(shortcutPath);
+    let { relativePath } = await generateShortcutInfo(aTaskbarTab);
+    lazy.ShellService.unpinShortcutFromTaskbar("Programs", relativePath);
 
     let iconFile = getIconFile(aTaskbarTab);
 
-    lazy.logConsole.debug(`Deleting ${shortcutPath}`);
+    lazy.logConsole.debug(`Deleting ${relativePath}`);
     lazy.logConsole.debug(`Deleting ${iconFile.path}`);
 
     await Promise.all([
-      IOUtils.remove(shortcutPath),
+      lazy.ShellService.deleteShortcut("Programs", relativePath),
       IOUtils.remove(iconFile.path),
     ]);
   },

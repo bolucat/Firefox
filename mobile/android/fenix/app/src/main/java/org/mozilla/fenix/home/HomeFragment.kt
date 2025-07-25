@@ -14,6 +14,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.annotation.DrawableRes
 import androidx.annotation.VisibleForTesting
+import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -52,6 +53,7 @@ import mozilla.components.compose.base.Divider
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarStore
 import mozilla.components.compose.cfr.CFRPopup
 import mozilla.components.compose.cfr.CFRPopupProperties
+import mozilla.components.concept.engine.utils.ABOUT_HOME_URL
 import mozilla.components.concept.sync.AccountObserver
 import mozilla.components.concept.sync.AuthType
 import mozilla.components.concept.sync.OAuthAccount
@@ -85,6 +87,8 @@ import org.mozilla.fenix.components.appstate.AppAction.MessagingAction.Microsurv
 import org.mozilla.fenix.components.appstate.AppAction.ReviewPromptAction.CheckIfEligibleForReviewPrompt
 import org.mozilla.fenix.components.appstate.AppAction.ReviewPromptAction.ReviewPromptShown
 import org.mozilla.fenix.components.appstate.AppState
+import org.mozilla.fenix.components.appstate.qrScanner.QrScannerBinding
+import org.mozilla.fenix.components.appstate.qrScanner.QrScannerDelegate
 import org.mozilla.fenix.components.components
 import org.mozilla.fenix.components.toolbar.BottomToolbarContainerView
 import org.mozilla.fenix.compose.snackbar.Snackbar
@@ -174,6 +178,7 @@ class HomeFragment : Fragment() {
     internal var _binding: FragmentHomeBinding? = null
     internal val binding get() = _binding!!
     private val snackbarBinding = ViewBoundFeatureWrapper<SnackbarBinding>()
+    private val qrScannerBinding = ViewBoundFeatureWrapper<QrScannerBinding>()
 
     private val homeViewModel: HomeScreenViewModel by activityViewModels()
 
@@ -315,7 +320,7 @@ class HomeFragment : Fragment() {
                 feature = MessagingFeature(
                     appStore = requireComponents.appStore,
                     surface = FenixMessageSurfaceId.HOMESCREEN,
-                    runWhenReadyQueue = requireComponents.performance.visualCompletenessQueue.queue,
+                    runWhenReadyQueue = requireComponents.performance.visualCompletenessQueue,
                 ),
                 owner = viewLifecycleOwner,
                 view = binding.root,
@@ -439,6 +444,20 @@ class HomeFragment : Fragment() {
             view = binding.root,
         )
 
+        qrScannerBinding.set(
+            feature = QrScannerBinding(
+                appStore = requireContext().components.appStore,
+                qrScannerDelegate = QrScannerDelegate(
+                    activity = requireActivity() as AppCompatActivity,
+                    browserStore = requireContext().components.core.store,
+                    appStore = requireContext().components.appStore,
+                    settings = requireContext().settings(),
+                ),
+            ),
+            owner = this,
+            view = binding.root,
+        )
+
         _sessionControlController = DefaultSessionControlController(
             activityRef = WeakReference(activity),
             settings = components.settings,
@@ -470,10 +489,6 @@ class HomeFragment : Fragment() {
 
                     override fun removeCollectionWithUndo(tabCollection: TabCollection) {
                         this@HomeFragment.removeCollectionWithUndo(tabCollection)
-                    }
-
-                    override fun showUndoSnackbarForTopSite(topSite: TopSite) {
-                        this@HomeFragment.showUndoSnackbarForTopSite(topSite)
                     }
 
                     override fun showTabTray() {
@@ -681,7 +696,7 @@ class HomeFragment : Fragment() {
                 feature = MessagingFeature(
                     appStore = requireComponents.appStore,
                     surface = FenixMessageSurfaceId.MICROSURVEY,
-                    runWhenReadyQueue = requireComponents.performance.visualCompletenessQueue.queue,
+                    runWhenReadyQueue = requireComponents.performance.visualCompletenessQueue,
                 ),
                 owner = viewLifecycleOwner,
                 view = binding.root,
@@ -793,23 +808,6 @@ class HomeFragment : Fragment() {
 
     private fun shouldShowMicrosurveyPrompt(context: Context) =
         context.components.settings.shouldShowMicrosurveyPrompt
-
-    @VisibleForTesting
-    internal fun showUndoSnackbarForTopSite(topSite: TopSite) {
-        lifecycleScope.allowUndo(
-            view = binding.dynamicSnackbarContainer,
-            message = getString(R.string.snackbar_top_site_removed),
-            undoActionTitle = getString(R.string.snackbar_deleted_undo),
-            onCancel = {
-                requireComponents.useCases.topSitesUseCase.addPinnedSites(
-                    topSite.title.toString(),
-                    topSite.url,
-                )
-            },
-            operation = { },
-            elevation = TOAST_ELEVATION,
-        )
-    }
 
     private fun disableAppBarDragging() {
         if (binding.homeAppBar.layoutParams != null) {
@@ -1020,21 +1018,31 @@ class HomeFragment : Fragment() {
 
     @Composable
     private fun TabStrip() {
+        // Tabs will not be shown as selected on the homepage when Homepage as a New Tab is not
+        // enabled.
+        val isSelectDisabled = !requireContext().settings().enableHomepageAsNewTab
+
         FirefoxTheme {
             TabStrip(
-                onHome = true,
+                isSelectDisabled = isSelectDisabled,
+                showActionButtons = context?.settings()?.shouldUseExpandedToolbar != true,
                 onAddTabClick = {
-                    sessionControlInteractor.onNavigateSearch()
-                    TabStripMetrics.newTabTapped.record()
+                    if (requireContext().settings().enableHomepageAsNewTab) {
+                        requireComponents.useCases.fenixBrowserUseCases.addNewHomepageTab(
+                            private = (requireActivity() as HomeActivity).browsingModeManager.mode.isPrivate,
+                        )
+                    } else {
+                        sessionControlInteractor.onNavigateSearch()
+                    }
                 },
-                onSelectedTabClick = {
-                    (requireActivity() as HomeActivity).openToBrowser(BrowserDirection.FromHome)
-                    TabStripMetrics.selectTab.record()
+                onSelectedTabClick = { url ->
+                    if (url != ABOUT_HOME_URL) {
+                        (requireActivity() as HomeActivity).openToBrowser(BrowserDirection.FromHome)
+                    }
                 },
                 onLastTabClose = {},
                 onCloseTabClick = { isPrivate ->
                     showUndoSnackbar(requireContext().tabClosedUndoMessage(isPrivate))
-                    TabStripMetrics.closeTab.record()
                 },
                 onTabCounterClick = { openTabsTray() },
             )
