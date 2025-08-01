@@ -25,6 +25,8 @@ add_task(async function testPermissionsListing() {
     "focus-tab-by-prompt",
     "geo",
     "install",
+    "localhost",
+    "local-network",
     "microphone",
     "popup",
     "screen",
@@ -86,6 +88,21 @@ add_task(async function testGetAllByPrincipal() {
     SitePermissions.ALLOW,
     SitePermissions.SCOPE_SESSION
   );
+
+  SitePermissions.setForPrincipal(
+    principal,
+    "localhost",
+    SitePermissions.ALLOW,
+    SitePermissions.SCOPE_SESSION
+  );
+
+  SitePermissions.setForPrincipal(
+    principal,
+    "local-network",
+    SitePermissions.ALLOW,
+    SitePermissions.SCOPE_SESSION
+  );
+
   SitePermissions.setForPrincipal(
     principal,
     "desktop-notification",
@@ -104,6 +121,16 @@ add_task(async function testGetAllByPrincipal() {
       scope: SitePermissions.SCOPE_SESSION,
     },
     {
+      id: "localhost",
+      state: SitePermissions.ALLOW,
+      scope: SitePermissions.SCOPE_SESSION,
+    },
+    {
+      id: "local-network",
+      state: SitePermissions.ALLOW,
+      scope: SitePermissions.SCOPE_SESSION,
+    },
+    {
       id: "desktop-notification",
       state: SitePermissions.BLOCK,
       scope: SitePermissions.SCOPE_PERSISTENT,
@@ -118,6 +145,16 @@ add_task(async function testGetAllByPrincipal() {
       scope: SitePermissions.SCOPE_PERSISTENT,
     },
     {
+      id: "localhost",
+      state: SitePermissions.ALLOW,
+      scope: SitePermissions.SCOPE_SESSION,
+    },
+    {
+      id: "local-network",
+      state: SitePermissions.ALLOW,
+      scope: SitePermissions.SCOPE_SESSION,
+    },
+    {
       id: "desktop-notification",
       state: SitePermissions.BLOCK,
       scope: SitePermissions.SCOPE_PERSISTENT,
@@ -126,6 +163,9 @@ add_task(async function testGetAllByPrincipal() {
 
   SitePermissions.removeFromPrincipal(principal, "camera");
   SitePermissions.removeFromPrincipal(principal, "desktop-notification");
+  SitePermissions.removeFromPrincipal(principal, "localhost");
+  SitePermissions.removeFromPrincipal(principal, "local-network");
+
   Assert.deepEqual(SitePermissions.getAllByPrincipal(principal), []);
 
   Assert.equal(Services.prefs.getIntPref("permissions.default.shortcuts"), 0);
@@ -195,6 +235,8 @@ add_task(async function testExactHostMatch() {
     "desktop-notification",
     "focus-tab-by-prompt",
     "camera",
+    "localhost",
+    "local-network",
     "microphone",
     "screen",
     "geo",
@@ -303,6 +345,19 @@ add_task(async function testDefaultPrefs() {
     state: SitePermissions.UNKNOWN,
     scope: SitePermissions.SCOPE_PERSISTENT,
   });
+
+  Assert.deepEqual(SitePermissions.getForPrincipal(principal, "localhost"), {
+    state: SitePermissions.UNKNOWN,
+    scope: SitePermissions.SCOPE_PERSISTENT,
+  });
+
+  Assert.deepEqual(
+    SitePermissions.getForPrincipal(principal, "local-network"),
+    {
+      state: SitePermissions.UNKNOWN,
+      scope: SitePermissions.SCOPE_PERSISTENT,
+    }
+  );
 
   // Check that the default return value changed after changing the pref.
   Services.prefs.setIntPref(

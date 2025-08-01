@@ -14,6 +14,7 @@ const { DeferredTask } = ChromeUtils.importESModule(
 
 const toolsNameMap = {
   viewGenaiChatSidebar: "aichat",
+  viewGenaiPageAssistSidebar: "aipageassist",
   viewTabsSidebar: "syncedtabs",
   viewHistorySidebar: "history",
   viewBookmarksSidebar: "bookmarks",
@@ -182,6 +183,21 @@ var SidebarController = {
         revampL10nId: "sidebar-menu-genai-chat-label",
         iconUrl: "chrome://global/skin/icons/highlights.svg",
         gleanClickEvent: Glean.sidebar.chatbotIconClick,
+        toolContextMenuId: "aichat",
+      }
+    );
+
+    this.registerPrefSidebar(
+      "browser.ml.pageAssist.enabled",
+      "viewGenaiPageAssistSidebar",
+      {
+        name: "aipageassist",
+        elementId: "sidebar-switcher-genai-page-assist",
+        url: "chrome://browser/content/genai/pageAssist.html",
+        menuId: "menu_genaiPageAssistSidebar",
+        menuL10nId: "menu-view-genai-page-assist",
+        revampL10nId: "sidebar-menu-genai-page-assist-label",
+        iconUrl: "chrome://browser/skin/reader-mode.svg",
       }
     );
 
@@ -1788,6 +1804,7 @@ var SidebarController = {
           get attention() {
             return sidebar.attention ?? false;
           },
+          contextMenu: sidebar.toolContextMenuId,
         };
       });
   },
@@ -2163,6 +2180,9 @@ var SidebarController = {
   },
 
   onMouseLeave() {
+    if (!this._state.launcherExpanded) {
+      return;
+    }
     this.mouseEnterTask.disarm();
     const contentArea = document.getElementById("tabbrowser-tabbox");
     this._box.toggleAttribute("sidebar-launcher-hovered", false);
@@ -2175,6 +2195,9 @@ var SidebarController = {
   },
 
   onMouseEnter() {
+    if (this._state.launcherExpanded) {
+      return;
+    }
     this.mouseEnterTask = new DeferredTask(
       () => {
         this.debouncedMouseEnter();

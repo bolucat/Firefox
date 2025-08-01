@@ -198,9 +198,17 @@
   _(ObjectKeys)                                    \
   _(ObjectToString)                                \
                                                    \
+  _(TypedArrayFill)                                \
+  _(TypedArraySet)                                 \
+  _(TypedArraySubarray)                            \
+                                                   \
   _(TestBailout)                                   \
   _(TestAssertFloat32)                             \
   _(TestAssertRecoveredOnBailout)                  \
+                                                   \
+  _(WeakMapGet)                                    \
+  _(WeakMapHas)                                    \
+  _(WeakSetHas)                                    \
                                                    \
   _(IntrinsicUnsafeSetReservedSlot)                \
   _(IntrinsicUnsafeGetReservedSlot)                \

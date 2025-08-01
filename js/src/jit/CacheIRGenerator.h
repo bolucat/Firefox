@@ -783,6 +783,9 @@ class MOZ_RAII InlinableNativeIRGenerator {
   AttachDecision tryAttachMathPow();
   AttachDecision tryAttachMathMinMax(bool isMax);
   AttachDecision tryAttachSpreadMathMinMax(bool isMax);
+  AttachDecision tryAttachTypedArrayFill();
+  AttachDecision tryAttachTypedArraySet();
+  AttachDecision tryAttachTypedArraySubarray();
   AttachDecision tryAttachIsTypedArray(bool isPossiblyWrapped);
   AttachDecision tryAttachIsTypedArrayConstructor();
   AttachDecision tryAttachTypedArrayLength(bool isPossiblyWrapped);
@@ -836,6 +839,9 @@ class MOZ_RAII InlinableNativeIRGenerator {
   AttachDecision tryAttachMapSet();
   AttachDecision tryAttachDateGetTime();
   AttachDecision tryAttachDateGet(DateComponent component);
+  AttachDecision tryAttachWeakMapHas();
+  AttachDecision tryAttachWeakMapGet();
+  AttachDecision tryAttachWeakSetHas();
 #ifdef FUZZING_JS_FUZZILLI
   AttachDecision tryAttachFuzzilliHash();
 #endif

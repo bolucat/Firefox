@@ -10,6 +10,7 @@
            class="browser-toolbar chromeclass-menubar browser-titlebar"
            customizable="true"
            mode="icons"
+           autohide="true"
            context="toolbar-context-menu">
     <toolbaritem id="menubar-items" align="center">
 # The entire main menubar is placed into browser-menubar.inc, so that it can be
@@ -58,7 +59,8 @@
             <html:img id="pinned-drop-indicator-icon" src="chrome://browser/skin/pin.svg" role="presentation" loading="lazy"/>
             <span id="pinned-drop-indicator-text" data-l10n-id="pinned-tabs-drop-indicator"></span>
           </div>
-          <arrowscrollbox id="pinned-tabs-container" orient="horizontal"></arrowscrollbox>
+          <html:sidebar-pins-promo id="drag-to-pin-promo-card"></html:sidebar-pins-promo>
+          <arrowscrollbox id="pinned-tabs-container" orient="horizontal" clicktoscroll=""></arrowscrollbox>
           <splitter orient="vertical" id="vertical-pinned-tabs-splitter" resizebefore="sibling" resizeafter="none" hidden="true"/>
           <hbox class="tab-drop-indicator" hidden="true"/>
           <arrowscrollbox id="tabbrowser-arrowscrollbox" orient="horizontal" flex="1" clicktoscroll="" scrolledtostart="" scrolledtoend="">
@@ -175,7 +177,7 @@
               pageproxystate="invalid"
               unifiedsearchbutton-available=""
           >
-          <hbox id="urlbar-background"/>
+          <hbox class="urlbar-background"/>
           <hbox class="urlbar-input-container"
                 flex="1"
                 pageproxystate="invalid">
@@ -184,8 +186,6 @@
                  collapsed="true">
                 <image id="remote-control-icon"/>
             </box>
-            <box id="urlbar-search-button"
-                 class="chromeclass-toolbar-additional"/>
             <toolbarbutton id="urlbar-searchmode-switcher"
                             align="center"
                             aria-expanded="false"
@@ -269,6 +269,10 @@
                         data-l10n-id="urlbar-camera-blocked"/>
                   <image data-permission-id="microphone" class="blocked-permission-icon microphone-icon" role="button"
                         data-l10n-id="urlbar-microphone-blocked"/>
+                  <image data-permission-id="localhost" class="blocked-permission-icon localhost-icon" role="button"
+                        data-l10n-id="urlbar-localhost-blocked"/>
+                  <image data-permission-id="local-network" class="blocked-permission-icon local-network-icon" role="button"
+                        data-l10n-id="urlbar-local-network-blocked"/>
                   <image data-permission-id="screen" class="blocked-permission-icon screen-icon" role="button"
                         data-l10n-id="urlbar-screen-blocked"/>
                   <image data-permission-id="persistent-storage" class="blocked-permission-icon persistent-storage-icon" role="button"
@@ -296,6 +300,10 @@
                        data-l10n-id="urlbar-default-notification-anchor"/>
                 <image id="geo-notification-icon" class="notification-anchor-icon geo-icon" role="button"
                        data-l10n-id="urlbar-geolocation-notification-anchor"/>
+                <image id="localhost-notification-icon" class="notification-anchor-icon localhost-icon" role="button"
+                       data-l10n-id="urlbar-localhost-notification-anchor"/>
+               <image id="local-network-notification-icon" class="notification-anchor-icon local-network-icon" role="button"
+                       data-l10n-id="urlbar-local-network-notification-anchor"/>
                 <image id="xr-notification-icon" class="notification-anchor-icon xr-icon" role="button"
                        data-l10n-id="urlbar-xr-notification-anchor"/>
                 <image id="autoplay-media-notification-icon" class="notification-anchor-icon autoplay-media-icon" role="button"
@@ -337,7 +345,6 @@
             <box id="urlbar-label-box" align="center">
               <label id="urlbar-label-switchtab" class="urlbar-label" data-l10n-id="urlbar-switch-to-tab"/>
               <label id="urlbar-label-extension" class="urlbar-label" data-l10n-id="urlbar-extension"/>
-              <label id="urlbar-label-search-mode" class="urlbar-label"/>
             </box>
             <html:div id="urlbar-search-mode-indicator">
               <html:span id="urlbar-search-mode-indicator-title"/>

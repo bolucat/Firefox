@@ -136,6 +136,15 @@ void MacroAssembler::passABIArg(Register reg) {
   passABIArg(MoveOperand(reg), ABIType::General);
 }
 
+void MacroAssembler::passABIArg(Register64 reg) {
+#ifdef JS_PUNBOX64
+  passABIArg(reg.reg);
+#else
+  passABIArg(reg.low);
+  passABIArg(reg.high);
+#endif
+}
+
 void MacroAssembler::passABIArg(FloatRegister reg, ABIType type) {
   passABIArg(MoveOperand(reg), type);
 }
@@ -203,6 +212,8 @@ ABIFunctionType MacroAssembler::signature() const {
     case Args_Double_DoubleDoubleDouble:
     case Args_Double_DoubleDoubleDoubleDouble:
     case Args_Int64_GeneralGeneral:
+    case Args_General_GeneralInt64GeneralGeneral:
+    case Args_General_GeneralFloat32GeneralGeneral:
       break;
     default:
       MOZ_CRASH("Unexpected type");

@@ -435,38 +435,36 @@ enum class GridLineSide {
 
 struct nsGridContainerFrame::TrackSize {
   enum StateBits : uint16_t {
-    // clang-format off
-    eAutoMinSizing =              0x1,
-    eMinContentMinSizing =        0x2,
-    eMaxContentMinSizing =        0x4,
+    eAutoMinSizing = 1 << 0,
+    eMinContentMinSizing = 1 << 1,
+    eMaxContentMinSizing = 1 << 2,
     eMinOrMaxContentMinSizing = eMinContentMinSizing | eMaxContentMinSizing,
     eIntrinsicMinSizing = eMinOrMaxContentMinSizing | eAutoMinSizing,
-    eModified =                   0x8,
-    eAutoMaxSizing =             0x10,
-    eMinContentMaxSizing =       0x20,
-    eMaxContentMaxSizing =       0x40,
+    eModified = 1 << 3,
+    eAutoMaxSizing = 1 << 4,
+    eMinContentMaxSizing = 1 << 5,
+    eMaxContentMaxSizing = 1 << 6,
     eAutoOrMaxContentMaxSizing = eAutoMaxSizing | eMaxContentMaxSizing,
     eIntrinsicMaxSizing = eAutoOrMaxContentMaxSizing | eMinContentMaxSizing,
-    eFlexMaxSizing =             0x80,
-    eFrozen =                   0x100,
-    eSkipGrowUnlimited1 =       0x200,
-    eSkipGrowUnlimited2 =       0x400,
+    eFlexMaxSizing = 1 << 7,
+    eFrozen = 1 << 8,
+    eSkipGrowUnlimited1 = 1 << 9,
+    eSkipGrowUnlimited2 = 1 << 10,
     eSkipGrowUnlimited = eSkipGrowUnlimited1 | eSkipGrowUnlimited2,
-    eBreakBefore =              0x800,
-    eApplyFitContentClamping = 0x1000,
-    eInfinitelyGrowable =      0x2000,
+    eBreakBefore = 1 << 11,
+    eApplyFitContentClamping = 1 << 12,
+    eInfinitelyGrowable = 1 << 13,
 
     // These are only used in the masonry axis.  They share the same value
     // as *MinSizing above, but that's OK because we don't use those in
     // the masonry axis.
     //
     // This track corresponds to an item margin-box size that is stretching.
-    eItemStretchSize =            0x1,
+    eItemStretchSize = 1 << 0,
     // This bit says that we should clamp that size to mLimit.
-    eClampToLimit =               0x2,
+    eClampToLimit = 1 << 1,
     // This bit says that the corresponding item has `auto` margin(s).
-    eItemHasAutoMargin =          0x4,
-    // clang-format on
+    eItemHasAutoMargin = 1 << 2,
   };
 
   StateBits Initialize(nscoord aPercentageBasis, const StyleTrackSize&);
@@ -2827,13 +2825,12 @@ struct nsGridContainerFrame::Tracks {
    * Distribute aAvailableSpace to the planned base size for aGrowableTracks
    * up to their limits, then distribute the remaining space beyond the limits.
    */
-  void DistributeToTrackSizes(TrackSizingStep aStep, TrackSizingPhase aPhase,
-                              nscoord aAvailableSpace, TrackPlan& aTrackPlan,
-                              ItemPlan& aItemPlan,
-                              nsTArray<uint32_t>& aGrowableTracks,
-                              SizingConstraint aConstraint,
-                              const TrackSizingFunctions& aFunctions,
-                              const FitContentClamper& aFitContentClamper) {
+  void DistributeToTrackSizes(
+      TrackSizingStep aStep, TrackSizingPhase aPhase, nscoord aAvailableSpace,
+      TrackPlan& aTrackPlan, ItemPlan& aItemPlan,
+      const nsTArray<uint32_t>& aGrowableTracks, SizingConstraint aConstraint,
+      const TrackSizingFunctions& aFunctions,
+      const FitContentClamper& aFitContentClamper) const {
     aItemPlan.Initialize(aPhase, aGrowableTracks, *this);
     nscoord space = aAvailableSpace;
     if (aStep == TrackSizingStep::Flex) {
@@ -2926,7 +2923,7 @@ struct nsGridContainerFrame::Tracks {
    * is used to avoid intermediary rounding errors.)
    */
   float FindUsedFlexFraction(GridReflowInput& aGridRI,
-                             nsTArray<GridItemInfo>& aGridItems,
+                             const nsTArray<GridItemInfo>& aGridItems,
                              const nsTArray<uint32_t>& aFlexTracks,
                              const TrackSizingFunctions& aFunctions,
                              nscoord aAvailableSize) const;
@@ -2936,7 +2933,7 @@ struct nsGridContainerFrame::Tracks {
    * https://drafts.csswg.org/css-grid-2/#algo-flex-tracks
    */
   void StretchFlexibleTracks(GridReflowInput& aGridRI,
-                             nsTArray<GridItemInfo>& aGridItems,
+                             const nsTArray<GridItemInfo>& aGridItems,
                              const TrackSizingFunctions& aFunctions,
                              nscoord aAvailableSize);
 
@@ -3294,12 +3291,9 @@ struct MOZ_STACK_CLASS nsGridContainerFrame::GridReflowInput {
   void InvalidateTrackSizesForAxis(LogicalAxis aAxis);
 
   /**
-   * Return the percentage basis for a grid item in its writing-mode.
-   * If aAxis is LogicalAxis::Inline then we return NS_UNCONSTRAINEDSIZE in
-   * both axes since we know all track sizes are indefinite at this point
-   * (we calculate column sizes before row sizes).  Otherwise, assert that
-   * column sizes are known and calculate the size for aGridItem.mArea.mCols
-   * and use NS_UNCONSTRAINEDSIZE in the other axis.
+   * Return the percentage basis for a grid item in its writing-mode based on
+   * track sizes and the grid area occupied by the grid item.
+   *
    * @param aAxis the axis we're currently calculating track sizes for
    */
   LogicalSize PercentageBasisFor(LogicalAxis aAxis,
@@ -5904,7 +5898,7 @@ static nscoord ContentContribution(const GridItemInfo& aGridItem,
       // The next two variables are MinSizeClamp values in the child's axes.
       nscoord iMinSizeClamp = NS_MAXSIZE;
       nscoord bMinSizeClamp = NS_MAXSIZE;
-      LogicalSize cbSize(childWM, 0, NS_UNCONSTRAINEDSIZE);
+      LogicalSize cbSize = aPercentageBasis;
       // Below, we try to resolve the child's grid-area size in its inline-axis
       // to use as the CB/Available size in the MeasuringReflow that follows.
       if (child->GetParent() != aGridRI.mFrame) {
@@ -5950,19 +5944,23 @@ static nscoord ContentContribution(const GridItemInfo& aGridItem,
             }
           }
         }
-      } else if (aGridRI.mCols.mCanResolveLineRangeSize) {
-        nscoord sz = aGridRI.mCols.ResolveSize(aGridItem.mArea.mCols);
-        if (isOrthogonal) {
-          availBSize = sz;
-          cbSize.BSize(childWM) = sz;
-          if (aGridItem.mState[aAxis] & ItemState::eClampMarginBoxMinSize) {
-            bMinSizeClamp = sz;
-          }
-        } else {
-          availISize = sz;
-          cbSize.ISize(childWM) = sz;
-          if (aGridItem.mState[aAxis] & ItemState::eClampMarginBoxMinSize) {
-            iMinSizeClamp = sz;
+      } else {
+        const LogicalAxis inlineAxisInChildWM =
+            isOrthogonal ? LogicalAxis::Block : LogicalAxis::Inline;
+        const nscoord colSize = cbSize.Size(inlineAxisInChildWM, childWM);
+        if (colSize != NS_UNCONSTRAINEDSIZE) {
+          MOZ_ASSERT(aGridRI.mCols.mCanResolveLineRangeSize,
+                     "Grid column sizes should be resolvable!");
+          if (isOrthogonal) {
+            availBSize = colSize;
+            if (aGridItem.mState[aAxis] & ItemState::eClampMarginBoxMinSize) {
+              bMinSizeClamp = colSize;
+            }
+          } else {
+            availISize = colSize;
+            if (aGridItem.mState[aAxis] & ItemState::eClampMarginBoxMinSize) {
+              iMinSizeClamp = colSize;
+            }
           }
         }
       }
@@ -6582,8 +6580,6 @@ void nsGridContainerFrame::Tracks::InitializeItemBaselines(
       // XXXmats if |child| is a descendant of a subgrid then the metrics
       // below needs to account for the accumulated MPB somehow...
 
-      // XXX available size issue
-      LogicalSize avail(childWM, INFINITE_ISIZE_COORD, NS_UNCONSTRAINEDSIZE);
       auto* rc = &aGridRI.mRenderingContext;
       // XXX figure out if we can avoid/merge this reflow with the main reflow.
       // XXX (after bug 1174569 is sorted out)
@@ -6593,8 +6589,14 @@ void nsGridContainerFrame::Tracks::InitializeItemBaselines(
       // XXX What if the true baseline after line-breaking differs from this
       // XXX hypothetical baseline based on an infinite inline size?
       // XXX Maybe we should just call ::ContentContribution here instead?
-      // XXX For now we just pass an unconstrined-bsize CB:
-      LogicalSize cbSize(childWM, 0, NS_UNCONSTRAINEDSIZE);
+      const LogicalSize cbSize = aGridRI.PercentageBasisFor(mAxis, gridItem);
+      LogicalSize avail(childWM, INFINITE_ISIZE_COORD, NS_UNCONSTRAINEDSIZE);
+      const LogicalAxis inlineAxisInChildWM =
+          isOrthogonal ? LogicalAxis::Block : LogicalAxis::Inline;
+      const nscoord colSize = cbSize.Size(inlineAxisInChildWM, childWM);
+      if (colSize != NS_UNCONSTRAINEDSIZE) {
+        avail.Size(inlineAxisInChildWM, childWM) = colSize;
+      }
       ::MeasuringReflow(child, aGridRI.mReflowInput, rc, avail, cbSize);
 
       nsGridContainerFrame* grid = do_QueryFrame(child);
@@ -7379,8 +7381,7 @@ float nsGridContainerFrame::Tracks::FindFrUnitSize(
 
     // 12.7.1.2: If flexFactorSum is less than 1, set it to 1 instead.
     hypotheticalFrSize = leftOverSpace / std::max(flexFactorSum, 1.0f);
-    for (uint32_t i = 0, len = flexTracks.Length(); i < len; ++i) {
-      uint32_t track = flexTracks[i];
+    for (uint32_t& track : flexTracks) {
       if (track == kAutoLine) {
         continue;  // Track marked as inflexible in a prev. iter of this loop.
       }
@@ -7388,7 +7389,7 @@ float nsGridContainerFrame::Tracks::FindFrUnitSize(
       const nscoord base = mSizes[track].mBase;
       if (flexFactor * hypotheticalFrSize < base) {
         // 12.7.1.4: Treat this track as inflexible.
-        flexTracks[i] = kAutoLine;
+        track = kAutoLine;
         flexFactorSum -= flexFactor;
         leftOverSpace -= base;
         --numFlexTracks;
@@ -7404,7 +7405,7 @@ float nsGridContainerFrame::Tracks::FindFrUnitSize(
 }
 
 float nsGridContainerFrame::Tracks::FindUsedFlexFraction(
-    GridReflowInput& aGridRI, nsTArray<GridItemInfo>& aGridItems,
+    GridReflowInput& aGridRI, const nsTArray<GridItemInfo>& aGridItems,
     const nsTArray<uint32_t>& aFlexTracks,
     const TrackSizingFunctions& aFunctions, nscoord aAvailableSize) const {
   if (aAvailableSize != NS_UNCONSTRAINEDSIZE) {
@@ -7458,7 +7459,7 @@ float nsGridContainerFrame::Tracks::FindUsedFlexFraction(
 }
 
 void nsGridContainerFrame::Tracks::StretchFlexibleTracks(
-    GridReflowInput& aGridRI, nsTArray<GridItemInfo>& aGridItems,
+    GridReflowInput& aGridRI, const nsTArray<GridItemInfo>& aGridItems,
     const TrackSizingFunctions& aFunctions, nscoord aAvailableSize) {
   if (aAvailableSize <= 0) {
     return;
@@ -10585,7 +10586,7 @@ void nsGridContainerFrame::SetInitialChildList(ChildListID aListID,
 void nsGridContainerFrame::TrackSize::DumpStateBits(StateBits aState) {
   printf("min:");
   if (aState & eAutoMinSizing) {
-    printf("auto-min ");
+    printf("auto ");
   } else if (aState & eMinContentMinSizing) {
     printf("min-content ");
   } else if (aState & eMaxContentMinSizing) {
@@ -10842,7 +10843,7 @@ nscoord nsGridContainerFrame::TrackPlan::DistributeToFlexTrackSizes(
   for (uint32_t track : aGrowableTracks) {
     MOZ_ASSERT(aTracks.mSizes[track].mState & TrackSize::eFlexMaxSizing,
                "Only flex-sized tracks should be growable during step 4");
-    totalFr += aFunctions.SizingFor(track).GetMax().AsFr();
+    totalFr += aFunctions.MaxSizingFor(track).AsFr();
   }
   MOZ_ASSERT(totalFr >= 0.0, "flex fractions must be non-negative.");
 
@@ -10857,7 +10858,7 @@ nscoord nsGridContainerFrame::TrackPlan::DistributeToFlexTrackSizes(
     if (sz.IsFrozen()) {
       continue;
     }
-    const double trackFr = aFunctions.SizingFor(track).GetMax().AsFr();
+    const double trackFr = aFunctions.MaxSizingFor(track).AsFr();
     nscoord size = NSToCoordRoundWithClamp(frSize * trackFr);
     // This shouldn't happen in theory, but it could happen due to a
     // combination of floating-point error during the multiplication above

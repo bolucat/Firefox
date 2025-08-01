@@ -10,6 +10,7 @@ const { sinon } = ChromeUtils.importESModule(
 
 const CONTENT_AREA_CONTEXT_MENU = "contentAreaContextMenu";
 const TAB_CONTEXT_MENU = "tabContextMenu";
+const TOOL_CONTEXT_MENU = "sidebar-context-menu";
 
 registerCleanupFunction(() => {
   Services.prefs.clearUserPref("sidebar.new-sidebar.has-used");
@@ -32,6 +33,17 @@ async function openContextMenu({ menuId, browser }) {
       tab,
       { type: "contextmenu", button: 2 },
       win
+    );
+  } else if (menuId === TOOL_CONTEXT_MENU) {
+    const { sidebarMain } = SidebarController;
+    const aichatEl = sidebarMain.shadowRoot.querySelector(
+      'moz-button[view="viewGenaiChatSidebar"]'
+    );
+
+    EventUtils.synthesizeMouseAtCenter(
+      aichatEl,
+      { type: "contextmenu", button: 2 },
+      aichatEl.ownerGlobal
     );
   } else {
     BrowserTestUtils.synthesizeMouse(
@@ -62,14 +74,16 @@ async function runContextMenuTest({
 }) {
   await openContextMenu({ menuId, browser });
 
+  const menu = document.getElementById(targetId);
+  const menuItems = [...menu.querySelectorAll("menuitem")].filter(
+    item => !item.hidden
+  );
+
   await TestUtils.waitForCondition(() => {
-    return (
-      document.getElementById(targetId).getItemAtIndex(0)?.label ===
-      expectedLabel
-    );
+    return menuItems[0]?.label === expectedLabel;
   }, expectedDescription);
 
-  document.getElementById(targetId).getItemAtIndex(0).click();
+  menuItems[0].click();
   await hideContextMenu(menuId);
 
   if (stub) {
@@ -97,7 +111,7 @@ add_setup(async function () {
 });
 
 /**
- * Check page and tab menu have summarize prompt
+ * Check page, tab, and tool context menu have summarize prompt
  */
 add_task(async function test_page_and_tab_menu_prompt() {
   const sandbox = sinon.createSandbox();
@@ -107,10 +121,11 @@ add_task(async function test_page_and_tab_menu_prompt() {
       ["browser.ml.chat.provider", "http://localhost:8080"],
       ["browser.ml.chat.page", true],
       ["browser.ml.chat.page.menuBadge", true],
+      ["sidebar.revamp", true],
     ],
   });
 
-  await BrowserTestUtils.withNewTab("about:blank", async browser => {
+  await BrowserTestUtils.withNewTab("https://example.com", async browser => {
     await runContextMenuTest({
       menuId: CONTENT_AREA_CONTEXT_MENU,
       targetId: "context-ask-chat",
@@ -128,10 +143,42 @@ add_task(async function test_page_and_tab_menu_prompt() {
       stub,
       browser,
     });
+
+    SidebarController.show();
+
+    await runContextMenuTest({
+      menuId: TOOL_CONTEXT_MENU,
+      targetId: TOOL_CONTEXT_MENU,
+      expectedLabel: "Summarize Page",
+      expectedDescription: "Page prompt added",
+      stub,
+      browser: gBrowser.selectedBrowser,
+    });
   });
 
   sandbox.restore();
   SidebarController.hide();
+});
+
+/**
+ *  Check Summarize Page button in page and tab menu is disabled
+ *  When browser context is invalid
+ */
+add_task(async function test_summarize_page_button_is_disabled_in_menu() {
+  await BrowserTestUtils.withNewTab("about:blank", async browser => {
+    // invalid context
+    await openContextMenu({ menuId: CONTENT_AREA_CONTEXT_MENU, browser });
+    await TestUtils.waitForCondition(() => {
+      return document.getElementById("context-ask-chat").getItemAtIndex(0)
+        .disabled;
+    }, "Summarize page button is disabled");
+
+    Assert.ok(
+      document.getElementById("context-ask-chat").getItemAtIndex(0).disabled,
+      "Summarize page button is disabled because context is invalid"
+    );
+    await hideContextMenu(CONTENT_AREA_CONTEXT_MENU);
+  });
 });
 
 /**
@@ -142,7 +189,7 @@ add_task(async function test_page_menu_no_chatbot() {
     clear: [["browser.ml.chat.provider"]],
     set: [["browser.ml.chat.page", true]],
   });
-  await BrowserTestUtils.withNewTab("about:blank", async browser => {
+  await BrowserTestUtils.withNewTab("https://example.com", async browser => {
     await openContextMenu({ menuId: CONTENT_AREA_CONTEXT_MENU, browser });
 
     await TestUtils.waitForCondition(() => {

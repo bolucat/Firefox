@@ -287,7 +287,7 @@ static MConstant* EvaluateConstantOperands(TempAllocator& alloc,
     return MConstant::NewFloat32(alloc, float(ret));
   }
   if (ins->type() == MIRType::Double) {
-    return MConstant::New(alloc, DoubleValue(ret));
+    return MConstant::NewDouble(alloc, ret);
   }
   MOZ_ASSERT(ins->type() == MIRType::Int32);
 
@@ -297,7 +297,7 @@ static MConstant* EvaluateConstantOperands(TempAllocator& alloc,
   if (!mozilla::NumberIsInt32(ret, &intRet)) {
     return nullptr;
   }
-  return MConstant::New(alloc, Int32Value(intRet));
+  return MConstant::NewInt32(alloc, intRet);
 }
 
 static MConstant* EvaluateConstantNaNOperand(MBinaryInstruction* ins) {
@@ -352,19 +352,18 @@ static MMul* EvaluateExactReciprocal(TempAllocator& alloc, MDiv* ins) {
     return nullptr;
   }
 
-  // check if rhs is a power of two
-  if (mozilla::Abs(num) & (mozilla::Abs(num) - 1)) {
+  // check if rhs is a power of two or zero
+  if (num != 0 && !mozilla::IsPowerOfTwo(mozilla::Abs(num))) {
     return nullptr;
   }
 
-  Value ret;
-  ret.setDouble(1.0 / double(num));
+  double ret = 1.0 / double(num);
 
   MConstant* foldedRhs;
   if (ins->type() == MIRType::Float32) {
-    foldedRhs = MConstant::NewFloat32(alloc, ret.toDouble());
+    foldedRhs = MConstant::NewFloat32(alloc, ret);
   } else {
-    foldedRhs = MConstant::New(alloc, ret);
+    foldedRhs = MConstant::NewDouble(alloc, ret);
   }
 
   MOZ_ASSERT(foldedRhs->type() == ins->type());
@@ -1045,9 +1044,21 @@ MConstant* MConstant::New(TempAllocator::Fallible alloc, const Value& v) {
   return new (alloc) MConstant(alloc.alloc, v);
 }
 
+MConstant* MConstant::NewBoolean(TempAllocator& alloc, bool b) {
+  return new (alloc) MConstant(b);
+}
+
+MConstant* MConstant::NewDouble(TempAllocator& alloc, double d) {
+  return new (alloc) MConstant(d);
+}
+
 MConstant* MConstant::NewFloat32(TempAllocator& alloc, double d) {
-  MOZ_ASSERT(std::isnan(d) || d == double(float(d)));
+  MOZ_ASSERT(mozilla::IsFloat32Representable(d));
   return new (alloc) MConstant(float(d));
+}
+
+MConstant* MConstant::NewInt32(TempAllocator& alloc, int32_t i) {
+  return new (alloc) MConstant(i);
 }
 
 MConstant* MConstant::NewInt64(TempAllocator& alloc, int64_t i) {
@@ -1058,13 +1069,12 @@ MConstant* MConstant::NewIntPtr(TempAllocator& alloc, intptr_t i) {
   return new (alloc) MConstant(MIRType::IntPtr, i);
 }
 
-MConstant* MConstant::New(TempAllocator& alloc, const Value& v, MIRType type) {
-  if (type == MIRType::Float32) {
-    return NewFloat32(alloc, v.toNumber());
-  }
-  MConstant* res = New(alloc, v);
-  MOZ_ASSERT(res->type() == type);
-  return res;
+MConstant* MConstant::NewMagic(TempAllocator& alloc, JSWhyMagic m) {
+  return new (alloc) MConstant(alloc, MagicValue(m));
+}
+
+MConstant* MConstant::NewNull(TempAllocator& alloc) {
+  return new (alloc) MConstant(MIRType::Null);
 }
 
 MConstant* MConstant::NewObject(TempAllocator& alloc, JSObject* v) {
@@ -1073,6 +1083,14 @@ MConstant* MConstant::NewObject(TempAllocator& alloc, JSObject* v) {
 
 MConstant* MConstant::NewShape(TempAllocator& alloc, Shape* s) {
   return new (alloc) MConstant(s);
+}
+
+MConstant* MConstant::NewString(TempAllocator& alloc, JSString* s) {
+  return new (alloc) MConstant(alloc, StringValue(s));
+}
+
+MConstant* MConstant::NewUndefined(TempAllocator& alloc) {
+  return new (alloc) MConstant(MIRType::Undefined);
 }
 
 static MIRType MIRTypeFromValue(const js::Value& vp) {
@@ -1144,35 +1162,13 @@ MConstant::MConstant(TempAllocator& alloc, const js::Value& vp)
   setMovable();
 }
 
-MConstant::MConstant(JSObject* obj) : MNullaryInstruction(classOpcode) {
+MConstant::MConstant(JSObject* obj) : MConstant(MIRType::Object) {
   MOZ_ASSERT(!IsInsideNursery(obj));
-  setResultType(MIRType::Object);
   payload_.obj = obj;
-  setMovable();
 }
 
-MConstant::MConstant(Shape* shape) : MNullaryInstruction(classOpcode) {
-  setResultType(MIRType::Shape);
+MConstant::MConstant(Shape* shape) : MConstant(MIRType::Shape) {
   payload_.shape = shape;
-  setMovable();
-}
-
-MConstant::MConstant(float f) : MNullaryInstruction(classOpcode) {
-  setResultType(MIRType::Float32);
-  payload_.f = f;
-  setMovable();
-}
-
-MConstant::MConstant(MIRType type, int64_t i)
-    : MNullaryInstruction(classOpcode) {
-  MOZ_ASSERT(type == MIRType::Int64 || type == MIRType::IntPtr);
-  setResultType(type);
-  if (type == MIRType::Int64) {
-    payload_.i64 = i;
-  } else {
-    payload_.iptr = i;
-  }
-  setMovable();
 }
 
 #ifdef DEBUG
@@ -1534,15 +1530,14 @@ MDefinition* MSign::foldsTo(TempAllocator& alloc) {
   if (type() == MIRType::Int32) {
     // Decline folding if this is an int32 operation, but the result type
     // isn't an int32.
-    Value outValue = NumberValue(out);
-    if (!outValue.isInt32()) {
+    int32_t i;
+    if (!mozilla::NumberIsInt32(out, &i)) {
       return this;
     }
-
-    return MConstant::New(alloc, outValue);
+    return MConstant::NewInt32(alloc, i);
   }
 
-  return MConstant::New(alloc, DoubleValue(out));
+  return MConstant::NewDouble(alloc, out);
 }
 
 const char* MMathFunction::FunctionName(UnaryMathFunction function) {
@@ -1574,7 +1569,7 @@ MDefinition* MMathFunction::foldsTo(TempAllocator& alloc) {
   if (input->type() == MIRType::Float32) {
     return MConstant::NewFloat32(alloc, out);
   }
-  return MConstant::New(alloc, DoubleValue(out));
+  return MConstant::NewDouble(alloc, out);
 }
 
 MDefinition* MAtomicIsLockFree::foldsTo(TempAllocator& alloc) {
@@ -1584,7 +1579,7 @@ MDefinition* MAtomicIsLockFree::foldsTo(TempAllocator& alloc) {
   }
 
   int32_t i = input->toConstant()->toInt32();
-  return MConstant::New(alloc, BooleanValue(AtomicOperations::isLockfreeJS(i)));
+  return MConstant::NewBoolean(alloc, AtomicOperations::isLockfreeJS(i));
 }
 
 // Define |THIS_SLOT| as part of this translation unit, as it is used to
@@ -1785,12 +1780,12 @@ MCallClassHook* MCallClassHook::New(TempAllocator& alloc, JSNative target,
 MDefinition* MStringLength::foldsTo(TempAllocator& alloc) {
   if (string()->isConstant()) {
     JSOffThreadAtom* str = string()->toConstant()->toString();
-    return MConstant::New(alloc, Int32Value(str->length()));
+    return MConstant::NewInt32(alloc, str->length());
   }
 
   // MFromCharCode returns a one-element string.
   if (string()->isFromCharCode()) {
-    return MConstant::New(alloc, Int32Value(1));
+    return MConstant::NewInt32(alloc, 1);
   }
 
   return this;
@@ -2019,7 +2014,7 @@ MDefinition* MSubstr::foldsTo(TempAllocator& alloc) {
     auto* length = MStringLength::New(alloc, string());
     block()->insertBefore(this, length);
 
-    auto* index = MConstant::New(alloc, Int32Value(-1));
+    auto* index = MConstant::NewInt32(alloc, -1);
     block()->insertBefore(this, index);
 
     // Folded MToRelativeStringIndex, see MToRelativeStringIndex::foldsTo.
@@ -2074,7 +2069,7 @@ MDefinition* MCharCodeAt::foldsTo(TempAllocator& alloc) {
   }
 
   char16_t ch = str->latin1OrTwoByteChar(idx);
-  return MConstant::New(alloc, Int32Value(ch));
+  return MConstant::NewInt32(alloc, ch);
 }
 
 MDefinition* MCodePointAt::foldsTo(TempAllocator& alloc) {
@@ -2120,7 +2115,7 @@ MDefinition* MCodePointAt::foldsTo(TempAllocator& alloc) {
       first = unicode::UTF16Decode(first, second);
     }
   }
-  return MConstant::New(alloc, Int32Value(first));
+  return MConstant::NewInt32(alloc, first);
 }
 
 MDefinition* MToRelativeStringIndex::foldsTo(TempAllocator& alloc) {
@@ -2286,8 +2281,8 @@ MDefinition* MUnbox::foldsTo(TempAllocator& alloc) {
     if (type() == MIRType::Double &&
         IsTypeRepresentableAsDouble(unboxed->type())) {
       if (unboxed->isConstant()) {
-        return MConstant::New(
-            alloc, DoubleValue(unboxed->toConstant()->numberToDouble()));
+        return MConstant::NewDouble(alloc,
+                                    unboxed->toConstant()->numberToDouble());
       }
 
       return MToDouble::New(alloc, unboxed);
@@ -3087,7 +3082,7 @@ MDefinition* MMinMax::foldsTo(TempAllocator& alloc) {
     if (lhs->type() == MIRType::Int32) {
       int32_t cast;
       if (mozilla::NumberEqualsInt32(result, &cast)) {
-        return MConstant::New(alloc, Int32Value(cast));
+        return MConstant::NewInt32(alloc, cast);
       }
       return nullptr;
     }
@@ -3095,7 +3090,7 @@ MDefinition* MMinMax::foldsTo(TempAllocator& alloc) {
       return MConstant::NewFloat32(alloc, result);
     }
     MOZ_ASSERT(lhs->type() == MIRType::Double);
-    return MConstant::New(alloc, DoubleValue(result));
+    return MConstant::NewDouble(alloc, result);
   };
 
   // Try to fold the following patterns when |x| and |y| are constants.
@@ -3305,9 +3300,9 @@ MDefinition* MPow::foldsConstant(TempAllocator& alloc) {
       // Reject folding if the result isn't an int32, because we'll bail anyway.
       return nullptr;
     }
-    return MConstant::New(alloc, Int32Value(cast));
+    return MConstant::NewInt32(alloc, cast);
   }
-  return MConstant::New(alloc, DoubleValue(result));
+  return MConstant::NewDouble(alloc, result);
 }
 
 MDefinition* MPow::foldsConstantPower(TempAllocator& alloc) {
@@ -3337,7 +3332,7 @@ MDefinition* MPow::foldsConstantPower(TempAllocator& alloc) {
     MOZ_ASSERT(type() == MIRType::Double);
     MPowHalf* half = MPowHalf::New(alloc, input());
     block()->insertBefore(this, half);
-    MConstant* one = MConstant::New(alloc, DoubleValue(1.0));
+    MConstant* one = MConstant::NewDouble(alloc, 1.0);
     block()->insertBefore(this, one);
     return MDiv::New(alloc, one, half, MIRType::Double);
   }
@@ -3847,7 +3842,7 @@ MDefinition* MSub::foldsTo(TempAllocator& alloc) {
     // Ensure that any bailouts that we depend on to guarantee that X
     // is Int32 are not removed.
     lhs()->setGuardRangeBailoutsUnchecked();
-    return MConstant::New(alloc, Int32Value(0));
+    return MConstant::NewInt32(alloc, 0);
   }
 
   return this;
@@ -3976,8 +3971,8 @@ MDefinition* MBitNot::foldsTo(TempAllocator& alloc) {
   MDefinition* input = getOperand(0);
 
   if (input->isConstant()) {
-    js::Value v = Int32Value(~(input->toConstant()->toInt32()));
-    return MConstant::New(alloc, v);
+    int32_t v = ~(input->toConstant()->toInt32());
+    return MConstant::NewInt32(alloc, v);
   }
 
   if (input->isBitNot()) {
@@ -4130,7 +4125,7 @@ MDefinition* MTypeOf::foldsTo(TempAllocator& alloc) {
       return this;
   }
 
-  return MConstant::New(alloc, Int32Value(static_cast<int32_t>(type)));
+  return MConstant::NewInt32(alloc, static_cast<int32_t>(type));
 }
 
 MDefinition* MTypeOfName::foldsTo(TempAllocator& alloc) {
@@ -4147,7 +4142,7 @@ MDefinition* MTypeOfName::foldsTo(TempAllocator& alloc) {
 
   JSString* name =
       TypeName(static_cast<JSType>(type), GetJitContext()->runtime->names());
-  return MConstant::New(alloc, StringValue(name));
+  return MConstant::NewString(alloc, name);
 }
 
 MUrsh* MUrsh::NewWasm(TempAllocator& alloc, MDefinition* left,
@@ -4383,23 +4378,23 @@ MDefinition* MToNumberInt32::foldsTo(TempAllocator& alloc) {
     switch (cst->type()) {
       case MIRType::Null:
         if (conversion() == IntConversionInputKind::Any) {
-          return MConstant::New(alloc, Int32Value(0));
+          return MConstant::NewInt32(alloc, 0);
         }
         break;
       case MIRType::Boolean:
         if (conversion() == IntConversionInputKind::Any) {
-          return MConstant::New(alloc, Int32Value(cst->toBoolean()));
+          return MConstant::NewInt32(alloc, cst->toBoolean());
         }
         break;
       case MIRType::Int32:
-        return MConstant::New(alloc, Int32Value(cst->toInt32()));
+        return MConstant::NewInt32(alloc, cst->toInt32());
       case MIRType::Float32:
       case MIRType::Double:
         int32_t ival;
         // Only the value within the range of Int32 can be substituted as
         // constant.
         if (mozilla::NumberIsInt32(cst->numberToDouble(), &ival)) {
-          return MConstant::New(alloc, Int32Value(ival));
+          return MConstant::NewInt32(alloc, ival);
         }
         break;
       default:
@@ -4432,7 +4427,7 @@ MDefinition* MBooleanToInt32::foldsTo(TempAllocator& alloc) {
   MOZ_ASSERT(input->type() == MIRType::Boolean);
 
   if (input->isConstant()) {
-    return MConstant::New(alloc, Int32Value(input->toConstant()->toBoolean()));
+    return MConstant::NewInt32(alloc, input->toConstant()->toBoolean());
   }
 
   return this;
@@ -4464,7 +4459,7 @@ MDefinition* MTruncateToInt32::foldsTo(TempAllocator& alloc) {
 
   if (input->type() == MIRType::Double && input->isConstant()) {
     int32_t ret = ToInt32(input->toConstant()->toDouble());
-    return MConstant::New(alloc, Int32Value(ret));
+    return MConstant::NewInt32(alloc, ret);
   }
 
   return this;
@@ -4475,7 +4470,7 @@ MDefinition* MWrapInt64ToInt32::foldsTo(TempAllocator& alloc) {
   if (input->isConstant()) {
     uint64_t c = input->toConstant()->toInt64();
     int32_t output = bottomHalf() ? int32_t(c) : int32_t(c >> 32);
-    return MConstant::New(alloc, Int32Value(output));
+    return MConstant::NewInt32(alloc, output);
   }
 
   return this;
@@ -4505,7 +4500,7 @@ MDefinition* MSignExtendInt32::foldsTo(TempAllocator& alloc) {
         res = int32_t(int16_t(c & 0xFFFF));
         break;
     }
-    return MConstant::New(alloc, Int32Value(res));
+    return MConstant::NewInt32(alloc, res);
   }
 
   return this;
@@ -4567,8 +4562,7 @@ MDefinition* MToDouble::foldsTo(TempAllocator& alloc) {
 
   if (input->isConstant() &&
       input->toConstant()->isTypeRepresentableAsDouble()) {
-    return MConstant::New(alloc,
-                          DoubleValue(input->toConstant()->numberToDouble()));
+    return MConstant::NewDouble(alloc, input->toConstant()->numberToDouble());
   }
 
   return this;
@@ -4679,7 +4673,7 @@ MDefinition* MClampToUint8::foldsTo(TempAllocator& alloc) {
   if (MConstant* inputConst = input()->maybeConstantValue()) {
     if (inputConst->isTypeRepresentableAsDouble()) {
       int32_t clamped = ClampDoubleToUint8(inputConst->numberToDouble());
-      return MConstant::New(alloc, Int32Value(clamped));
+      return MConstant::NewInt32(alloc, clamped);
     }
   }
   return this;
@@ -5214,7 +5208,7 @@ MDefinition* MCompare::tryFoldTypeOf(TempAllocator& alloc) {
     return this;
   }
 
-  MConstant* cst = MConstant::New(alloc, Int32Value(type));
+  MConstant* cst = MConstant::NewInt32(alloc, type);
   block()->insertBefore(this, cst);
 
   return MCompare::New(alloc, typeOf, cst, jsop(), MCompare::Compare_Int32);
@@ -5270,7 +5264,7 @@ MDefinition* MCompare::tryFoldCharCompare(TempAllocator& alloc) {
     }
 
     char16_t charCode = constant->toString()->latin1OrTwoByteChar(0);
-    MConstant* charCodeConst = MConstant::New(alloc, Int32Value(charCode));
+    MConstant* charCodeConst = MConstant::NewInt32(alloc, charCode);
     block()->insertBefore(this, charCodeConst);
 
     MDefinition* charCodeAt = charAccessCode(operand);
@@ -5324,7 +5318,7 @@ MDefinition* MCompare::tryFoldStringCompare(TempAllocator& alloc) {
   auto* strLength = MStringLength::New(alloc, operand);
   block()->insertBefore(this, strLength);
 
-  auto* zero = MConstant::New(alloc, Int32Value(0));
+  auto* zero = MConstant::NewInt32(alloc, 0);
   block()->insertBefore(this, zero);
 
   if (left->isConstant()) {
@@ -5540,7 +5534,7 @@ MDefinition* MCompare::tryFoldBigInt64(TempAllocator& alloc) {
       } else {
         result = FoldComparison(jsop_, repr, 0);
       }
-      return MConstant::New(alloc, BooleanValue(result));
+      return MConstant::NewBoolean(alloc, result);
     }
 
     auto* cst = MConstant::NewInt64(alloc, *value);
@@ -5576,7 +5570,7 @@ MDefinition* MCompare::tryFoldBigInt64(TempAllocator& alloc) {
     // The unsigned comparison against a negative operand is a constant.
     if (!isSigned && constInt32 < 0) {
       bool result = FoldComparison(jsop_, 0, constInt32);
-      return MConstant::New(alloc, BooleanValue(result));
+      return MConstant::NewBoolean(alloc, result);
     }
 
     auto* cst = MConstant::NewInt64(alloc, int64_t(constInt32));
@@ -5637,7 +5631,7 @@ MDefinition* MCompare::tryFoldBigIntPtr(TempAllocator& alloc) {
       } else {
         result = FoldComparison(jsop_, repr, 0);
       }
-      return MConstant::New(alloc, BooleanValue(result));
+      return MConstant::NewBoolean(alloc, result);
     }
 
     auto* cst = MConstant::NewIntPtr(alloc, value);
@@ -5702,7 +5696,7 @@ MDefinition* MCompare::tryFoldBigInt(TempAllocator& alloc) {
     return this;
   }
 
-  MConstant* int32Const = MConstant::New(alloc, Int32Value(x));
+  MConstant* int32Const = MConstant::NewInt32(alloc, x);
   block()->insertBefore(this, int32Const);
 
   auto op = jsop();
@@ -5723,11 +5717,11 @@ MDefinition* MCompare::foldsTo(TempAllocator& alloc) {
 
   if (tryFold(&result) || evaluateConstantOperands(alloc, &result)) {
     if (type() == MIRType::Int32) {
-      return MConstant::New(alloc, Int32Value(result));
+      return MConstant::NewInt32(alloc, result);
     }
 
     MOZ_ASSERT(type() == MIRType::Boolean);
-    return MConstant::New(alloc, BooleanValue(result));
+    return MConstant::NewBoolean(alloc, result);
   }
 
   if (MDefinition* folded = tryFoldTypeOf(alloc); folded != this) {
@@ -5786,7 +5780,7 @@ MDefinition* MSameValue::foldsTo(TempAllocator& alloc) {
 
   // Trivially true if both operands are the same.
   if (lhs == rhs) {
-    return MConstant::New(alloc, BooleanValue(true));
+    return MConstant::NewBoolean(alloc, true);
   }
 
   // CacheIR optimizes the following cases, so don't bother to handle them here:
@@ -5818,7 +5812,7 @@ MDefinition* MSameValue::foldsTo(TempAllocator& alloc) {
 MDefinition* MSameValueDouble::foldsTo(TempAllocator& alloc) {
   // Trivially true if both operands are the same.
   if (left() == right()) {
-    return MConstant::New(alloc, BooleanValue(true));
+    return MConstant::NewBoolean(alloc, true);
   }
 
   // At least one operand must be a constant.
@@ -5865,10 +5859,10 @@ MDefinition* MNot::foldsTo(TempAllocator& alloc) {
       return nullptr;
     }
     if (type == MIRType::Int32) {
-      return MConstant::New(alloc, Int32Value(!b));
+      return MConstant::NewInt32(alloc, !b);
     }
     MOZ_ASSERT(type == MIRType::Boolean);
-    return MConstant::New(alloc, BooleanValue(!b));
+    return MConstant::NewBoolean(alloc, !b);
   };
 
   // Fold if the input is constant.
@@ -5890,12 +5884,12 @@ MDefinition* MNot::foldsTo(TempAllocator& alloc) {
   // Not of an undefined or null value is always true
   if (input()->type() == MIRType::Undefined ||
       input()->type() == MIRType::Null) {
-    return MConstant::New(alloc, BooleanValue(true));
+    return MConstant::NewBoolean(alloc, true);
   }
 
   // Not of a symbol is always false.
   if (input()->type() == MIRType::Symbol) {
-    return MConstant::New(alloc, BooleanValue(false));
+    return MConstant::NewBoolean(alloc, false);
   }
 
   // Drop the conversion in `Not(Int64ToBigInt(int64))` to `Not(int64)`.
@@ -6376,10 +6370,9 @@ MDefinition* MClz::foldsTo(TempAllocator& alloc) {
     if (type() == MIRType::Int32) {
       int32_t n = c->toInt32();
       if (n == 0) {
-        return MConstant::New(alloc, Int32Value(32));
+        return MConstant::NewInt32(alloc, 32);
       }
-      return MConstant::New(alloc,
-                            Int32Value(mozilla::CountLeadingZeroes32(n)));
+      return MConstant::NewInt32(alloc, mozilla::CountLeadingZeroes32(n));
     }
     int64_t n = c->toInt64();
     if (n == 0) {
@@ -6398,10 +6391,9 @@ MDefinition* MCtz::foldsTo(TempAllocator& alloc) {
     if (type() == MIRType::Int32) {
       int32_t n = num()->toConstant()->toInt32();
       if (n == 0) {
-        return MConstant::New(alloc, Int32Value(32));
+        return MConstant::NewInt32(alloc, 32);
       }
-      return MConstant::New(alloc,
-                            Int32Value(mozilla::CountTrailingZeroes32(n)));
+      return MConstant::NewInt32(alloc, mozilla::CountTrailingZeroes32(n));
     }
     int64_t n = c->toInt64();
     if (n == 0) {
@@ -6419,7 +6411,7 @@ MDefinition* MPopcnt::foldsTo(TempAllocator& alloc) {
     MConstant* c = num()->toConstant();
     if (type() == MIRType::Int32) {
       int32_t n = num()->toConstant()->toInt32();
-      return MConstant::New(alloc, Int32Value(mozilla::CountPopulation32(n)));
+      return MConstant::NewInt32(alloc, mozilla::CountPopulation32(n));
     }
     int64_t n = c->toInt64();
     return MConstant::NewInt64(alloc, int64_t(mozilla::CountPopulation64(n)));
@@ -6508,7 +6500,7 @@ MDefinition* MGetFirstDollarIndex::foldsTo(TempAllocator& alloc) {
 
   JSOffThreadAtom* str = strArg->toConstant()->toString();
   int32_t index = GetFirstDollarIndexRawFlat(str);
-  return MConstant::New(alloc, Int32Value(index));
+  return MConstant::NewInt32(alloc, index);
 }
 
 AliasSet MThrowRuntimeLexicalError::getAliasSet() const {
@@ -6649,6 +6641,18 @@ AliasSet MGuardResizableArrayBufferViewInBoundsOrDetached::getAliasSet() const {
                         AliasSet::ObjectFields | AliasSet::FixedSlot);
 }
 
+AliasSet MTypedArraySet::getAliasSet() const {
+  // Loads typed array length and elements.
+  constexpr auto load =
+      AliasSet::Load(AliasSet::ArrayBufferViewLengthOrOffset |
+                     AliasSet::ObjectFields | AliasSet::UnboxedElement);
+
+  // Stores into typed array elements.
+  constexpr auto store = AliasSet::Store(AliasSet::UnboxedElement);
+
+  return load | store;
+}
+
 AliasSet MArrayPush::getAliasSet() const {
   return AliasSet::Store(AliasSet::ObjectFields | AliasSet::Element);
 }
@@ -6690,8 +6694,7 @@ MDefinition* MIsObject::foldsTo(TempAllocator& alloc) {
   }
 
   MDefinition* unboxed = input->toBox()->input();
-  return MConstant::New(alloc,
-                        BooleanValue(unboxed->type() == MIRType::Object));
+  return MConstant::NewBoolean(alloc, unboxed->type() == MIRType::Object);
 }
 
 MDefinition* MIsNullOrUndefined::foldsTo(TempAllocator& alloc) {
@@ -6705,8 +6708,7 @@ MDefinition* MIsNullOrUndefined::foldsTo(TempAllocator& alloc) {
     unboxed = unboxed->toBox()->input();
   }
 
-  return MConstant::New(alloc,
-                        BooleanValue(IsNullOrUndefined(unboxed->type())));
+  return MConstant::NewBoolean(alloc, IsNullOrUndefined(unboxed->type()));
 }
 
 AliasSet MHomeObjectSuperBase::getAliasSet() const {
@@ -6715,7 +6717,7 @@ AliasSet MHomeObjectSuperBase::getAliasSet() const {
 
 MDefinition* MGuardValue::foldsTo(TempAllocator& alloc) {
   if (MConstant* cst = value()->maybeConstantValue()) {
-    if (cst->toJSValue() == expected()) {
+    if (expected().isValue() && cst->toJSValue() == expected().toValue()) {
       return value();
     }
   }
@@ -6768,8 +6770,8 @@ MDefinition* MGuardObjectIdentity::foldsTo(TempAllocator& alloc) {
 
   if (!bailOnEquality() && object()->isNurseryObject() &&
       expected()->isNurseryObject()) {
-    uint32_t objIndex = object()->toNurseryObject()->nurseryIndex();
-    uint32_t otherIndex = expected()->toNurseryObject()->nurseryIndex();
+    uint32_t objIndex = object()->toNurseryObject()->nurseryObjectIndex();
+    uint32_t otherIndex = expected()->toNurseryObject()->nurseryObjectIndex();
     if (objIndex == otherIndex) {
       return object();
     }
@@ -6788,8 +6790,8 @@ MDefinition* MGuardSpecificFunction::foldsTo(TempAllocator& alloc) {
   }
 
   if (function()->isNurseryObject() && expected()->isNurseryObject()) {
-    uint32_t funIndex = function()->toNurseryObject()->nurseryIndex();
-    uint32_t otherIndex = expected()->toNurseryObject()->nurseryIndex();
+    uint32_t funIndex = function()->toNurseryObject()->nurseryObjectIndex();
+    uint32_t otherIndex = expected()->toNurseryObject()->nurseryObjectIndex();
     if (funIndex == otherIndex) {
       return function();
     }
@@ -7045,7 +7047,7 @@ bool MNurseryObject::congruentTo(const MDefinition* ins) const {
   if (!ins->isNurseryObject()) {
     return false;
   }
-  return nurseryIndex() == ins->toNurseryObject()->nurseryIndex();
+  return nurseryObjectIndex() == ins->toNurseryObject()->nurseryObjectIndex();
 }
 
 AliasSet MGuardFunctionIsNonBuiltinCtor::getAliasSet() const {
@@ -7110,7 +7112,7 @@ MDefinition* MGuardStringToIndex::foldsTo(TempAllocator& alloc) {
     return this;
   }
 
-  return MConstant::New(alloc, Int32Value(index));
+  return MConstant::NewInt32(alloc, index);
 }
 
 MDefinition* MGuardStringToInt32::foldsTo(TempAllocator& alloc) {
@@ -7126,7 +7128,7 @@ MDefinition* MGuardStringToInt32::foldsTo(TempAllocator& alloc) {
     return this;
   }
 
-  return MConstant::New(alloc, Int32Value(n));
+  return MConstant::NewInt32(alloc, n);
 }
 
 MDefinition* MGuardStringToDouble::foldsTo(TempAllocator& alloc) {
@@ -7136,7 +7138,7 @@ MDefinition* MGuardStringToDouble::foldsTo(TempAllocator& alloc) {
 
   JSOffThreadAtom* str = string()->toConstant()->toString();
   double number = OffThreadAtomToNumber(str);
-  return MConstant::New(alloc, DoubleValue(number));
+  return MConstant::NewDouble(alloc, number);
 }
 
 AliasSet MGuardNoDenseElements::getAliasSet() const {
@@ -7200,7 +7202,7 @@ MDefinition* MHasClass::foldsTo(TempAllocator& alloc) {
   }
 
   AssertKnownClass(alloc, this, object());
-  return MConstant::New(alloc, BooleanValue(getClass() == clasp));
+  return MConstant::NewBoolean(alloc, getClass() == clasp);
 }
 
 MDefinition* MIsCallable::foldsTo(TempAllocator& alloc) {
@@ -7214,7 +7216,7 @@ MDefinition* MIsCallable::foldsTo(TempAllocator& alloc) {
   }
 
   AssertKnownClass(alloc, this, input());
-  return MConstant::New(alloc, BooleanValue(known == KnownClass::Function));
+  return MConstant::NewBoolean(alloc, known == KnownClass::Function);
 }
 
 MDefinition* MIsArray::foldsTo(TempAllocator& alloc) {
@@ -7228,7 +7230,7 @@ MDefinition* MIsArray::foldsTo(TempAllocator& alloc) {
   }
 
   AssertKnownClass(alloc, this, input());
-  return MConstant::New(alloc, BooleanValue(known == KnownClass::Array));
+  return MConstant::NewBoolean(alloc, known == KnownClass::Array);
 }
 
 AliasSet MObjectClassToString::getAliasSet() const {
@@ -7428,7 +7430,8 @@ bool MGuardHasGetterSetter::congruentTo(const MDefinition* ins) const {
   if (ins->toGuardHasGetterSetter()->propId() != propId()) {
     return false;
   }
-  if (ins->toGuardHasGetterSetter()->getterSetter() != getterSetter()) {
+  if (ins->toGuardHasGetterSetter()->getterSetterValue() !=
+      getterSetterValue()) {
     return false;
   }
   return congruentIfOperandsEqual(ins);
@@ -7466,6 +7469,16 @@ MDefinition* MGuardInt32IsNonNegative::foldsTo(TempAllocator& alloc) {
 
   MDefinition* input = index();
   if (!input->isConstant() || input->toConstant()->toInt32() < 0) {
+    return this;
+  }
+  return input;
+}
+
+MDefinition* MGuardIntPtrIsNonNegative::foldsTo(TempAllocator& alloc) {
+  MOZ_ASSERT(index()->type() == MIRType::IntPtr);
+
+  MDefinition* input = index();
+  if (!input->isConstant() || input->toConstant()->toIntPtr() < 0) {
     return this;
   }
   return input;
@@ -7551,6 +7564,18 @@ AliasSet MMapObjectGetValueVMCall::getAliasSet() const {
 }
 
 AliasSet MMapObjectSize::getAliasSet() const {
+  return AliasSet::Load(AliasSet::MapOrSetHashTable);
+}
+
+AliasSet MWeakMapGetObject::getAliasSet() const {
+  return AliasSet::Load(AliasSet::MapOrSetHashTable);
+}
+
+AliasSet MWeakMapHasObject::getAliasSet() const {
+  return AliasSet::Load(AliasSet::MapOrSetHashTable);
+}
+
+AliasSet MWeakSetHasObject::getAliasSet() const {
   return AliasSet::Load(AliasSet::MapOrSetHashTable);
 }
 
@@ -7690,7 +7715,7 @@ MDefinition* MGetInlinedArgumentHole::foldsTo(TempAllocator& alloc) {
       arg = MBox::New(alloc, arg);
     }
   } else {
-    auto* undefined = MConstant::New(alloc, UndefinedValue());
+    auto* undefined = MConstant::NewUndefined(alloc);
     block()->insertBefore(this, undefined);
 
     arg = MBox::New(alloc, undefined);
@@ -7870,7 +7895,7 @@ MDefinition* MNormalizeSliceTerm::foldsTo(TempAllocator& alloc) {
       if (normalized == lengthConst) {
         return length;
       }
-      return MConstant::New(alloc, Int32Value(normalized));
+      return MConstant::NewInt32(alloc, normalized);
     }
 
     return this;
@@ -7891,7 +7916,7 @@ MDefinition* MNormalizeSliceTerm::foldsTo(TempAllocator& alloc) {
       auto* add = MAdd::New(alloc, value, length, TruncateKind::Truncate);
       block()->insertBefore(this, add);
 
-      auto* zero = MConstant::New(alloc, Int32Value(0));
+      auto* zero = MConstant::NewInt32(alloc, 0);
       block()->insertBefore(this, zero);
 
       return MMinMax::NewMax(alloc, add, zero, MIRType::Int32);

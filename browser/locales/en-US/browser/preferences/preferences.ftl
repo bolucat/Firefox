@@ -1424,6 +1424,16 @@ permissions-location-settings =
     .label = Settings…
     .accesskey = t
 
+permissions-localhost = Device apps and services
+permissions-localhost-settings =
+    .label = Settings…
+    .accesskey = t
+
+permissions-local-network = Local Network Devices
+permissions-local-network-settings =
+    .label = Settings…
+    .accesskey = t
+
 permissions-xr = Virtual Reality
 permissions-xr-settings =
     .label = Settings…
@@ -1531,16 +1541,6 @@ privacy-segmentation-radio-off =
 
 privacy-segmentation-radio-on =
     .label = Show detailed information
-
-## Privacy Section - Website Advertising Preferences
-
-website-advertising-header = Website Advertising Preferences
-
-website-advertising-private-attribution =
-    .label = Allow websites to perform privacy-preserving ad measurement
-    .accesskey = a
-
-website-advertising-private-attribution-description = This helps sites understand how their ads perform without collecting data about you.
 
 ## Privacy Section - Security
 ##

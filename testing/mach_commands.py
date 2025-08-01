@@ -371,7 +371,7 @@ def test(command_context, what, extra_args, **log_args):
     `./mach <test-harness> --help`. For example, `./mach mochitest --help`.
     """
     from mozlog.commandline import setup_logging
-    from mozlog.handlers import StreamHandler
+    from mozlog.handlers import ResourceHandler, StreamHandler
     from moztest.resolve import TEST_SUITES, TestResolver, get_suite_definition
 
     resolver = command_context._spawn(TestResolver)
@@ -407,6 +407,8 @@ def test(command_context, what, extra_args, **log_args):
     for handler in log.handlers:
         if isinstance(handler, StreamHandler):
             handler.formatter.inner.summary_on_shutdown = True
+
+    log.add_handler(ResourceHandler(command_context))
 
     if log_args.get("custom_handler", None) is not None:
         log.add_handler(log_args.get("custom_handler"))
@@ -1031,7 +1033,7 @@ def test_info_failures(
     # query VCS to get current list of variants:
     import yaml
 
-    url = "https://hg.mozilla.org/mozilla-central/raw-file/tip/taskcluster/kinds/test/variants.yml"
+    url = "https://hg.mozilla.org/mozilla-central/raw-file/default/taskcluster/kinds/test/variants.yml"
     r = requests.get(url, headers={"User-agent": "mach-test-info/1.0"})
     variants = yaml.safe_load(r.text)
 

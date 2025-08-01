@@ -790,6 +790,7 @@ class MacroAssembler : public MacroAssemblerSpecific {
   // operations should be emitted while setting arguments.
   void passABIArg(const MoveOperand& from, ABIType type);
   inline void passABIArg(Register reg);
+  inline void passABIArg(Register64 reg);
   inline void passABIArg(FloatRegister reg, ABIType type);
 
   inline void callWithABI(
@@ -5601,12 +5602,14 @@ class MacroAssembler : public MacroAssemblerSpecific {
   void initGCThing(Register obj, Register temp,
                    const TemplateObject& templateObj, bool initContents = true);
 
-  enum class TypedArrayLength { Fixed, Dynamic };
+  void initTypedArraySlots(Register obj, Register length, Register temp1,
+                           Register temp2, LiveRegisterSet liveRegs,
+                           Label* fail,
+                           const FixedLengthTypedArrayObject* templateObj);
 
-  void initTypedArraySlots(Register obj, Register temp, Register lengthReg,
-                           LiveRegisterSet liveRegs, Label* fail,
-                           FixedLengthTypedArrayObject* templateObj,
-                           TypedArrayLength lengthKind);
+  void initTypedArraySlotsInline(
+      Register obj, Register temp,
+      const FixedLengthTypedArrayObject* templateObj);
 
   void newGCString(Register result, Register temp, gc::Heap initialHeap,
                    Label* fail);

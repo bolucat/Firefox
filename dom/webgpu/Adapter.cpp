@@ -508,6 +508,11 @@ already_AddRefed<dom::Promise> Adapter::RequestDevice(
   if (NS_WARN_IF(aRv.Failed())) {
     return nullptr;
   }
+  RefPtr<dom::Promise> lost_promise =
+      dom::Promise::Create(GetParentObject(), aRv);
+  if (NS_WARN_IF(aRv.Failed())) {
+    return nullptr;
+  }
 
   ffi::WGPULimits deviceLimits = *mLimits->mFfi;
   for (const auto limit : MakeInclusiveEnumeratedRange(Limit::_LAST)) {
@@ -648,19 +653,16 @@ already_AddRefed<dom::Promise> Adapter::RequestDevice(
 
     RefPtr<SupportedLimits> limits = new SupportedLimits(this, deviceLimits);
 
-    ffi::WGPUDeviceQueueId ids =
-        ffi::wgpu_client_make_device_queue_id(mBridge->GetClient());
-
     ffi::WGPUFfiDeviceDescriptor ffiDesc = {};
     ffiDesc.required_features = featureBits;
     ffiDesc.required_limits = deviceLimits;
 
-    ffi::wgpu_client_request_device(mBridge->GetClient(), mId, ids.device,
-                                    ids.queue, &ffiDesc);
+    ffi::WGPUDeviceQueueId ids =
+        ffi::wgpu_client_request_device(mBridge->GetClient(), mId, &ffiDesc);
 
     auto pending_promise = WebGPUChild::PendingRequestDevicePromise{
-        RefPtr(promise), ids.device, ids.queue, aDesc.mLabel,
-        RefPtr(this),    features,   limits,    mInfo};
+        RefPtr(promise), ids.device, ids.queue, aDesc.mLabel, RefPtr(this),
+        features,        limits,     mInfo,     lost_promise};
     mBridge->mPendingRequestDevicePromises.push_back(
         std::move(pending_promise));
 

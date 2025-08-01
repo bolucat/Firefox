@@ -97,6 +97,19 @@ interface nsISearchEngine : nsISupports
   boolean supportsResponseType(in AString responseType);
 
   /**
+   * Returns the display name of the engine or one of its response types.
+   * Response type display names are useful for response types that correspond
+   * to brand names distinct from the engine's brand name.
+   *
+   * @param responseType
+   *        The MIME type whose display name should be returned.
+   * @returns If a response type is specified and it has a distinct display
+   *          name, that name is returned. Otherwise the engine's display name,
+   *          which is just `engine.name`, is returned.
+   */
+  AString displayNameForURL([optional] in AString responseType);
+
+  /**
    * Returns a string with the URL to an engine's icon matching the preferred
    * width as closely as possible. Returns undefined if the engine has no icon.
    *
@@ -169,10 +182,17 @@ interface nsISearchEngine : nsISupports
   readonly attribute AString loadPath;
 
   /**
-   * Whether or not this engine is provided by the application, e.g. it is
-   * in the list of configured search engines.
+   * Whether this engine is an app provided config engine, i.e., it comes
+   * from the search-config-v2 and is pre-configured based on the user's
+   * environment such as locale and region.
    */
   readonly attribute boolean isAppProvided;
+
+  /**
+   * Whether this engine is a config search engine, i.e., it comes
+   * from the search-config-v2.
+   */
+  readonly attribute boolean isConfigEngine;
 
   /**
    * Whether or not this engine is an in-memory only search engine.
@@ -542,17 +562,16 @@ interface nsISearchService : nsISupports
 
   /**
    * Allows the add-on manager to discover if a WebExtension based search engine
-   * may change the default to an application provided search engine.
+   * may change the default to a config search engine.
    * If that WebExtension is on the allow list, then it will override the
    * built-in engine's urls and parameters.
    *
    *  @param extension
-   *        The extension to load from.
+   *   The extension to load from.
    *  @returns An object with two booleans:
-   *        - canChangeToAppProvided: indicates if the WebExtension engine may
-   *            set the named engine as default e.g. it is application provided.
-   *        - canInstallEngine: indicates if the WebExtension engine may be
-   *            installed, e.g. it is not an app-provided engine.
+   *   canChangeToConfigEngine: indicates if the WebExtension engine may set the
+   *     already installed config search engine as default.
+   *   canInstallEngine: indicates if the WebExtension engine may be installed.
    */
   Promise maybeSetAndOverrideDefault(in jsval extension);
 

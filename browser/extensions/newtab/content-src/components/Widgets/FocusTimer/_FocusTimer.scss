@@ -2,9 +2,25 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// .focus-timer {
+.focus-timer {
+  grid-column: span 1;
+  width: var(--newtab-card-width-medium);
+  background: var(--newtab-background-card);
+  border-radius: var(--border-radius-large);
+  padding-block: var(--space-large);
+  max-height: var(--newtab-card-height);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
 
-// }
+.focus-timer-tabs {
+  margin-block-end: var(--space-medium);
+}
+
+.focus-timer-tabs > moz-button:first-child {
+  margin-inline-end: var(--space-small);
+}
 
 .progress-circle-wrapper {
   /* Colours for the main timer */
@@ -20,10 +36,17 @@
   /* Complete timer */
   --timer-green: var(--color-green-20);
 
-  height: 162px;
-  margin: var(--space-medium);
+  height: 0;
+  opacity: 0;
   position: relative;
   width: 162px;
+  overflow: hidden;
+  transition: height 0.8s ease, opacity 0.8s ease;
+
+  &.visible {
+    opacity: 1;
+    height: 162px;
+  }
 
   .progress-circle-background,
   .progress-circle,
@@ -51,8 +74,19 @@
     );
   }
 
+  .focus-hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .focus-visible {
+    opacity: 1;
+    transition: opacity 0.3s ease;
+  }
+
   /* break timer colours */
   .progress-circle-break {
+    clip-path: polygon(50% 50%);
     background: conic-gradient(
       rgba(159, 201, 255, 0%) 0deg, // fade-in the progress bar
       rgba(159, 201, 255, 100%) 30deg, // closest to the blue below
@@ -62,16 +96,26 @@
     );
   }
 
+  .break-hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .break-visible {
+    opacity: 1;
+    transition: opacity 0.3s ease;
+  }
+
   /* timer turns green when complete */
   .progress-circle-complete {
     background: var(--timer-green);
     opacity: 0;
     transition: opacity 1.5s ease-in-out;
     z-index: 2;
-  }
 
-  .progress-circle-complete.visible {
-    opacity: 1;
+    &.visible {
+      opacity: 1;
+    }
   }
 
   .progress-circle-label {
@@ -87,6 +131,49 @@
     justify-content: center;
     position: absolute;
     width: 100%;
+    z-index: 10;
+  }
+}
+
+.set-timer-controls-wrapper {
+  display: flex;
+
+  .set-timer-countdown {
+    font-size: calc(2 * var(--font-size-xlarge));
+    font-weight: var(--font-weight-bold);
+    font-variant-numeric: tabular-nums;
+    height: 100%;
+    margin-inline-end: var(--space-xlarge);
+    opacity: 1;
+    width: 125px;
+    transition: opacity 0.8s ease, width 0.8s ease;
+
+    &.hidden {
+      opacity: 0;
+      width: 0;
+      overflow: hidden;
+    }
   }
 
+  .focus-timer-controls {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+
+    &.timer-running {
+      margin-block-start: var(--space-medium);
+    }
+  }
+
+  .focus-timer-controls>moz-button:last-child {
+    margin-inline-start: var(--space-medium);
+  }
+
+  .focus-timer-controls>moz-button::part(button) {
+    border-radius: 50%; // stylelint-disable-line declaration-property-value-disallowed-list
+    padding: calc(var(--space-large) + 0.5 * var(--space-xxsmall)); // 17px
+  }
 }
+
+
+

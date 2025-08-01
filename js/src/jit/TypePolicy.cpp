@@ -474,6 +474,12 @@ bool IntPtrPolicy<Op>::staticAdjustInputs(TempAllocator& alloc,
 template bool IntPtrPolicy<0>::staticAdjustInputs(TempAllocator& alloc,
                                                   MInstruction* def);
 
+template bool IntPtrPolicy<1>::staticAdjustInputs(TempAllocator& alloc,
+                                                  MInstruction* def);
+
+template bool IntPtrPolicy<2>::staticAdjustInputs(TempAllocator& alloc,
+                                                  MInstruction* def);
+
 template <unsigned Op>
 bool ConvertToInt32Policy<Op>::staticAdjustInputs(TempAllocator& alloc,
                                                   MInstruction* def) {
@@ -864,12 +870,12 @@ bool StoreUnboxedScalarPolicy::adjustValueInput(TempAllocator& alloc,
       break;
     case MIRType::Null:
       value->setImplicitlyUsedUnchecked();
-      value = MConstant::New(alloc, Int32Value(0));
+      value = MConstant::NewInt32(alloc, 0);
       ins->block()->insertBefore(ins, value->toInstruction());
       break;
     case MIRType::Undefined:
       value->setImplicitlyUsedUnchecked();
-      value = MConstant::New(alloc, JS::NaNValue());
+      value = MConstant::NewDouble(alloc, JS::GenericNaN());
       ins->block()->insertBefore(ins, value->toInstruction());
       break;
     case MIRType::Object:
@@ -972,6 +978,17 @@ bool StoreTypedArrayHolePolicy::adjustInputs(TempAllocator& alloc,
       alloc, ins, store->arrayType(), store->value(), 3);
 }
 
+bool TypedArrayFillPolicy::adjustInputs(TempAllocator& alloc,
+                                        MInstruction* ins) const {
+  auto* fill = ins->toTypedArrayFill();
+  MOZ_ASSERT(fill->object()->type() == MIRType::Object);
+  MOZ_ASSERT(fill->start()->type() == MIRType::IntPtr);
+  MOZ_ASSERT(fill->end()->type() == MIRType::IntPtr);
+
+  return StoreUnboxedScalarPolicy::adjustValueInput(
+      alloc, ins, fill->elementType(), fill->value(), 1);
+}
+
 bool ClampPolicy::adjustInputs(TempAllocator& alloc, MInstruction* ins) const {
   MDefinition* in = ins->toClampToUint8()->input();
 
@@ -1009,7 +1026,8 @@ bool ClampPolicy::adjustInputs(TempAllocator& alloc, MInstruction* ins) const {
   _(ToInt32Policy)               \
   _(ToBigIntPolicy)              \
   _(ToStringPolicy)              \
-  _(ToInt64Policy)
+  _(ToInt64Policy)               \
+  _(TypedArrayFillPolicy)
 
 #define TEMPLATE_TYPE_POLICY_LIST(_)                                          \
   _(BigIntPolicy<0>)                                                          \
@@ -1034,8 +1052,10 @@ bool ClampPolicy::adjustInputs(TempAllocator& alloc, MInstruction* ins) const {
   _(MixPolicy<ObjectPolicy<0>, BoxPolicy<1>, UnboxedInt32Policy<2>>)          \
   _(MixPolicy<ObjectPolicy<0>, UnboxedInt32Policy<1>, BoxPolicy<2>>)          \
   _(MixPolicy<ObjectPolicy<0>, UnboxedInt32Policy<1>, UnboxedInt32Policy<2>>) \
+  _(MixPolicy<ObjectPolicy<0>, IntPtrPolicy<1>, IntPtrPolicy<2>>)             \
   _(MixPolicy<ObjectPolicy<0>, BoxPolicy<2>>)                                 \
   _(MixPolicy<ObjectPolicy<0>, ObjectPolicy<1>, UnboxedInt32Policy<2>>)       \
+  _(MixPolicy<ObjectPolicy<0>, ObjectPolicy<1>, IntPtrPolicy<2>>)             \
   _(MixPolicy<ObjectPolicy<0>, ObjectPolicy<1>, ObjectPolicy<2>>)             \
   _(MixPolicy<ObjectPolicy<0>, ObjectPolicy<1>, BoxPolicy<2>>)                \
   _(MixPolicy<StringPolicy<0>, UnboxedInt32Policy<1>, UnboxedInt32Policy<2>>) \
@@ -1081,6 +1101,7 @@ bool ClampPolicy::adjustInputs(TempAllocator& alloc, MInstruction* ins) const {
   _(MixPolicy<UnboxedInt32Policy<0>, NoFloatPolicyAfter<1>>)                  \
   _(MixPolicy<UnboxedInt32Policy<0>, UnboxedInt32Policy<1>,                   \
               NoFloatPolicyAfter<2>>)                                         \
+  _(MixPolicy<IntPtrPolicy<0>, IntPtrPolicy<1>, IntPtrPolicy<2>>)             \
   _(NoFloatPolicy<0>)                                                         \
   _(NoFloatPolicy<1>)                                                         \
   _(NoFloatPolicy<2>)                                                         \

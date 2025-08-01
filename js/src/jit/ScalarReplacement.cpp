@@ -492,7 +492,7 @@ MBasicBlock* ObjectMemoryView::startingBlock() { return startBlock_; }
 
 bool ObjectMemoryView::initStartingState(BlockState** outState) {
   // Uninitialized slots have an "undefined" value.
-  undefinedVal_ = MConstant::New(alloc_, UndefinedValue());
+  undefinedVal_ = MConstant::NewUndefined(alloc_);
   startBlock_->insertBefore(obj_, undefinedVal_);
 
   // Create a new block state and insert at it at the location of the new
@@ -927,7 +927,7 @@ void ObjectMemoryView::visitCompare(MCompare* ins) {
   bool folded;
   MOZ_ALWAYS_TRUE(ins->tryFold(&folded));
 
-  auto* cst = MConstant::New(alloc_, BooleanValue(folded));
+  auto* cst = MConstant::NewBoolean(alloc_, folded);
   ins->block()->insertBefore(ins, cst);
 
   // Replace the comparison with a constant.
@@ -953,7 +953,7 @@ void ObjectMemoryView::visitIsObject(MIsObject* ins) {
     return;
   }
 
-  auto* cst = MConstant::New(alloc_, BooleanValue(true));
+  auto* cst = MConstant::NewBoolean(alloc_, true);
   ins->block()->insertBefore(ins, cst);
 
   // Replace the test with a constant.
@@ -1350,8 +1350,8 @@ MBasicBlock* ArrayMemoryView::startingBlock() { return startBlock_; }
 
 bool ArrayMemoryView::initStartingState(BlockState** pState) {
   // Uninitialized elements have an "undefined" value.
-  undefinedVal_ = MConstant::New(alloc_, UndefinedValue());
-  MConstant* initLength = MConstant::New(alloc_, Int32Value(0));
+  undefinedVal_ = MConstant::NewUndefined(alloc_);
+  MConstant* initLength = MConstant::NewInt32(alloc_, 0);
   arr_->block()->insertBefore(arr_, undefinedVal_);
   arr_->block()->insertBefore(arr_, initLength);
 
@@ -1560,7 +1560,7 @@ void ArrayMemoryView::visitSetInitializedLength(MSetInitializedLength* ins) {
   }
 
   int32_t initLengthValue = ins->index()->maybeConstantValue()->toInt32() + 1;
-  MConstant* initLength = MConstant::New(alloc_, Int32Value(initLengthValue));
+  MConstant* initLength = MConstant::NewInt32(alloc_, initLengthValue);
   ins->block()->insertBefore(ins, initLength);
   ins->block()->insertBefore(ins, state_);
   state_->setInitializedLength(initLength);
@@ -1604,7 +1604,7 @@ void ArrayMemoryView::visitArrayLength(MArrayLength* ins) {
 
   // Replace by the value of the length.
   if (!length_) {
-    length_ = MConstant::New(alloc_, Int32Value(state_->numElements()));
+    length_ = MConstant::NewInt32(alloc_, state_->numElements());
     arr_->block()->insertBefore(arr_, length_);
   }
   ins->replaceAllUsesWith(length_);
@@ -1696,7 +1696,7 @@ void ArrayMemoryView::visitCompare(MCompare* ins) {
   bool folded;
   MOZ_ALWAYS_TRUE(ins->tryFold(&folded));
 
-  auto* cst = MConstant::New(alloc_, BooleanValue(folded));
+  auto* cst = MConstant::NewBoolean(alloc_, folded);
   ins->block()->insertBefore(ins, cst);
 
   // Replace the comparison with a constant.
@@ -2114,13 +2114,13 @@ void ArgumentsReplacer::visitGetArgumentsObjectArg(
     } else {
       // Omitted arguments are not mapped to the arguments object, and
       // will always be undefined.
-      auto* undef = MConstant::New(alloc(), UndefinedValue());
+      auto* undef = MConstant::NewUndefined(alloc());
       ins->block()->insertBefore(ins, undef);
       getArg = undef;
     }
   } else {
     // Load the argument from the frame.
-    auto* index = MConstant::New(alloc(), Int32Value(ins->argno()));
+    auto* index = MConstant::NewInt32(alloc(), ins->argno());
     ins->block()->insertBefore(ins, index);
 
     auto* loadArg = MGetFrameArgument::New(alloc(), index);
@@ -2147,8 +2147,7 @@ void ArgumentsReplacer::visitLoadArgumentsObjectArg(
     auto* actualArgs = args_->toCreateInlinedArgumentsObject();
 
     // Insert bounds check.
-    auto* length =
-        MConstant::New(alloc(), Int32Value(actualArgs->numActuals()));
+    auto* length = MConstant::NewInt32(alloc(), actualArgs->numActuals());
     ins->block()->insertBefore(ins, length);
 
     MInstruction* check = MBoundsCheck::New(alloc(), index, length);
@@ -2239,7 +2238,7 @@ void ArgumentsReplacer::visitInArgumentsObjectArg(MInArgumentsObjectArg* ins) {
   MInstruction* length;
   if (isInlinedArguments()) {
     uint32_t argc = args_->toCreateInlinedArgumentsObject()->numActuals();
-    length = MConstant::New(alloc(), Int32Value(argc));
+    length = MConstant::NewInt32(alloc(), argc);
   } else {
     length = MArgumentsLength::New(alloc());
   }
@@ -2264,7 +2263,7 @@ void ArgumentsReplacer::visitArgumentsObjectLength(
   MInstruction* length;
   if (isInlinedArguments()) {
     uint32_t argc = args_->toCreateInlinedArgumentsObject()->numActuals();
-    length = MConstant::New(alloc(), Int32Value(argc));
+    length = MConstant::NewInt32(alloc(), argc);
   } else {
     length = MArgumentsLength::New(alloc());
   }
@@ -2294,7 +2293,7 @@ void ArgumentsReplacer::visitApplyArgsObj(MApplyArgsObj* ins) {
     }
 
     auto addUndefined = [this, &ins]() -> MConstant* {
-      MConstant* undef = MConstant::New(alloc(), UndefinedValue());
+      MConstant* undef = MConstant::NewUndefined(alloc());
       ins->block()->insertBefore(ins, undef);
       return undef;
     };
@@ -2362,7 +2361,7 @@ MNewArrayObject* ArgumentsReplacer::inlineArgsArray(MInstruction* ins,
 
     MConstant* index = nullptr;
     for (uint32_t i = 0; i < count; i++) {
-      index = MConstant::New(alloc(), Int32Value(i));
+      index = MConstant::NewInt32(alloc(), i);
       ins->block()->insertBefore(ins, index);
 
       MDefinition* arg = actualArgs->getArg(begin + i);
@@ -2503,7 +2502,7 @@ void ArgumentsReplacer::visitArgumentsSlice(MArgumentsSlice* ins) {
   MInstruction* numArgs;
   if (isInlinedArguments()) {
     uint32_t argc = args_->toCreateInlinedArgumentsObject()->numActuals();
-    numArgs = MConstant::New(alloc(), Int32Value(argc));
+    numArgs = MConstant::NewInt32(alloc(), argc);
   } else {
     numArgs = MArgumentsLength::New(alloc());
   }
@@ -2894,7 +2893,7 @@ void RestReplacer::visitCompare(MCompare* ins) {
   bool folded;
   MOZ_ALWAYS_TRUE(ins->tryFold(&folded));
 
-  auto* cst = MConstant::New(alloc(), BooleanValue(folded));
+  auto* cst = MConstant::NewBoolean(alloc(), folded);
   ins->block()->insertBefore(ins, cst);
 
   // Replace the comparison with a constant.
@@ -2915,7 +2914,7 @@ void RestReplacer::visitLoadElement(MLoadElement* ins) {
 
   // Adjust the index to skip any extra formals.
   if (uint32_t formals = rest()->numFormals()) {
-    auto* numFormals = MConstant::New(alloc(), Int32Value(formals));
+    auto* numFormals = MConstant::NewInt32(alloc(), formals);
     ins->block()->insertBefore(ins, numFormals);
 
     auto* add = MAdd::New(alloc(), index, numFormals, TruncateKind::Truncate);
@@ -2939,14 +2938,14 @@ MDefinition* RestReplacer::restLength(MInstruction* ins) {
   auto* numActuals = rest()->numActuals();
 
   if (uint32_t formals = rest()->numFormals()) {
-    auto* numFormals = MConstant::New(alloc(), Int32Value(formals));
+    auto* numFormals = MConstant::NewInt32(alloc(), formals);
     ins->block()->insertBefore(ins, numFormals);
 
     auto* length = MSub::New(alloc(), numActuals, numFormals, MIRType::Int32);
     length->setTruncateKind(TruncateKind::Truncate);
     ins->block()->insertBefore(ins, length);
 
-    auto* zero = MConstant::New(alloc(), Int32Value(0));
+    auto* zero = MConstant::NewInt32(alloc(), 0);
     ins->block()->insertBefore(ins, zero);
 
     auto* minmax = MMinMax::NewMax(alloc(), length, zero, MIRType::Int32);
@@ -3116,7 +3115,7 @@ MBasicBlock* WasmStructMemoryView::startingBlock() { return startBlock_; }
 bool WasmStructMemoryView::initStartingState(BlockState** pState) {
   // We need this undefined value to initialize phi inputs if we create some
   // later.
-  undefinedVal_ = MConstant::New(alloc_, UndefinedValue());
+  undefinedVal_ = MConstant::NewUndefined(alloc_);
 
   // Create a new block state and insert at it at the location of the new
   // struct.

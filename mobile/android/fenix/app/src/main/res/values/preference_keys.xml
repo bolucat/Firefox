@@ -165,6 +165,7 @@
     <!-- App icon settings-->
     <string name="pref_key_app_icon">pref_key_app_icon</string>
     <string name="pref_key_selected_app_icon">pref_key_selected_app_icon</string>
+    <string name="pref_key_app_icon_selection_enabled" translatable="false">pref_key_app_icon_selection_enabled</string>
 
     <!-- Menu -->
     <string name="pref_key_menu_cfr" translatable="false">pref_key_menu_cfr</string>
@@ -319,6 +320,8 @@
     <string name="pref_key_enable_contile" translatable="false">pref_key_enable_contile</string>
     <!-- Query containing the search parameters to be hidden from the top frecent sites  -->
     <string name="pref_key_frecency_filter_query" translatable="false">pref_key_frecency_filter_query</string>
+    <!-- Whether or not the sponsored tiles should be shown to user. -->
+    <string name="pref_key_suppress_sponsored_tiles" translatable="false">pref_key_suppress_sponsored_tiles</string>
 
     <!-- A value  of `true` means the PWA dialog has been showed or user already has PWAs installed -->
     <string name="pref_key_user_knows_about_pwa" translatable="false">pref_key_user_knows_about_pwa</string>
@@ -478,6 +481,7 @@
     <string name="pref_key_setup_step_toolbar" translatable="false">pref_key_setup_step_toolbar</string>
     <string name="pref_key_setup_step_theme" translatable="false">pref_key_setup_step_theme</string>
     <string name="pref_key_setup_step_extensions" translatable="false">pref_key_setup_step_extensions</string>
+    <string name="pref_key_setup_step_install_search_widget" translatable="false">pref_key_setup_step_install_search_widget</string>
 
     <string name="pref_key_distribution_id" translatable="false">pref_key_distribution_id</string>
 

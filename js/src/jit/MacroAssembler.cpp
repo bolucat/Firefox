@@ -863,9 +863,55 @@ static std::pair<uint32_t, uint32_t> FindStartOfUninitializedAndUndefinedSlots(
 }
 
 void MacroAssembler::initTypedArraySlots(
-    Register obj, Register temp, Register lengthReg, LiveRegisterSet liveRegs,
-    Label* fail, FixedLengthTypedArrayObject* templateObj,
-    TypedArrayLength lengthKind) {
+    Register obj, Register length, Register temp1, Register temp2,
+    LiveRegisterSet liveRegs, Label* fail,
+    const FixedLengthTypedArrayObject* templateObj) {
+  MOZ_ASSERT(!templateObj->hasBuffer());
+
+  constexpr size_t dataSlotOffset = ArrayBufferViewObject::dataOffset();
+  constexpr size_t dataOffset = dataSlotOffset + sizeof(HeapSlot);
+
+  static_assert(
+      FixedLengthTypedArrayObject::FIXED_DATA_START ==
+          FixedLengthTypedArrayObject::DATA_SLOT + 1,
+      "fixed inline element data assumed to begin after the data slot");
+
+  static_assert(
+      FixedLengthTypedArrayObject::INLINE_BUFFER_LIMIT ==
+          JSObject::MAX_BYTE_SIZE - dataOffset,
+      "typed array inline buffer is limited by the maximum object byte size");
+
+  MOZ_ASSERT(templateObj->tenuredSizeOfThis() >= dataOffset);
+
+  // Capacity for inline elements.
+  size_t inlineCapacity = templateObj->tenuredSizeOfThis() - dataOffset;
+  movePtr(ImmWord(inlineCapacity), temp2);
+
+  // Ensure volatile |obj| is saved across the call.
+  if (obj.volatile_()) {
+    liveRegs.addUnchecked(obj);
+  }
+
+  // Allocate a buffer on the heap to store the data elements.
+  PushRegsInMask(liveRegs);
+  using Fn =
+      void (*)(JSContext*, FixedLengthTypedArrayObject*, int32_t, size_t);
+  setupUnalignedABICall(temp1);
+  loadJSContext(temp1);
+  passABIArg(temp1);
+  passABIArg(obj);
+  passABIArg(length);
+  passABIArg(temp2);
+  callWithABI<Fn, AllocateAndInitTypedArrayBuffer>();
+  PopRegsInMask(liveRegs);
+
+  // Fail when data slot is UndefinedValue.
+  branchTestUndefined(Assembler::Equal, Address(obj, dataSlotOffset), fail);
+}
+
+void MacroAssembler::initTypedArraySlotsInline(
+    Register obj, Register temp,
+    const FixedLengthTypedArrayObject* templateObj) {
   MOZ_ASSERT(!templateObj->hasBuffer());
 
   constexpr size_t dataSlotOffset = ArrayBufferViewObject::dataOffset();
@@ -882,56 +928,36 @@ void MacroAssembler::initTypedArraySlots(
       "typed array inline buffer is limited by the maximum object byte size");
 
   // Initialise data elements to zero.
-  size_t length = templateObj->length();
-  MOZ_ASSERT(length <= INT32_MAX,
-             "Template objects are only created for int32 lengths");
-  size_t nbytes = length * templateObj->bytesPerElement();
+  size_t nbytes = templateObj->byteLength();
+  MOZ_ASSERT(nbytes <= FixedLengthTypedArrayObject::INLINE_BUFFER_LIMIT);
 
-  if (lengthKind == TypedArrayLength::Fixed &&
-      nbytes <= FixedLengthTypedArrayObject::INLINE_BUFFER_LIMIT) {
-    MOZ_ASSERT(dataOffset + nbytes <= templateObj->tenuredSizeOfThis());
+  MOZ_ASSERT(dataOffset + nbytes <= templateObj->tenuredSizeOfThis());
+  MOZ_ASSERT(templateObj->tenuredSizeOfThis() > dataOffset,
+             "enough inline capacity to tag with ZeroLengthArrayData");
 
-    // Store data elements inside the remaining JSObject slots.
-    computeEffectiveAddress(Address(obj, dataOffset), temp);
-    storePrivateValue(temp, Address(obj, dataSlotOffset));
+  // Store data elements inside the remaining JSObject slots.
+  computeEffectiveAddress(Address(obj, dataOffset), temp);
+  storePrivateValue(temp, Address(obj, dataSlotOffset));
 
-    // Write enough zero pointers into fixed data to zero every
-    // element.  (This zeroes past the end of a byte count that's
-    // not a multiple of pointer size.  That's okay, because fixed
-    // data is a count of 8-byte HeapSlots (i.e. <= pointer size),
-    // and we won't inline unless the desired memory fits in that
-    // space.)
-    static_assert(sizeof(HeapSlot) == 8, "Assumed 8 bytes alignment");
+  // Write enough zero pointers into fixed data to zero every
+  // element.  (This zeroes past the end of a byte count that's
+  // not a multiple of pointer size.  That's okay, because fixed
+  // data is a count of 8-byte HeapSlots (i.e. <= pointer size),
+  // and we won't inline unless the desired memory fits in that
+  // space.)
+  static_assert(sizeof(HeapSlot) == 8, "Assumed 8 bytes alignment");
 
-    size_t numZeroPointers = ((nbytes + 7) & ~0x7) / sizeof(char*);
-    for (size_t i = 0; i < numZeroPointers; i++) {
-      storePtr(ImmWord(0), Address(obj, dataOffset + i * sizeof(char*)));
-    }
-    MOZ_ASSERT(nbytes > 0, "Zero-length TypedArrays need ZeroLengthArrayData");
-  } else {
-    if (lengthKind == TypedArrayLength::Fixed) {
-      move32(Imm32(length), lengthReg);
-    }
-
-    // Ensure volatile |obj| is saved across the call.
-    if (obj.volatile_()) {
-      liveRegs.addUnchecked(obj);
-    }
-
-    // Allocate a buffer on the heap to store the data elements.
-    PushRegsInMask(liveRegs);
-    using Fn = void (*)(JSContext* cx, TypedArrayObject* obj, int32_t count);
-    setupUnalignedABICall(temp);
-    loadJSContext(temp);
-    passABIArg(temp);
-    passABIArg(obj);
-    passABIArg(lengthReg);
-    callWithABI<Fn, AllocateAndInitTypedArrayBuffer>();
-    PopRegsInMask(liveRegs);
-
-    // Fail when data slot is UndefinedValue.
-    branchTestUndefined(Assembler::Equal, Address(obj, dataSlotOffset), fail);
+  size_t numZeroPointers = ((nbytes + 7) & ~0x7) / sizeof(char*);
+  for (size_t i = 0; i < numZeroPointers; i++) {
+    storePtr(ImmWord(0), Address(obj, dataOffset + i * sizeof(char*)));
   }
+
+#ifdef DEBUG
+  if (nbytes == 0) {
+    store8(Imm32(ArrayBufferViewObject::ZeroLengthArrayData),
+           Address(obj, dataOffset));
+  }
+#endif
 }
 
 void MacroAssembler::initGCSlots(Register obj, Register temp,

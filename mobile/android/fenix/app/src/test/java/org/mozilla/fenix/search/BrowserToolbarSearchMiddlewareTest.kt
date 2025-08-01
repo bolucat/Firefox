@@ -14,6 +14,7 @@ import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.spyk
 import io.mockk.verify
 import io.mockk.verifyOrder
 import kotlinx.coroutines.Dispatchers
@@ -53,6 +54,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mozilla.fenix.GleanMetrics.Events
 import org.mozilla.fenix.GleanMetrics.UnifiedSearch
+import org.mozilla.fenix.GleanMetrics.VoiceSearch
 import org.mozilla.fenix.NavGraphDirections
 import org.mozilla.fenix.R
 import org.mozilla.fenix.browser.BrowserFragmentDirections
@@ -61,18 +63,21 @@ import org.mozilla.fenix.browser.browsingmode.BrowsingModeManager
 import org.mozilla.fenix.components.AppStore
 import org.mozilla.fenix.components.Components
 import org.mozilla.fenix.components.appstate.AppAction
+import org.mozilla.fenix.components.appstate.AppAction.QrScannerAction.QrScannerRequested
 import org.mozilla.fenix.components.appstate.AppAction.SearchAction.SearchEnded
 import org.mozilla.fenix.components.appstate.AppAction.SearchAction.SearchStarted
 import org.mozilla.fenix.components.appstate.AppState
+import org.mozilla.fenix.components.appstate.VoiceSearchAction.VoiceInputRequested
 import org.mozilla.fenix.components.appstate.search.SelectedSearchEngine
 import org.mozilla.fenix.components.search.BOOKMARKS_SEARCH_ENGINE_ID
 import org.mozilla.fenix.components.search.HISTORY_SEARCH_ENGINE_ID
 import org.mozilla.fenix.components.search.TABS_SEARCH_ENGINE_ID
+import org.mozilla.fenix.components.toolbar.BrowserToolbarEnvironment
 import org.mozilla.fenix.components.usecases.FenixBrowserUseCases
 import org.mozilla.fenix.helpers.lifecycle.TestLifecycleOwner
-import org.mozilla.fenix.home.toolbar.HomeToolbarEnvironment
 import org.mozilla.fenix.search.EditPageEndActionsInteractions.ClearSearchClicked
 import org.mozilla.fenix.search.EditPageEndActionsInteractions.QrScannerClicked
+import org.mozilla.fenix.search.EditPageEndActionsInteractions.VoiceSearchButtonClicked
 import org.mozilla.fenix.search.SearchSelectorEvents.SearchSelectorClicked
 import org.mozilla.fenix.search.SearchSelectorEvents.SearchSelectorItemClicked
 import org.mozilla.fenix.search.SearchSelectorEvents.SearchSettingsItemClicked
@@ -84,6 +89,7 @@ import org.mozilla.fenix.utils.Settings
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import mozilla.components.ui.icons.R as iconsR
 import org.mozilla.fenix.components.appstate.search.SearchState as AppSearchState
 
 @RunWith(RobolectricTestRunner::class)
@@ -132,8 +138,8 @@ class BrowserToolbarSearchMiddlewareTest {
     fun `WHEN the toolbar enters in edit mode with non-blank query THEN a clear button is shown`() {
         val (_, store) = buildMiddlewareAndAddToStore()
 
-        store.dispatch(SearchQueryUpdated("test"))
         store.dispatch(ToggleEditMode(true))
+        store.dispatch(SearchQueryUpdated("test"))
 
         assertEquals(
             expectedClearButton,
@@ -142,21 +148,85 @@ class BrowserToolbarSearchMiddlewareTest {
     }
 
     @Test
-    fun `WHEN the toolbar enters in edit mode with non-blank query AND the clear button is clicked THEN text is cleared`() {
+    fun `WHEN the toolbar enters in edit mode with blank query THEN a qr scanner button is shown`() {
         val (_, store) = buildMiddlewareAndAddToStore()
 
+        store.dispatch(ToggleEditMode(true))
+        store.dispatch(SearchQueryUpdated(""))
+
+        assertEquals(
+            expectedQrButton,
+            store.state.editState.editActionsEnd.last() as ActionButtonRes,
+        )
+    }
+
+    @Test
+    fun `WHEN the toolbar enters in edit mode with blank query AND user starts typing THEN qr button is replaced by clear button`() {
+        val (_, store) = buildMiddlewareAndAddToStore()
+
+        store.dispatch(ToggleEditMode(true))
+        store.dispatch(SearchQueryUpdated(""))
+
+        assertEquals(
+            expectedQrButton,
+            store.state.editState.editActionsEnd.last() as ActionButtonRes,
+        )
+
+        store.dispatch(SearchQueryUpdated("a"))
+
+        assertEquals(
+            expectedClearButton,
+            store.state.editState.editActionsEnd.last() as ActionButtonRes,
+        )
+    }
+
+    @Test
+    fun `WHEN the toolbar enters in edit mode with non-blank query AND the clear button is clicked THEN text is cleared and telemetry is recorded`() {
+        val (_, store) = buildMiddlewareAndAddToStore()
         store.dispatch(SearchQueryUpdated("test"))
         store.dispatch(ToggleEditMode(true))
 
         val clearButton = store.state.editState.editActionsEnd.last() as ActionButtonRes
-
-        assertEquals(
-            expectedClearButton,
-            clearButton,
-        )
+        assertEquals(expectedClearButton, clearButton)
 
         store.dispatch(clearButton.onClick as BrowserToolbarEvent)
         assertEquals(store.state.editState.query, "")
+        assertNotNull(Events.browserToolbarInputCleared.testGetValue())
+    }
+
+    @Test
+    fun `GIVEN a custom search engine WHEN the qr button is clicked THEN start qr recognition and record telemetry`() {
+        val appStore: AppStore = mockk(relaxed = true) {
+            every { state.searchState.selectedSearchEngine?.searchEngine } returns
+                fakeSearchState().customSearchEngines.first()
+        }
+        val (_, store) = buildMiddlewareAndAddToStore(appStore = appStore)
+        store.dispatch(ToggleEditMode(true))
+
+        val qrButton = store.state.editState.editActionsEnd.last() as ActionButtonRes
+        assertEquals(expectedQrButton, qrButton)
+
+        store.dispatch(qrButton.onClick as BrowserToolbarEvent)
+        assertNotNull(Events.browserToolbarQrScanTapped.testGetValue())
+        verify { appStore.dispatch(QrScannerRequested) }
+    }
+
+    @Test
+    fun `WHEN the voice search button is clicked THEN start voice recognition and record telemetry`() {
+        val appStore: AppStore = mockk(relaxed = true) {
+            every { state.searchState.selectedSearchEngine } returns mockk(relaxed = true)
+        }
+        val middleware = spyk(buildMiddleware(appStore = appStore))
+        every { middleware.isSpeechRecognitionAvailable() } returns true
+        val store = buildStore(middleware)
+        store.dispatch(ToggleEditMode(true))
+
+        val voiceSearchButton = store.state.editState.editActionsEnd.last() as ActionButtonRes
+        assertEquals(expectedVoiceSearchButton, voiceSearchButton)
+
+        store.dispatch(voiceSearchButton.onClick as BrowserToolbarEvent)
+        assertNotNull(VoiceSearch.tapped.testGetValue())
+        verify { appStore.dispatch(VoiceInputRequested) }
     }
 
     @Test
@@ -567,7 +637,7 @@ class BrowserToolbarSearchMiddlewareTest {
             browserUseCases.loadUrlOrSearch(
                 searchTermOrURL = manifestoUrl,
                 newTab = true,
-                forceSearch = true,
+                forceSearch = false,
                 private = false,
                 searchEngine = any(),
             )
@@ -625,7 +695,7 @@ class BrowserToolbarSearchMiddlewareTest {
             browserUseCases.loadUrlOrSearch(
                 searchTermOrURL = url,
                 newTab = false,
-                forceSearch = true,
+                forceSearch = false,
                 private = false,
                 searchEngine = any(),
             )
@@ -669,13 +739,63 @@ class BrowserToolbarSearchMiddlewareTest {
             browserUseCases.loadUrlOrSearch(
                 searchTermOrURL = searchTerm,
                 newTab = false,
-                forceSearch = true,
+                forceSearch = false,
                 private = false,
                 searchEngine = any(),
             )
         }
         verify { browserStore.dispatch(EngagementFinished(abandoned = false)) }
         captorMiddleware.assertLastAction(SearchEnded::class) {}
+    }
+
+    @Test
+    fun `GIVEN the toolbar is in edit mode WHEN updateSearchActionsEnd is triggered via ToggleEditMode THEN a voice search action button is added to the end actions`() {
+        val expectedVoiceAction = ActionButtonRes(
+            drawableResId = iconsR.drawable.mozac_ic_microphone_24,
+            contentDescription = R.string.voice_search_content_description,
+            onClick = VoiceSearchButtonClicked,
+        )
+        val middleware = spyk(buildMiddleware(appStore = appStore))
+        every { middleware.isSpeechRecognitionAvailable() } returns true
+        val store = buildStore(middleware)
+        store.dispatch(ToggleEditMode(true))
+
+        store.dispatch(ToggleEditMode(true))
+
+        val actions = store.state.editState.editActionsEnd
+        assertEquals(2, actions.size)
+        val voiceAction = actions.first() as ActionButtonRes
+        assertEquals(expectedVoiceAction, voiceAction)
+    }
+
+    @Test
+    fun `GIVEN the toolbar is in edit mode but speech recognition is not available THEN don't show a voice search action button`() {
+        val middleware = spyk(buildMiddleware(appStore = appStore))
+        every { middleware.isSpeechRecognitionAvailable() } returns false
+        val store = buildStore(middleware)
+        store.dispatch(ToggleEditMode(true))
+        store.dispatch(SearchQueryUpdated(""))
+        store.dispatch(ToggleEditMode(true))
+
+        val actions = store.state.editState.editActionsEnd
+        assertTrue(actions.size == 1)
+        assertEquals(expectedQrButton, actions.last())
+    }
+
+    @Test
+    fun `WHEN the voice action is tapped THEN add a new voice input request to the AppStore`() {
+        val appStore: AppStore = mockk(relaxed = true) {
+            every { state } returns mockk(relaxed = true)
+        }
+        val middleware = spyk(buildMiddleware(appStore = appStore))
+        every { middleware.isSpeechRecognitionAvailable() } returns true
+        val store = buildStore(middleware)
+        store.dispatch(ToggleEditMode(true))
+        val voiceAction = store.state.editState.editActionsEnd.first() as ActionButtonRes
+
+        store.dispatch(voiceAction.onClick as BrowserToolbarEvent)
+
+        verify { appStore.dispatch(VoiceInputRequested) }
     }
 
     private fun expectedSearchSelector(
@@ -694,6 +814,19 @@ class BrowserToolbarSearchMiddlewareTest {
         onClick = ClearSearchClicked,
     )
 
+    private val expectedQrButton = ActionButtonRes(
+        drawableResId = R.drawable.mozac_ic_qr_code_24,
+        contentDescription = R.string.mozac_feature_qr_scanner,
+        state = ActionButton.State.DEFAULT,
+        onClick = QrScannerClicked,
+    )
+
+    private val expectedVoiceSearchButton = ActionButtonRes(
+        drawableResId = iconsR.drawable.mozac_ic_microphone_24,
+        contentDescription = R.string.voice_search_content_description,
+        onClick = VoiceSearchButtonClicked,
+    )
+
     private fun buildMiddlewareAndAddToStore(
         appStore: AppStore = this.appStore,
         browserStore: BrowserStore = this.browserStore,
@@ -704,20 +837,27 @@ class BrowserToolbarSearchMiddlewareTest {
         browsingModeManager: BrowsingModeManager = this.browsingModeManager,
     ): Pair<BrowserToolbarSearchMiddleware, BrowserToolbarStore> {
         val middleware = buildMiddleware(appStore, browserStore, components, settings)
-        val store = BrowserToolbarStore(
+        val store = buildStore(middleware, lifecycleOwner, navController, browsingModeManager)
+
+        return middleware to store
+    }
+
+    private fun buildStore(
+        middleware: BrowserToolbarSearchMiddleware = buildMiddleware(),
+        lifecycleOwner: LifecycleOwner = this.lifecycleOwner,
+        navController: NavController = this.navController,
+        browsingModeManager: BrowsingModeManager = this.browsingModeManager,
+    ) = BrowserToolbarStore(
             middleware = listOf(middleware),
         ).also {
             it.dispatch(
                 EnvironmentRehydrated(
-                    HomeToolbarEnvironment(
+                    BrowserToolbarEnvironment(
                         testContext, lifecycleOwner, navController, browsingModeManager,
                     ),
                 ),
             )
         }
-
-        return middleware to store
-    }
 
     private fun buildMiddleware(
         appStore: AppStore = this.appStore,
@@ -758,7 +898,7 @@ class BrowserToolbarSearchMiddlewareTest {
             SearchEngine("engine-g", "Engine G", mock(), type = SearchEngine.Type.BUNDLED),
         ),
         regionDefaultSearchEngineId = null,
-        userSelectedSearchEngineId = null,
+        userSelectedSearchEngineId = "engine-c",
         userSelectedSearchEngineName = null,
     )
 }

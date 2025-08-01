@@ -17,7 +17,6 @@ import android.os.Bundle
 import android.os.StrictMode
 import android.text.format.DateUtils
 import android.util.AttributeSet
-import android.util.Log
 import android.view.ActionMode
 import android.view.KeyEvent
 import android.view.LayoutInflater
@@ -71,6 +70,7 @@ import mozilla.components.service.pocket.PocketStoriesService
 import mozilla.components.support.base.feature.ActivityResultHandler
 import mozilla.components.support.base.feature.UserInteractionHandler
 import mozilla.components.support.base.feature.UserInteractionOnBackPressedCallback
+import mozilla.components.support.base.feature.ViewBoundFeatureWrapper
 import mozilla.components.support.ktx.android.arch.lifecycle.addObservers
 import mozilla.components.support.ktx.android.content.call
 import mozilla.components.support.ktx.android.content.email
@@ -108,6 +108,7 @@ import org.mozilla.fenix.customtabs.ExternalAppBrowserActivity
 import org.mozilla.fenix.databinding.ActivityHomeBinding
 import org.mozilla.fenix.debugsettings.data.DefaultDebugSettingsRepository
 import org.mozilla.fenix.debugsettings.ui.FenixOverlay
+import org.mozilla.fenix.downloads.DownloadSnackbar
 import org.mozilla.fenix.experiments.ResearchSurfaceDialogFragment
 import org.mozilla.fenix.ext.alreadyOnDestination
 import org.mozilla.fenix.ext.breadcrumb
@@ -136,6 +137,8 @@ import org.mozilla.fenix.home.intent.ReEngagementIntentProcessor
 import org.mozilla.fenix.home.intent.SpeechProcessingIntentProcessor
 import org.mozilla.fenix.home.intent.StartSearchIntentProcessor
 import org.mozilla.fenix.library.bookmarks.DesktopFolders
+import org.mozilla.fenix.lifecycle.DefaultPrivateBrowsingLockStorage
+import org.mozilla.fenix.lifecycle.PrivateBrowsingLockFeature
 import org.mozilla.fenix.messaging.FenixMessageSurfaceId
 import org.mozilla.fenix.messaging.MessageNotificationWorker
 import org.mozilla.fenix.nimbus.FxNimbus
@@ -225,6 +228,13 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
         )
     }
 
+    private val downloadSnackbar by lazy {
+        DownloadSnackbar(
+            store = components.core.store,
+            appStore = components.appStore,
+        )
+    }
+
     private val crashReporterBinding by lazy {
         CrashReporterBinding(
             context = this,
@@ -246,6 +256,17 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
 
     private val serviceWorkerSupport by lazy {
         ServiceWorkerSupportFeature(this)
+    }
+
+    private val privateBrowsingLockFeature by lazy {
+        PrivateBrowsingLockFeature(
+            appStore = components.appStore,
+            browserStore = components.core.store,
+            storage = DefaultPrivateBrowsingLockStorage(
+                preferences = settings().preferences,
+                privateBrowsingLockPrefKey = getString(R.string.pref_key_private_browsing_locked),
+            ),
+        )
     }
 
     private var inflater: LayoutInflater? = null
@@ -505,7 +526,8 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
                 settings = settings(),
                 topSitesProvider = components.core.marsTopSitesProvider,
             ),
-            components.privateBrowsingLockFeature,
+            downloadSnackbar,
+            privateBrowsingLockFeature,
         )
 
         if (!isCustomTabIntent(intent)) {
@@ -539,22 +561,6 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
         if (!settings().hiddenEnginesRestored) {
             settings().hiddenEnginesRestored = true
             components.useCases.searchUseCases.restoreHiddenSearchEngines.invoke()
-        }
-
-        // To assess whether the Pocket stories are to be downloaded or not multiple SharedPreferences
-        // are read possibly needing to load them on the current thread. Move that to a background thread.
-        lifecycleScope.launch(IO) {
-            if (settings().showPocketRecommendationsFeature) {
-                components.core.pocketStoriesService.startPeriodicContentRecommendationsRefresh()
-            }
-
-            if (!settings().hasPocketSponsoredStoriesProfileMigrated) {
-                migratePocketSponsoredStoriesProfile(components.core.pocketStoriesService)
-            }
-
-            if (settings().showPocketSponsoredStories) {
-                components.core.pocketStoriesService.startPeriodicSponsoredContentsRefresh()
-            }
         }
 
         components.backgroundServices.accountManagerAvailableQueue.runIfReadyOrQueue {
@@ -612,16 +618,6 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
         openSetDefaultBrowserOption()
     }
 
-    /**
-     * Deletes the user's existing sponsored stories profile as part of the migration to the
-     * MARS API.
-     */
-    @VisibleForTesting
-    internal fun migratePocketSponsoredStoriesProfile(pocketStoriesService: PocketStoriesService) {
-        pocketStoriesService.deleteProfile()
-        settings().hasPocketSponsoredStoriesProfileMigrated = true
-    }
-
     private fun checkAndExitPiP() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode && intent != null) {
             // Exit PiP mode
@@ -675,10 +671,6 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
             if (browsingModeManager.mode.isPrivate) {
                 it.announcePrivateModeForAccessibility()
             }
-        }
-
-        binding.root.viewTreeObserver.addOnGlobalLayoutListener {
-            Log.i("tighe", "layout listener")
         }
 
         lifecycleScope.launch(IO) {

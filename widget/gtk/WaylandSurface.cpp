@@ -21,11 +21,9 @@
 #  include "mozilla/Logging.h"
 #  include "nsTArray.h"
 #  include "Units.h"
-#  include "nsWindow.h"
 #  undef LOGWAYLAND
 #  undef LOGVERBOSE
 extern mozilla::LazyLogModule gWidgetWaylandLog;
-extern mozilla::LazyLogModule gWidgetLog;
 #  define LOGWAYLAND(str, ...)                           \
     MOZ_LOG(gWidgetWaylandLog, mozilla::LogLevel::Debug, \
             ("%s: " str, GetDebugTag().get(), ##__VA_ARGS__))
@@ -1087,6 +1085,7 @@ void WaylandSurface::RemoveTransactionLocked(
   MOZ_DIAGNOSTIC_ASSERT(aTransaction->IsDeleted());
   [[maybe_unused]] bool removed =
       mBufferTransactions.RemoveElement(aTransaction);
+  MOZ_DIAGNOSTIC_ASSERT(!mBufferTransactions.Contains(aTransaction));
 }
 
 BufferTransaction* WaylandSurface::GetNextTransactionLocked(

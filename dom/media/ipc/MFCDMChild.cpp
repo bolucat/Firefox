@@ -463,13 +463,25 @@ mozilla::ipc::IPCResult MFCDMChild::RecvOnSessionKeyExpiration(
 }
 
 mozilla::ipc::IPCResult MFCDMChild::RecvOnSessionClosed(
-    const nsString& aSessionId) {
+    const MFCDMSessionClosedResult& aResult) {
   LOG("RecvOnSessionClosed, sessionId=%s",
-      NS_ConvertUTF16toUTF8(aSessionId).get());
+      NS_ConvertUTF16toUTF8(aResult.sessionId()).get());
   MOZ_ASSERT(mManagerThread);
   MOZ_ASSERT(mProxyCallback);
-  mProxyCallback->OnSessionClosed(aSessionId);
+  mProxyCallback->OnSessionClosed(aResult);
   return IPC_OK();
+}
+
+void MFCDMChild::IPDLActorDestroyed() {
+  AssertOnManagerThread();
+  mIPDLSelfRef = nullptr;
+  if (!mShutdown) {
+    LOG("IPDLActorDestroyed, remote process crashed!");
+    mState = NS_ERROR_NOT_AVAILABLE;
+    if (mProxyCallback) {
+      mProxyCallback->OnRemoteProcessCrashed();
+    }
+  }
 }
 
 #undef SLOG

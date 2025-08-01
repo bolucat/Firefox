@@ -77,6 +77,9 @@
       this.pinnedDropIndicator = document.getElementById(
         "pinned-drop-indicator"
       );
+      this.dragToPinPromoCard = document.getElementById(
+        "drag-to-pin-promo-card"
+      );
       // Override arrowscrollbox.js method, since our scrollbox's children are
       // inherited from the scrollbox binding parent (this).
       this.arrowScrollbox._getScrollableElements = () => {
@@ -796,15 +799,17 @@
       // node to deliver the `dragend` event.  See bug 1345473.
       dt.addElement(tab);
 
+      this.#keepTabSizeLocked = true;
+      this._lockTabSizing();
+
       let expandGroupOnDrop;
-      if (!fromTabList && this.getDropEffectForTabDrag(event) == "move") {
+      let dropEffect = this.getDropEffectForTabDrag(event);
+      if (!fromTabList && dropEffect == "move") {
         this.#setMovingTabMode(true);
 
         if (tab.multiselected) {
           this.#moveTogetherSelectedTabs(tab);
         } else if (isTabGroupLabel(tab) && !tab.group.collapsed) {
-          this._lockTabSizing();
-          this.#keepTabSizeLocked = true;
           tab.group.collapsed = true;
           expandGroupOnDrop = true;
         }
@@ -931,10 +936,10 @@
     }
 
     on_dragover(event) {
-      var effects = this.getDropEffectForTabDrag(event);
+      var dropEffect = this.getDropEffectForTabDrag(event);
 
       var ind = this._tabDropIndicator;
-      if (effects == "" || effects == "none") {
+      if (dropEffect == "" || dropEffect == "none") {
         ind.hidden = true;
         return;
       }
@@ -966,7 +971,7 @@
 
       let draggedTab = event.dataTransfer.mozGetDataAt(TAB_DROP_TYPE, 0);
       if (
-        (effects == "move" || effects == "copy") &&
+        (dropEffect == "move" || dropEffect == "copy") &&
         document == draggedTab.ownerDocument &&
         !draggedTab._dragData.fromTabList
       ) {
@@ -978,7 +983,7 @@
         }
         this.finishMoveTogetherSelectedTabs(draggedTab);
 
-        if (effects == "move") {
+        if (dropEffect == "move") {
           this.#setMovingTabMode(true);
 
           // Pinned tabs in expanded vertical mode are on a grid format and require
@@ -994,7 +999,7 @@
 
       this.finishAnimateTabMove();
 
-      if (effects == "link") {
+      if (dropEffect == "link") {
         let target = this.#getDragTarget(event, { ignoreSides: true });
         if (target) {
           if (!this.#dragTime) {
@@ -1093,8 +1098,6 @@
         draggedTab._dragData?.expandGroupOnDrop
       ) {
         draggedTab.group.collapsed = false;
-        this.#keepTabSizeLocked = false;
-        this._unlockTabSizing();
       }
     }
 
@@ -1126,6 +1129,9 @@
         movingTabs?.reverse();
       }
 
+      let overPinnedDropIndicator =
+        this.pinnedDropIndicator.hasAttribute("visible") &&
+        this.pinnedDropIndicator.hasAttribute("interactive");
       this.#resetTabsAfterDrop(draggedTab?.ownerDocument);
 
       this._tabDropIndicator.hidden = true;
@@ -1157,7 +1163,6 @@
         let isPinned = draggedTab.pinned;
         let numPinned = gBrowser.pinnedTabCount;
 
-        let withinPinnedBounds;
         if (this.#isContainerVerticalPinnedGrid(draggedTab)) {
           // Update both translate axis for pinned vertical expanded tabs
           if (oldTranslateX > 0 && translateOffsetX > tabWidth / 2) {
@@ -1180,36 +1185,22 @@
           let tabSize = this.verticalMode ? tabHeight : tabWidth;
           let firstTab = tabs[0];
           let lastTab = tabs.at(-1);
-          let pinnedTabsStartEdge = this.pinnedDropIndicator[screenAxis];
-          let pinnedTabsEndEdge =
-            window.windowUtils.getBoundsWithoutFlushing(
-              this.pinnedDropIndicator
-            )[size] + this.pinnedDropIndicator[screenAxis];
           let lastMovingTabScreen = movingTabs.at(-1)[screenAxis];
           let firstMovingTabScreen = movingTabs[0][screenAxis];
-          let firstBound = firstTab[screenAxis] - firstMovingTabScreen;
-          let lastBound =
+          let startBound = firstTab[screenAxis] - firstMovingTabScreen;
+          let endBound =
             lastTab[screenAxis] +
             window.windowUtils.getBoundsWithoutFlushing(lastTab)[size] -
             (lastMovingTabScreen + tabSize);
-
-          // Use oldTranslate value for withinPinnedBounds as newTranslate
-          // sometimes results in tab being pinned when not within bounds.
           if (this.verticalMode) {
             newTranslateY = Math.min(
-              Math.max(oldTranslateY, firstBound),
-              lastBound
+              Math.max(oldTranslateY, startBound),
+              endBound
             );
-            withinPinnedBounds =
-              firstMovingTabScreen + oldTranslateY - tabSize <=
-              pinnedTabsEndEdge;
           } else {
             newTranslateX = RTL_UI
-              ? Math.min(Math.max(oldTranslateX, lastBound), firstBound)
-              : Math.min(Math.max(oldTranslateX, firstBound), lastBound);
-            withinPinnedBounds = RTL_UI
-              ? lastMovingTabScreen + oldTranslateX >= pinnedTabsStartEdge
-              : firstMovingTabScreen + oldTranslateX <= pinnedTabsEndEdge;
+              ? Math.min(Math.max(oldTranslateX, endBound), startBound)
+              : Math.min(Math.max(oldTranslateX, startBound), endBound);
           }
         }
 
@@ -1226,21 +1217,19 @@
           }
         }
 
+        const dragToPinTargets = [
+          this.pinnedTabsContainer,
+          this.dragToPinPromoCard,
+        ];
         let shouldPin =
           isTab(draggedTab) &&
           !draggedTab.pinned &&
-          ((withinPinnedBounds && !numPinned) ||
-            this.pinnedTabsContainer.contains(event.target) ||
-            ["pinned-tabs-container", "pinned-drop-indicator"].includes(
-              event.target.id
-            ));
+          (overPinnedDropIndicator ||
+            dragToPinTargets.some(el => el.contains(event.target)));
         let shouldUnpin =
           isTab(draggedTab) &&
           draggedTab.pinned &&
-          this.arrowScrollbox.contains(event.target) &&
-          !["pinned-tabs-container", "pinned-drop-indicator"].includes(
-            event.target.id
-          );
+          this.arrowScrollbox.contains(event.target);
 
         let shouldTranslate =
           !gReduceMotion &&
@@ -1279,6 +1268,8 @@
           } else if (dropElement && dropBefore != undefined) {
             gBrowser.moveTabsAfter(movingTabs, dropElement, dropMetricsContext);
           }
+          this.#keepTabSizeLocked = false;
+          this._unlockTabSizing();
           this.#expandGroupOnDrop(draggedTab);
         };
 
@@ -1467,6 +1458,8 @@
 
       this.finishMoveTogetherSelectedTabs(draggedTab);
       this.finishAnimateTabMove();
+      this.#keepTabSizeLocked = false;
+      this._unlockTabSizing();
       this.#expandGroupOnDrop(draggedTab);
       this.#resetTabsAfterDrop(draggedTab.ownerDocument);
 
@@ -2059,14 +2052,16 @@
 
     _handleTabSelect(aInstant) {
       let selectedTab = this.selectedItem;
-      if (this.overflowing) {
-        this.arrowScrollbox.ensureElementIsVisible(selectedTab, aInstant);
+      let arrowScrollbox = selectedTab.parentElement;
+      if (arrowScrollbox.overflowing) {
+        arrowScrollbox.ensureElementIsVisible(selectedTab, aInstant);
       }
 
       selectedTab._notselectedsinceload = false;
     }
 
-    #keepTabSizeLocked;
+    /** @type {boolean} */
+    #keepTabSizeLocked = false;
 
     /**
      * Try to keep the active tab's close button under the mouse cursor
@@ -2210,13 +2205,16 @@
       let allTabs = this.ariaFocusableItems;
       let isGrid = this.#isContainerVerticalPinnedGrid(tab);
 
-      if (isGrid) {
+      if (isPinned && this.verticalMode) {
         this.pinnedTabsContainer.setAttribute("dragActive", "");
       }
 
       // Ensure tab containers retain size while tabs are dragged out of the layout
       let pinnedRect = window.windowUtils.getBoundsWithoutFlushing(
         this.pinnedTabsContainer.scrollbox
+      );
+      let pinnedContainerRect = window.windowUtils.getBoundsWithoutFlushing(
+        this.pinnedTabsContainer
       );
       let unpinnedRect = window.windowUtils.getBoundsWithoutFlushing(
         this.arrowScrollbox.scrollbox
@@ -2225,6 +2223,9 @@
       if (this.pinnedTabsContainer.firstChild) {
         this.pinnedTabsContainer.scrollbox.style.height =
           pinnedRect.height + "px";
+        // Use "minHeight" so as not to interfere with user preferences for height.
+        this.pinnedTabsContainer.style.minHeight =
+          pinnedContainerRect.height + "px";
         this.pinnedTabsContainer.scrollbox.style.width =
           pinnedRect.width + "px";
       }
@@ -2233,19 +2234,15 @@
 
       const pinnedTabsOrigBounds = new Map();
 
-      for (let t of allTabs) {
-        if (isTabGroupLabel(t)) {
-          t = t.parentElement;
-        }
-        let tabRect = window.windowUtils.getBoundsWithoutFlushing(t);
-
-        // record where all the pinned tabs were before we position:absolute the moving tabs
-        if (isGrid && t.pinned) {
+      // record where all the pinned tabs were before we position:absolute the moving tabs
+      if (isGrid) {
+        for (let t of allTabs.slice(0, numPinned)) {
+          let tabRect = window.windowUtils.getBoundsWithoutFlushing(t);
           pinnedTabsOrigBounds.set(t, tabRect);
+          // Prevent flex rules from resizing non dragged tabs while the dragged
+          // tabs are positioned absolutely
+          t.style.maxWidth = tabRect.width + "px";
         }
-        // Prevent flex rules from resizing non dragged tabs while the dragged
-        // tabs are positioned absolutely
-        t.style.maxWidth = tabRect.width + "px";
       }
 
       // Use .tab-group-label-container or .tabbrowser-tab for size/position
@@ -2263,10 +2260,17 @@
       ).x;
 
       let movingTabsIndex = movingTabs.findIndex(t => t._tPos == tab._tPos);
+      // When the promo card is visible, we need to account for its height
+      // before calculating position. Otherwise, it will appear to "jump" to
+      // the top upon starting the drag.
+      const startingPosition = this.dragToPinPromoCard.shouldRender
+        ? window.windowUtils.getBoundsWithoutFlushing(this.dragToPinPromoCard)
+            .height
+        : 0;
       // Update moving tabs absolute position based on original dragged tab position
       // Moving tabs with a lower index are moved before the dragged tab and moving
       // tabs with a higher index are moved after the dragged tab.
-      let position = 0;
+      let position = startingPosition;
       // Position moving tabs after dragged tab
       for (let movingTab of movingTabs.slice(movingTabsIndex)) {
         if (isTabGroupLabel(tab)) {
@@ -2307,7 +2311,7 @@
       }
       // Reset position so we can next handle moving tabs before the dragged tab
       if (this.verticalMode) {
-        position = 0 - rect.height;
+        position = startingPosition - rect.height;
       } else if (this.#rtlMode) {
         position = 0 + rect.width;
       } else {
@@ -2483,7 +2487,7 @@
       let translateX = screenX - dragData.screenX;
       let translateY = screenY - dragData.screenY;
       let firstBoundX = firstTabInRow.screenX - firstMovingTabScreenX;
-      let firstBoundY = firstTabInRow.screenY - firstMovingTabScreenY;
+      let firstBoundY = this.screenY - firstMovingTabScreenY;
       let lastBoundX =
         lastTabInRow.screenX +
         lastTabInRow.getBoundingClientRect().width -
@@ -2491,6 +2495,14 @@
       let lastBoundY = periphery.screenY - (lastMovingTabScreenY + tabHeight);
       translateX = Math.min(Math.max(translateX, firstBoundX), lastBoundX);
       translateY = Math.min(Math.max(translateY, firstBoundY), lastBoundY);
+
+      // Center the tab under the cursor if the tab is not under the cursor while dragging
+      if (
+        screen < draggedTab.screenY + translateY ||
+        screen > draggedTab.screenY + tabHeight + translateY
+      ) {
+        translateY = screen - draggedTab.screenY - tabHeight / 2;
+      }
 
       for (let tab of movingTabs) {
         tab.style.transform = `translate(${translateX}px, ${translateY}px)`;
@@ -2671,12 +2683,29 @@
       let lastMovingTab = movingTabs.at(-1);
       let firstMovingTab = movingTabs[0];
       let endEdge = ele => ele[screenAxis] + bounds(ele)[size];
-      let pinnedTabsStartEdge = this.pinnedDropIndicator[screenAxis];
-      let pinnedTabsEndEdge = endEdge(this.pinnedDropIndicator);
       let lastMovingTabScreen = endEdge(lastMovingTab);
       let firstMovingTabScreen = firstMovingTab[screenAxis];
       let shiftSize = lastMovingTabScreen - firstMovingTabScreen;
       let translate = screen - dragData[screenAxis];
+
+      // Constrain the range over which the moving tabs can move between the pinned container and last tab.
+      let startBound = this[screenAxis] - firstMovingTabScreen;
+      // Use periphery when the endBound would otherwise be the dragged tab.
+      let endBound;
+      if (!numPinned && lastTab == draggedTab) {
+        endBound =
+          periphery[screenAxis] -
+          lastMovingTabScreen +
+          // Use periphery width only in horizontal rtl mode since we are moving the other direction.
+          // Tab width results in a bounds that falls short, whilst periphery width is accurate.
+          (this.#rtlMode ? bounds(periphery).width : bounds(draggedTab)[size]);
+      } else {
+        endBound = endEdge(lastTab) - lastMovingTabScreen;
+      }
+
+      translate = this.#rtlMode
+        ? Math.min(Math.max(translate, endBound), startBound)
+        : Math.min(Math.max(translate, startBound), endBound);
 
       // Center the tab under the cursor if the tab is not under the cursor while dragging
       if (
@@ -2687,33 +2716,16 @@
           screen - draggedTab[screenAxis] - bounds(draggedTab)[size] / 2;
       }
 
-      // Constrain the range over which the moving tabs can move between the pinned container and last tab
-      let firstBound = pinnedTabsStartEdge - firstMovingTabScreen;
-      // Use periphery when the lastBound would otherwise be the dragged tab.
-      let lastBound;
-      if (!numPinned && lastTab == draggedTab) {
-        lastBound =
-          periphery[screenAxis] -
-          lastMovingTabScreen +
-          // Use periphery width only in horizontal rtl mode since we are moving the other direction.
-          // (tab width results in a bounds that falls short, whilst periphery width is accurate)
-          (this.#rtlMode ? bounds(periphery).width : bounds(draggedTab)[size]);
-      } else {
-        lastBound = endEdge(lastTab) - lastMovingTabScreen;
+      if (!gBrowser.pinnedTabCount) {
+        this.#checkWithinPinnedContainerBounds({
+          firstMovingTabScreen,
+          lastMovingTabScreen,
+          pinnedTabsStartEdge: startBound,
+          pinnedTabsEndEdge: this.arrowScrollbox[screenAxis],
+          translate,
+          draggedTab,
+        });
       }
-
-      translate = this.#rtlMode
-        ? Math.min(Math.max(translate, lastBound), firstBound)
-        : Math.min(Math.max(translate, firstBound), lastBound);
-
-      this.#checkWithinPinnedContainerBounds(
-        firstMovingTabScreen,
-        lastMovingTabScreen,
-        pinnedTabsStartEdge,
-        pinnedTabsEndEdge,
-        translate,
-        draggedTab
-      );
 
       for (let item of movingTabs) {
         if (isTabGroupLabel(item)) {
@@ -3119,29 +3131,29 @@
       }
     }
 
-    #checkWithinPinnedContainerBounds(
+    #checkWithinPinnedContainerBounds({
       firstMovingTabScreen,
       lastMovingTabScreen,
       pinnedTabsStartEdge,
       pinnedTabsEndEdge,
       translate,
-      draggedTab
-    ) {
-      // Display the pinned drop indicator based on the position of the moving tabs
+      draggedTab,
+    }) {
+      // Display the pinned drop indicator based on the position of the moving tabs.
       // If the indicator is not yet shown, display once we are within a pinned tab width/height
-      // distance
+      // distance.
       let firstMovingTabPosition = firstMovingTabScreen + translate;
       let lastMovingTabPosition = lastMovingTabScreen + translate;
-      // Approximation of pinned tabs width and height in horizontal or grid mode (40) is sufficient
-      // distance to display the pinned drop indicator slightly before dragging over it. Exact
-      // value is not necessary.
-      let pinnedTabSize = 40;
+      // Approximation of pinned tabs width and height in horizontal or grid mode (40) is a sufficient
+      // buffer to display the pinned drop indicator slightly before dragging over it. Exact value is
+      // not necessary.
+      let buffer = 40;
       let inPinnedRange = this.#rtlMode
         ? lastMovingTabPosition >= pinnedTabsStartEdge
         : firstMovingTabPosition <= pinnedTabsEndEdge;
       let inVisibleRange = this.#rtlMode
-        ? lastMovingTabPosition >= pinnedTabsStartEdge - pinnedTabSize
-        : firstMovingTabPosition <= pinnedTabsEndEdge + pinnedTabSize;
+        ? lastMovingTabPosition >= pinnedTabsStartEdge - buffer
+        : firstMovingTabPosition <= pinnedTabsEndEdge + buffer;
       if (
         isTab(draggedTab) &&
         ((inVisibleRange &&
@@ -3150,7 +3162,7 @@
             !this.pinnedDropIndicator.hasAttribute("interactive")))
       ) {
         // On drag into pinned container
-        if (!gBrowser.pinnedTabCount) {
+        if (!gBrowser.pinnedTabCount && !this.dragToPinPromoCard.shouldRender) {
           let tabbrowserTabsRect =
             window.windowUtils.getBoundsWithoutFlushing(this);
           if (!this.verticalMode) {
@@ -3262,7 +3274,6 @@
         label.style.height = "";
         label.style.left = "";
         label.style.top = "";
-        label.style.maxWidth = "";
         label.removeAttribute("dragtarget");
       }
       let periphery = draggedTabDocument.getElementById(
@@ -3282,6 +3293,7 @@
       );
       pinnedPeriphery && pinnedTabsContainer.removeChild(pinnedPeriphery);
       pinnedTabsContainer.removeAttribute("dragActive");
+      pinnedTabsContainer.style.minHeight = "";
       draggedTabDocument.defaultView.SidebarController.updatePinnedTabsHeightOnResize();
       pinnedTabsContainer.scrollbox.style.height = "";
       pinnedTabsContainer.scrollbox.style.width = "";
@@ -3662,6 +3674,10 @@
       return item.elementIndex + (isBeforeMiddle ? 0 : 1);
     }
 
+    /**
+     * @param {DragEvent} event
+     * @returns {typeof DataTransfer.prototype.dropEffect}
+     */
     getDropEffectForTabDrag(event) {
       var dt = event.dataTransfer;
 

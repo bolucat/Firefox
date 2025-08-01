@@ -77,17 +77,14 @@ class WebGPUChild final : public PWebGPUChild, public SupportsWeakPtr {
   virtual ~WebGPUChild();
 
   UniquePtr<ffi::WGPUClient> const mClient;
-  std::unordered_map<RawId, WeakPtr<Device>> mDeviceMap;
+  std::unordered_map<RawId, RefPtr<Device>> mDeviceMap;
   nsTArray<RawId> mSwapChainTexturesWaitingForSubmit;
-
-  bool ResolveLostForDeviceId(RawId aDeviceId, uint8_t aReason,
-                              const nsAString& aMessage);
 
   bool mScheduledFlushQueuedMessages = false;
   void ScheduledFlushQueuedMessages();
   nsTArray<ipc::ByteBuf> mQueuedDataBuffers;
   nsTArray<ipc::MutableSharedMemoryHandle> mQueuedHandles;
-  void ClearAllPendingPromises();
+  void ClearActorState();
 
  public:
   ipc::IPCResult RecvServerMessage(const ipc::ByteBuf& aByteBuf);
@@ -106,6 +103,7 @@ class WebGPUChild final : public PWebGPUChild, public SupportsWeakPtr {
   struct PendingRequestAdapterPromise {
     RefPtr<dom::Promise> promise;
     RefPtr<Instance> instance;
+    RawId adapter_id;
   };
 
   std::deque<PendingRequestAdapterPromise> mPendingRequestAdapterPromises;
@@ -119,9 +117,12 @@ class WebGPUChild final : public PWebGPUChild, public SupportsWeakPtr {
     RefPtr<SupportedFeatures> features;
     RefPtr<SupportedLimits> limits;
     RefPtr<AdapterInfo> adapter_info;
+    RefPtr<dom::Promise> lost_promise;
   };
 
   std::deque<PendingRequestDevicePromise> mPendingRequestDevicePromises;
+
+  std::unordered_map<RawId, RefPtr<dom::Promise>> mPendingDeviceLostPromises;
 
   struct PendingPopErrorScopePromise {
     RefPtr<dom::Promise> promise;
@@ -159,7 +160,13 @@ class WebGPUChild final : public PWebGPUChild, public SupportsWeakPtr {
   std::unordered_map<RawId, std::deque<PendingBufferMapPromise>>
       mPendingBufferMapPromises;
 
-  std::deque<RefPtr<dom::Promise>> mPendingOnSubmittedWorkDonePromises;
+  struct PendingOnSubmittedWorkDonePromise {
+    RefPtr<dom::Promise> promise;
+    RawId queue_id;
+  };
+
+  std::deque<PendingOnSubmittedWorkDonePromise>
+      mPendingOnSubmittedWorkDonePromises;
 };
 
 }  // namespace webgpu

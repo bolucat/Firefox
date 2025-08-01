@@ -50,8 +50,7 @@ ffi::WGPURenderBundleEncoder* CreateRenderBundleEncoder(
     colorFormats.push_back(format);
   }
 
-  desc.color_formats = colorFormats.data();
-  desc.color_formats_length = colorFormats.size();
+  desc.color_formats = {colorFormats.data(), colorFormats.size()};
 
   auto* bundle = ffi::wgpu_device_create_render_bundle_encoder(
       aBridge->GetClient(), aDeviceId, &desc);
@@ -80,7 +79,7 @@ void RenderBundleEncoder::Cleanup() {
 void RenderBundleEncoder::SetBindGroup(uint32_t aSlot,
                                        BindGroup* const aBindGroup,
                                        const uint32_t* aDynamicOffsets,
-                                       uint64_t aDynamicOffsetsLength) {
+                                       size_t aDynamicOffsetsLength) {
   RawId bindGroup = 0;
   if (aBindGroup) {
     mUsedBindGroups.AppendElement(aBindGroup);

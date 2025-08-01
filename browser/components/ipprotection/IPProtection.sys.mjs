@@ -11,6 +11,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
   CustomizableUI: "resource:///modules/CustomizableUI.sys.mjs",
   IPProtectionPanel:
     "resource:///modules/ipprotection/IPProtectionPanel.sys.mjs",
+  IPProtectionService:
+    "resource:///modules/ipprotection/IPProtectionService.sys.mjs",
   requestIdleCallback: "resource://gre/modules/Timer.sys.mjs",
   cancelIdleCallback: "resource://gre/modules/Timer.sys.mjs",
 });
@@ -58,6 +60,8 @@ class IPProtectionWidget {
     if (!this.#created) {
       this.#createWidget();
     }
+
+    lazy.IPProtectionService.init();
   }
 
   /**
@@ -65,7 +69,8 @@ class IPProtectionWidget {
    */
   uninit() {
     this.#destroyWidget();
-    this.#panels = new WeakMap();
+    this.#uninitPanels();
+    lazy.IPProtectionService.uninit();
     this.#destroyed = true;
   }
 
@@ -83,6 +88,28 @@ class IPProtectionWidget {
     let widget = lazy.CustomizableUI.getWidget(IPProtectionWidget.WIDGET_ID);
     let anchor = widget.forWindow(window).anchor;
     await window.PanelUI.showSubView(IPProtectionWidget.PANEL_ID, anchor);
+  }
+
+  /**
+   * Updates the toolbar icon to reflect the VPN connection status
+   *
+   * @param {XULElement} toolbaritem - toolbaritem to update
+   * @param {object} status - VPN connection status
+   */
+  updateIconStatus(toolbaritem, status = { isActive: false, isError: false }) {
+    let isActive = status.isActive;
+    let isError = status.isError;
+
+    if (isError) {
+      toolbaritem.classList.remove("ipprotection-on");
+      toolbaritem.classList.add("ipprotection-error");
+    } else if (isActive) {
+      toolbaritem.classList.remove("ipprotection-error");
+      toolbaritem.classList.add("ipprotection-on");
+    } else {
+      toolbaritem.classList.remove("ipprotection-error");
+      toolbaritem.classList.remove("ipprotection-on");
+    }
   }
 
   /**
@@ -146,6 +173,20 @@ class IPProtectionWidget {
   }
 
   /**
+   * Get the IPProtectionPanel for q given window.
+   *
+   * @param {Window} window - which window to get the panel for.
+   * @returns {IPProtectionPanel}
+   */
+  getPanel(window) {
+    if (!this.#created || !window?.PanelUI) {
+      return null;
+    }
+
+    return this.#panels.get(window);
+  }
+
+  /**
    * Remove all panels content, but maintains state for if the widget is
    * re-enabled in the same window.
    *
@@ -159,6 +200,17 @@ class IPProtectionWidget {
   }
 
   /**
+   * Uninit all panels and clear the WeakMap.
+   */
+  #uninitPanels() {
+    let panels = ChromeUtils.nondeterministicGetWeakMapKeys(this.#panels);
+    for (let panel of panels) {
+      this.#panels.get(panel).uninit();
+    }
+    this.#panels = new WeakMap();
+  }
+
+  /**
    * Sets whether the feature pref is enabled and not destroyed.
    *
    * If enabled, creates the widget if it hasn't been created yet.
@@ -168,8 +220,10 @@ class IPProtectionWidget {
     this.#enabled = this.isEnabled && !this.#destroyed;
     if (this.#enabled && !this.#created) {
       this.#createWidget();
+      lazy.IPProtectionService.init();
     } else if (!this.#enabled && this.#created) {
       this.#destroyWidget();
+      lazy.IPProtectionService.uninit();
     }
   }
 

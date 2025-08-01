@@ -5,21 +5,15 @@
 package org.mozilla.fenix.tabstray.ui
 
 import android.content.Intent
-import android.os.Build.VERSION.SDK_INT
-import android.os.Build.VERSION_CODES
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
-import android.view.ViewGroup
 import androidx.activity.compose.BackHandler
 import androidx.activity.result.ActivityResultLauncher
 import androidx.annotation.UiThread
 import androidx.annotation.VisibleForTesting
 import androidx.biometric.BiometricManager
 import androidx.compose.runtime.Composable
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.setFragmentResultListener
 import androidx.lifecycle.lifecycleScope
@@ -52,6 +46,7 @@ import org.mozilla.fenix.compose.snackbar.SnackbarState
 import org.mozilla.fenix.ext.actualInactiveTabs
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.hideToolbar
+import org.mozilla.fenix.ext.pixelSizeFor
 import org.mozilla.fenix.ext.registerForActivityResult
 import org.mozilla.fenix.ext.requireComponents
 import org.mozilla.fenix.ext.runIfFragmentIsAttached
@@ -236,7 +231,6 @@ class TabManagementFragment : ComposeFragment() {
                 onTabClose = { tab ->
                     tabManagerInteractor.onTabClosed(tab, TAB_MANAGER_FEATURE_NAME)
                 },
-                onTabMediaClick = tabManagerInteractor::onMediaClicked,
                 onTabClick = { tab ->
                     run outer@{
                         if (!requireContext().settings().hasShownTabSwipeCFR &&
@@ -378,8 +372,6 @@ class TabManagementFragment : ComposeFragment() {
         super.onViewCreated(view, savedInstanceState)
         TabsTray.opened.record(NoExtras())
 
-        setupEdgeToEdgeSupport(view)
-
         inactiveTabsBinding.set(
             feature = InactiveTabsBinding(
                 tabsTrayStore = tabsTrayStore,
@@ -449,24 +441,6 @@ class TabManagementFragment : ComposeFragment() {
         hideToolbar()
     }
 
-    private fun setupEdgeToEdgeSupport(view: View) {
-        if (SDK_INT >= VERSION_CODES.TIRAMISU) {
-            ViewCompat.setOnApplyWindowInsetsListener(view) { _, windowInsets ->
-                val insets = windowInsets.getInsets(
-                    WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
-                )
-                view.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-                    leftMargin = insets.left
-                    bottomMargin = insets.bottom
-                    rightMargin = insets.right
-                    topMargin = insets.top
-                }
-
-                WindowInsetsCompat.CONSUMED
-            }
-        }
-    }
-
     private fun onCancelDownloadWarningAccepted(tabId: String?, source: String?) {
         if (tabId != null) {
             tabManagerInteractor.onDeletePrivateTabWarningAccepted(tabId, source)
@@ -493,7 +467,7 @@ class TabManagementFragment : ComposeFragment() {
                     R.attr.textOnColorPrimary,
                     requireContext(),
                 ),
-                positiveButtonRadius = (resources.getDimensionPixelSize(R.dimen.tab_corner_radius)).toFloat(),
+                positiveButtonRadius = pixelSizeFor(R.dimen.tab_corner_radius).toFloat(),
             ),
 
             onPositiveButtonClicked = ::onCancelDownloadWarningAccepted,

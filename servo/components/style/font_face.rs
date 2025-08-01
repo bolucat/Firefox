@@ -577,7 +577,7 @@ macro_rules! is_descriptor_enabled {
         static_prefs::pref!("layout.css.font-variations.enabled")
     };
     ("size-adjust") => {
-        static_prefs::pref!("layout.css.size-adjust.enabled")
+        cfg!(feature = "gecko")
     };
     ($name:tt) => {
         true

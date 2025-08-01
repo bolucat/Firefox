@@ -129,12 +129,27 @@ export function request_options_with_two_idps(mediation = 'required') {
 export function fedcm_test(test_func, test_name) {
   promise_test(async t => {
     assert_implements(window.IdentityCredential, "FedCM is not supported");
+
     // Turn off delays that are not useful in tests.
     try {
       await test_driver.set_fedcm_delay_enabled(false);
     } catch (e) {
       // Failure is not critical; it just might slow down tests.
     }
+
+    t.add_cleanup(async () => {
+      try {
+        await IdentityCredential.disconnect(alt_disconnect_options(""));
+      } catch (ex){
+        // Failure is not critical, test state is reset.
+      }
+
+      try {
+        await IdentityCredential.disconnect(disconnect_options(""));
+      } catch (ex){
+        // Failure is not critical, test state is reset.
+      }
+    });
 
     await set_fedcm_cookie();
     await set_alt_fedcm_cookie();

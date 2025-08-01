@@ -7,8 +7,15 @@ package org.mozilla.fenix.home.toolbar
 import android.content.Context
 import android.view.Gravity
 import android.view.ViewGroup
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Easing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
@@ -38,6 +45,8 @@ import org.mozilla.fenix.components.metrics.MetricsUtils
 import org.mozilla.fenix.components.toolbar.ToolbarPosition.BOTTOM
 import org.mozilla.fenix.components.toolbar.ToolbarPosition.TOP
 import org.mozilla.fenix.databinding.FragmentHomeBinding
+import org.mozilla.fenix.ext.pixelSizeFor
+import org.mozilla.fenix.home.toolbar.HomeToolbarComposable.Companion.DirectToSearchConfig
 import org.mozilla.fenix.theme.FirefoxTheme
 import org.mozilla.fenix.utils.Settings
 
@@ -72,6 +81,8 @@ internal class HomeToolbarComposable(
     private val searchSuggestionsContent: @Composable (Modifier) -> Unit,
     private val navigationBarContent: (@Composable () -> Unit)?,
 ) : FenixHomeToolbar {
+    private val addressBarVisibility = mutableStateOf(true)
+
     init {
         // Reset the toolbar visibility & position whenever coming back to the home screen
         // like after changing the toolbar position in settings.
@@ -88,6 +99,7 @@ internal class HomeToolbarComposable(
         setContent {
             val isSearching = toolbarStore.observeAsComposableState { it.isEditMode() }.value
             val shouldShowTabStrip: Boolean = remember { settings.isTabStripEnabled }
+            val isAddressBarVisible = remember { addressBarVisibility }
 
             BackInvokedHandler(isSearching) {
                 val sourceTabId = appStore.state.searchState.sourceTabId
@@ -107,7 +119,28 @@ internal class HomeToolbarComposable(
                     if (settings.shouldUseBottomToolbar) {
                         searchSuggestionsContent(Modifier.weight(1f))
                     }
-                    BrowserToolbar(toolbarStore)
+                    Box {
+                        if (settings.enableHomepageSearchBar) {
+                            BrowserSimpleToolbar(toolbarStore)
+                        }
+                        this@Column.AnimatedVisibility(
+                            visible = isAddressBarVisible.value || appStore.state.searchState.isSearchActive,
+                            enter = fadeIn(
+                                animationSpec = tween(
+                                    durationMillis = 250,
+                                    easing = Easing { fraction -> fraction * fraction },
+                                ),
+                            ),
+                            exit = fadeOut(
+                                animationSpec = tween(
+                                    durationMillis = 250,
+                                    easing = Easing { fraction -> 1f - (1f - fraction) * (1f - fraction) },
+                                ),
+                            ),
+                        ) {
+                            BrowserToolbar(toolbarStore)
+                        }
+                    }
                     if (settings.toolbarPosition == BOTTOM) {
                         navigationBarContent?.invoke()
                     }
@@ -153,7 +186,7 @@ internal class HomeToolbarComposable(
     }
 
     override fun updateAddressBarVisibility(isVisible: Boolean) {
-        // To be added later
+        addressBarVisibility.value = isVisible
     }
 
     private fun buildToolbarGravityConfig(): ToolbarGravity = when (settings.shouldUseBottomToolbar) {
@@ -164,7 +197,7 @@ internal class HomeToolbarComposable(
     private fun updateHomeAppBarIntegration() {
         if (!settings.shouldUseBottomToolbar) {
             homeBinding.homeAppBar.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-                topMargin = context.resources.getDimensionPixelSize(R.dimen.home_fragment_top_toolbar_header_margin) +
+                topMargin = context.pixelSizeFor(R.dimen.home_fragment_top_toolbar_header_margin) +
                     when (settings.isTabStripEnabled) {
                         true -> context.resources.getDimensionPixelSize(R.dimen.tab_strip_height)
                         false -> 0

@@ -52,14 +52,14 @@
 #  define SPOOFED_UA_OS "Android 10; Mobile"
 #  define SPOOFED_APPVERSION "5.0 (Android 10)"
 #  define SPOOFED_OSCPU "Linux armv81"
-#  define SPOOFED_MAX_TOUCH_POINTS 10
+#  define SPOOFED_MAX_TOUCH_POINTS 5
 #else
 // For Linux and other platforms, like BSDs, SunOS and etc, we will use Linux
 // platform.
 #  define SPOOFED_UA_OS SPOOFED_UA_OS_OTHER
 #  define SPOOFED_APPVERSION "5.0 (X11)"
 #  define SPOOFED_OSCPU "Linux x86_64"
-#  define SPOOFED_MAX_TOUCH_POINTS 10
+#  define SPOOFED_MAX_TOUCH_POINTS 0
 #endif
 
 #define LEGACY_BUILD_ID "20181001000000"
@@ -419,6 +419,8 @@ class nsRFPService final : public nsIObserver, public nsIRFPService {
   static bool ExposeWebCodecsAPI(JSContext* aCx, JSObject* aObj);
   static bool ExposeWebCodecsAPIImageDecoder(JSContext* aCx, JSObject* aObj);
   static bool IsWebCodecsRFPTargetEnabled(JSContext* aCx);
+
+  static uint32_t CollapseMaxTouchPoints(uint32_t aMaxTouchPoints);
 
  private:
   nsresult Init();

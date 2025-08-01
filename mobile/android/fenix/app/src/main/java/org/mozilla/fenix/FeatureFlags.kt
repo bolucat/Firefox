@@ -41,7 +41,7 @@ object FeatureFlags {
     /**
      * Enables the Unified Trust Panel.
      */
-    const val UNIFIED_TRUST_PANEL = false
+    val UNIFIED_TRUST_PANEL = Config.channel.isNightlyOrDebug
 
     /**
      * Disables the Onboarding feature for debug builds by default. Set this to `true` if you need
@@ -60,9 +60,4 @@ object FeatureFlags {
      * Enables the custom review pre-prompt.
      */
     const val CUSTOM_REVIEW_PROMPT_ENABLED = true
-
-    /**
-     * Enables the feature that allows the user to set an alternative app icon.
-     */
-    val alternativeAppIconFeatureEnabled = Config.channel.isDebug
 }

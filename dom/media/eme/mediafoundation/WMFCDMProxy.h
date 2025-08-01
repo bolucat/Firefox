@@ -64,7 +64,7 @@ class WMFCDMProxy : public CDMProxy {
 
   void Shutdown() override;
 
-  void Terminated() override {}
+  void Terminated() override;
 
   void OnSetSessionId(uint32_t aCreateSessionToken,
                       const nsAString& aSessionId) override {}
@@ -79,7 +79,8 @@ class WMFCDMProxy : public CDMProxy {
   void OnExpirationChange(const nsAString& aSessionId,
                           UnixTime aExpiryTime) override;
 
-  void OnSessionClosed(const nsAString& aSessionId) override;
+  void OnSessionClosed(const nsAString& aSessionId,
+                       dom::MediaKeySessionClosedReason aReason) override;
 
   void OnSessionError(const nsAString& aSessionId, nsresult aException,
                       uint32_t aSystemCode, const nsAString& aMsg) override {}

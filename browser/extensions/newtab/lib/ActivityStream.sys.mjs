@@ -604,9 +604,9 @@ export const PREFS_CONFIG = new Map([
     },
   ],
   [
-    "newtabShortcuts.refresh",
+    "discoverystream.promoCard.enabled",
     {
-      title: "Boolean flag to change sizes and spacing of new tab shortcuts",
+      title: "Boolean flag to turn the promo card on and off",
       value: false,
     },
   ],
@@ -867,6 +867,13 @@ export const PREFS_CONFIG = new Map([
     },
   ],
   [
+    "widgets.system.enabled",
+    {
+      title: "Enables visibility of all widgets and controls to enable them",
+      value: false,
+    },
+  ],
+  [
     "widgets.lists.enabled",
     {
       title: "Enables the to-do lists widget",
@@ -891,6 +898,13 @@ export const PREFS_CONFIG = new Map([
     "widgets.system.focusTimer.enabled",
     {
       title: "Enables the focus timer widget experiment in Nimbus",
+      value: false,
+    },
+  ],
+  [
+    "widgets.focusTimer.showSystemNotifications",
+    {
+      title: "Enables the focus timer widget to show system notifications",
       value: false,
     },
   ],

@@ -48,10 +48,6 @@ urlbar-group-local =
 # A message that replaces a result when the user dismisses a single suggestion.
 firefox-suggest-dismissal-acknowledgment-one = Thanks for your feedback. You won’t see this suggestion again.
 
-# A message that replaces a result when the user dismisses all suggestions of a
-# particular type.
-firefox-suggest-dismissal-acknowledgment-all = Thanks for your feedback. You won’t see these suggestions anymore.
-
 # A message that replaces a result when the user dismisses a single MDN
 # suggestion.
 firefox-suggest-dismissal-acknowledgment-one-mdn = Thanks for your feedback. You won’t see this { -mdn-brand-short-name } suggestion again.

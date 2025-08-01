@@ -945,6 +945,20 @@ void MacroAssemblerLOONG64Compat::computeScaledAddress(const BaseIndex& address,
   }
 }
 
+void MacroAssemblerLOONG64Compat::computeScaledAddress32(
+    const BaseIndex& address, Register dest) {
+  Register base = address.base;
+  Register index = address.index;
+  int32_t shift = Imm32::ShiftOf(address.scale).value;
+
+  if (shift) {
+    MOZ_ASSERT(shift <= 4);
+    as_alsl_w(dest, index, base, shift - 1);
+  } else {
+    as_add_w(dest, base, index);
+  }
+}
+
 void MacroAssemblerLOONG64::ma_pop(Register r) {
   MOZ_ASSERT(r != StackPointer);
   as_ld_d(r, StackPointer, 0);
@@ -3433,7 +3447,8 @@ static void CompareExchange(MacroAssembler& masm,
     }
 
     masm.as_ll_w(output, scratch, 0);
-    masm.ma_b(output, oldval, &end, Assembler::NotEqual, ShortJump);
+    masm.as_slli_w(scratch2, oldval, 0);
+    masm.ma_b(output, scratch2, &end, Assembler::NotEqual, ShortJump);
     masm.as_or(scratch2, newval, zero);
     masm.as_sc_w(scratch2, scratch, 0);
     masm.ma_b(scratch2, Register(scratch2), &again, Assembler::Zero, ShortJump);
@@ -3488,6 +3503,7 @@ static void CompareExchange(MacroAssembler& masm,
   masm.ma_b(output, valueTemp, &end, Assembler::NotEqual, ShortJump);
 
   masm.as_sll_w(valueTemp, newval, offsetTemp);
+  masm.as_andn(valueTemp, valueTemp, maskTemp);
   masm.as_and(scratch2, scratch2, maskTemp);
   masm.as_or(scratch2, scratch2, valueTemp);
 

@@ -994,7 +994,8 @@ CodeGenerator::CodeGenerator(MIRGenerator* gen, LIRGraph* graph,
                              const wasm::CodeMetadata* wasmCodeMeta)
     : CodeGeneratorSpecific(gen, graph, masm, wasmCodeMeta),
       ionScriptLabels_(gen->alloc()),
-      ionNurseryObjectLabels_(gen->alloc()),
+      nurseryObjectLabels_(gen->alloc()),
+      nurseryValueLabels_(gen->alloc()),
       scriptCounts_(nullptr) {}
 
 CodeGenerator::~CodeGenerator() { js_delete(scriptCounts_); }
@@ -3839,7 +3840,71 @@ void CodeGenerator::visitPhi(LPhi* lir) {
   MOZ_CRASH("Unexpected LPhi in CodeGenerator");
 }
 
-void CodeGenerator::visitGoto(LGoto* lir) { jumpToBlock(lir->target()); }
+void CodeGenerator::visitGoto(LGoto* lir) {
+  // It would be valid to do simply `jumpToBlock(lir->target()); return;`.
+  // That shorts out chains of completely empty (apart from the final Goto)
+  // blocks.  However, we try to do a bit better by shorting out chains of
+  // blocks which are either completely empty or contain only MoveGroups, by
+  // emitting the MoveGroups at this point.  Hence this is a very limited form
+  // of tail duplication, in which the duplicated tail(s) consist entirely of
+  // MoveGroups.
+  //
+  // Ideally this logic should be in CodeGeneratorShared::jumpToBlock as it
+  // would cover more use cases.  That unfortunately creates a circular
+  // dependency between the classes CodeGeneratorShared, CodeGenerator{Arch}
+  // and CodeGenerator, which is not easy to resolve; specifically,
+  // CodeGeneratorShared would need to call CodeGenerator::visitMoveGroup, but
+  // CodeGenerator is (indirectly) a child class of CodeGeneratorShared.
+  //
+  // See CodeGeneratorShared::jumpToBlock(MBasicBlock*) as reference.
+  uint32_t numMoveGroupsCloned = 0;
+  MBasicBlock* target = lir->target();
+  while (true) {
+    LBlock* targetLBlock = target->lir();
+    LBlock* nextLBlock = targetLBlock->isMoveGroupsThenGoto();
+    if (!nextLBlock) {
+      break;
+    }
+    // This block is merely zero-or-more MoveGroups followed by a Goto.  Emit
+    // the MoveGroups and keep following the chain.
+    auto iter = targetLBlock->begin();
+    while (true) {
+      LInstruction* ins = *iter;
+      if (!ins->isMoveGroup()) {
+        break;
+      }
+      visitMoveGroup(ins->toMoveGroup());
+      iter++;
+      numMoveGroupsCloned++;
+    }
+    // Ensured by LBlock::isMoveGroupsThenGoto
+    MOZ_ASSERT((*iter)->isGoto());
+    MOZ_ASSERT((*iter)->toGoto()->getSuccessor(0)->lir() == nextLBlock);
+    iter++;
+    MOZ_RELEASE_ASSERT(iter == targetLBlock->end());
+    target = nextLBlock->mir();
+    if (numMoveGroupsCloned >= 1) {
+      // Be very conservative about cloning.  Higher numbers give more
+      // aggressive chasing but seem to sometimes cause a slight cycle count
+      // regression.  In practice, cloning one happens occasionally, cloning of
+      // two groups happens very rarely, and cloning of more than 2 groups has
+      // only been seen in artificially constructed test cases.
+      break;
+    }
+  }
+
+  // If the above loop exited due to hitting the MoveGroup clone limit, we
+  // still need to skip past any "trivial" blocks, to avoid asserting in
+  // `target->lir()->label()` below.
+  target = skipTrivialBlocks(target);
+
+  // No jump necessary if we can fall through to the next block.
+  if (isNextBlock(target->lir())) {
+    return;
+  }
+
+  masm.jump(target->lir()->label());
+}
 
 void CodeGenerator::visitTableSwitch(LTableSwitch* ins) {
   MTableSwitch* mir = ins->mir();
@@ -4130,11 +4195,11 @@ void CodeGenerator::visitValue(LValue* value) {
 
 void CodeGenerator::visitNurseryObject(LNurseryObject* lir) {
   Register output = ToRegister(lir->output());
-  uint32_t nurseryIndex = lir->mir()->nurseryIndex();
+  uint32_t nurseryIndex = lir->mir()->nurseryObjectIndex();
 
   // Load a pointer to the entry in IonScript's nursery objects list.
   CodeOffset label = masm.movWithPatch(ImmWord(uintptr_t(-1)), output);
-  masm.propagateOOM(ionNurseryObjectLabels_.emplaceBack(label, nurseryIndex));
+  masm.propagateOOM(nurseryObjectLabels_.emplaceBack(label, nurseryIndex));
 
   // Load the JSObject*.
   masm.loadPtr(Address(output, 0), output);
@@ -5303,17 +5368,35 @@ void CodeGenerator::visitIntPtrToInt64(LIntPtrToInt64* lir) {
 #endif
 }
 
+Address CodeGenerator::getNurseryValueAddress(ValueOrNurseryValueIndex val,
+                                              Register reg) {
+  // Move the address of the Value stored in the IonScript into |reg|.
+  uint32_t nurseryIndex = val.toNurseryValueIndex();
+  CodeOffset label = masm.movWithPatch(ImmWord(uintptr_t(-1)), reg);
+  masm.propagateOOM(nurseryValueLabels_.emplaceBack(label, nurseryIndex));
+  return Address(reg, 0);
+}
+
 void CodeGenerator::visitGuardValue(LGuardValue* lir) {
   ValueOperand input = ToValue(lir->input());
-  Register nanTemp = ToTempRegisterOrInvalid(lir->temp0());
-  Value expected = lir->mir()->expected();
-  Label bail;
+  Register temp = ToTempRegisterOrInvalid(lir->temp0());
+  ValueOrNurseryValueIndex expected = lir->mir()->expected();
 
-  if (expected.isNaN()) {
-    masm.branchTestNaNValue(Assembler::NotEqual, input, nanTemp, &bail);
+  Label bail;
+  if (expected.isValue()) {
+    Value expectedVal = expected.toValue();
+    if (expectedVal.isNaN()) {
+      MOZ_ASSERT(temp != InvalidReg);
+      masm.branchTestNaNValue(Assembler::NotEqual, input, temp, &bail);
+    } else {
+      MOZ_ASSERT(temp == InvalidReg);
+      masm.branchTestValue(Assembler::NotEqual, input, expectedVal, &bail);
+    }
   } else {
-    MOZ_ASSERT(nanTemp == InvalidReg);
-    masm.branchTestValue(Assembler::NotEqual, input, expected, &bail);
+    // Compare to the Value stored in IonScript's nursery values list.
+    MOZ_ASSERT(temp != InvalidReg);
+    Address valueAddr = getNurseryValueAddress(expected, temp);
+    masm.branchTestValue(Assembler::NotEqual, valueAddr, input, &bail);
   }
 
   bailoutFrom(&bail, lir->snapshot());
@@ -8308,18 +8391,41 @@ void CodeGenerator::visitNewIterator(LNewIterator* lir) {
   masm.bind(ool->rejoin());
 }
 
-void CodeGenerator::visitNewTypedArray(LNewTypedArray* lir) {
+void CodeGenerator::visitNewTypedArrayInline(LNewTypedArrayInline* lir) {
   Register objReg = ToRegister(lir->output());
   Register tempReg = ToRegister(lir->temp0());
-  Register lengthReg = ToRegister(lir->temp1());
-  LiveRegisterSet liveRegs = liveVolatileRegs(lir);
 
-  JSObject* templateObject = lir->mir()->templateObject();
+  auto* templateObject = lir->mir()->templateObject();
   gc::Heap initialHeap = lir->mir()->initialHeap();
 
-  auto* ttemplate = &templateObject->as<FixedLengthTypedArrayObject>();
+  size_t n = templateObject->length();
+  MOZ_ASSERT(n <= INT32_MAX,
+             "Template objects are only created for int32 lengths");
 
-  size_t n = ttemplate->length();
+  using Fn = TypedArrayObject* (*)(JSContext*, HandleObject, int32_t);
+  auto* ool = oolCallVM<Fn, NewTypedArrayWithTemplateAndLength>(
+      lir, ArgList(ImmGCPtr(templateObject), Imm32(n)),
+      StoreRegisterTo(objReg));
+
+  TemplateObject templateObj(templateObject);
+  masm.createGCObject(objReg, tempReg, templateObj, initialHeap, ool->entry());
+
+  masm.initTypedArraySlotsInline(objReg, tempReg, templateObject);
+
+  masm.bind(ool->rejoin());
+}
+
+void CodeGenerator::visitNewTypedArray(LNewTypedArray* lir) {
+  Register objReg = ToRegister(lir->output());
+  Register temp1Reg = ToRegister(lir->temp0());
+  Register temp2Reg = ToRegister(lir->temp1());
+  Register lengthReg = ToRegister(lir->temp2());
+  LiveRegisterSet liveRegs = liveVolatileRegs(lir);
+
+  auto* templateObject = lir->mir()->templateObject();
+  gc::Heap initialHeap = lir->mir()->initialHeap();
+
+  size_t n = templateObject->length();
   MOZ_ASSERT(n <= INT32_MAX,
              "Template objects are only created for int32 lengths");
 
@@ -8329,10 +8435,12 @@ void CodeGenerator::visitNewTypedArray(LNewTypedArray* lir) {
       StoreRegisterTo(objReg));
 
   TemplateObject templateObj(templateObject);
-  masm.createGCObject(objReg, tempReg, templateObj, initialHeap, ool->entry());
+  masm.createGCObject(objReg, temp1Reg, templateObj, initialHeap, ool->entry());
 
-  masm.initTypedArraySlots(objReg, tempReg, lengthReg, liveRegs, ool->entry(),
-                           ttemplate, MacroAssembler::TypedArrayLength::Fixed);
+  masm.move32(Imm32(n), lengthReg);
+
+  masm.initTypedArraySlots(objReg, lengthReg, temp1Reg, temp2Reg, liveRegs,
+                           ool->entry(), templateObject);
 
   masm.bind(ool->rejoin());
 }
@@ -8341,7 +8449,8 @@ void CodeGenerator::visitNewTypedArrayDynamicLength(
     LNewTypedArrayDynamicLength* lir) {
   Register lengthReg = ToRegister(lir->length());
   Register objReg = ToRegister(lir->output());
-  Register tempReg = ToRegister(lir->temp0());
+  Register temp1Reg = ToRegister(lir->temp0());
+  Register temp2Reg = ToRegister(lir->temp1());
   LiveRegisterSet liveRegs = liveVolatileRegs(lir);
 
   JSObject* templateObject = lir->mir()->templateObject();
@@ -8358,11 +8467,10 @@ void CodeGenerator::visitNewTypedArrayDynamicLength(
   MOZ_ASSERT_IF(lengthReg.volatile_(), liveRegs.has(lengthReg));
 
   TemplateObject templateObj(templateObject);
-  masm.createGCObject(objReg, tempReg, templateObj, initialHeap, ool->entry());
+  masm.createGCObject(objReg, temp1Reg, templateObj, initialHeap, ool->entry());
 
-  masm.initTypedArraySlots(objReg, tempReg, lengthReg, liveRegs, ool->entry(),
-                           ttemplate,
-                           MacroAssembler::TypedArrayLength::Dynamic);
+  masm.initTypedArraySlots(objReg, lengthReg, temp1Reg, temp2Reg, liveRegs,
+                           ool->entry(), ttemplate);
 
   masm.bind(ool->rejoin());
 }
@@ -11059,6 +11167,106 @@ void CodeGenerator::visitGuardHasAttachedArrayBuffer(
   Label bail;
   masm.branchIfHasDetachedArrayBuffer(obj, temp, &bail);
   bailoutFrom(&bail, lir->snapshot());
+}
+
+void CodeGenerator::visitGuardTypedArraySetOffset(
+    LGuardTypedArraySetOffset* lir) {
+  Register offset = ToRegister(lir->offset());
+  Register targetLength = ToRegister(lir->targetLength());
+  Register sourceLength = ToRegister(lir->sourceLength());
+  Register temp = ToRegister(lir->temp0());
+
+  Label bail;
+
+  // Ensure `offset <= target.length`.
+  masm.movePtr(targetLength, temp);
+  masm.branchSubPtr(Assembler::Signed, offset, temp, &bail);
+
+  // Ensure `source.length <= (target.length - offset)`.
+  masm.branchPtr(Assembler::GreaterThan, sourceLength, temp, &bail);
+
+  bailoutFrom(&bail, lir->snapshot());
+}
+
+void CodeGenerator::visitTypedArrayFill(LTypedArrayFill* lir) {
+  auto elementType = lir->mir()->elementType();
+  MOZ_ASSERT(!Scalar::isBigIntType(elementType));
+
+  masm.setupAlignedABICall();
+  masm.passABIArg(ToRegister(lir->object()));
+  if (elementType == Scalar::Float64) {
+    masm.passABIArg(ToFloatRegister(lir->value()), ABIType::Float64);
+  } else if (elementType == Scalar::Float32 || elementType == Scalar::Float16) {
+    masm.passABIArg(ToFloatRegister(lir->value()), ABIType::Float32);
+  } else {
+    MOZ_ASSERT(!Scalar::isFloatingType(elementType));
+    masm.passABIArg(ToRegister(lir->value()));
+  }
+  masm.passABIArg(ToRegister(lir->start()));
+  masm.passABIArg(ToRegister(lir->end()));
+
+  if (elementType == Scalar::Float64) {
+    using Fn = void (*)(TypedArrayObject*, double, intptr_t, intptr_t);
+    masm.callWithABI<Fn, js::TypedArrayFillDouble>();
+  } else if (elementType == Scalar::Float32 || elementType == Scalar::Float16) {
+    using Fn = void (*)(TypedArrayObject*, float, intptr_t, intptr_t);
+    masm.callWithABI<Fn, js::TypedArrayFillFloat32>();
+  } else {
+    // All other types are managed using int32.
+    MOZ_ASSERT(Scalar::byteSize(elementType) <= sizeof(int32_t));
+
+    using Fn = void (*)(TypedArrayObject*, int32_t, intptr_t, intptr_t);
+    masm.callWithABI<Fn, js::TypedArrayFillInt32>();
+  }
+}
+
+void CodeGenerator::visitTypedArrayFill64(LTypedArrayFill64* lir) {
+  MOZ_ASSERT(Scalar::isBigIntType(lir->mir()->elementType()));
+
+  masm.setupAlignedABICall();
+  masm.passABIArg(ToRegister(lir->object()));
+  masm.passABIArg(ToRegister64(lir->value()));
+  masm.passABIArg(ToRegister(lir->start()));
+  masm.passABIArg(ToRegister(lir->end()));
+
+  using Fn = void (*)(TypedArrayObject*, int64_t, intptr_t, intptr_t);
+  masm.callWithABI<Fn, js::TypedArrayFillInt64>();
+}
+
+void CodeGenerator::visitTypedArraySet(LTypedArraySet* lir) {
+  Register target = ToRegister(lir->target());
+  Register source = ToRegister(lir->source());
+  Register offset = ToRegister(lir->offset());
+
+  // Bit-wise copying is infallible because it doesn't need to allocate any
+  // temporary memory, even if the underlying buffers are the same.
+  if (lir->mir()->canUseBitwiseCopy()) {
+    masm.setupAlignedABICall();
+    masm.passABIArg(target);
+    masm.passABIArg(source);
+    masm.passABIArg(offset);
+
+    using Fn = void (*)(TypedArrayObject*, TypedArrayObject*, intptr_t);
+    masm.callWithABI<Fn, js::TypedArraySetInfallible>();
+  } else {
+    pushArg(offset);
+    pushArg(source);
+    pushArg(target);
+
+    using Fn =
+        bool (*)(JSContext*, TypedArrayObject*, TypedArrayObject*, intptr_t);
+    callVM<Fn, js::TypedArraySet>(lir);
+  }
+}
+
+void CodeGenerator::visitTypedArraySubarray(LTypedArraySubarray* lir) {
+  pushArg(ToRegister(lir->end()));
+  pushArg(ToRegister(lir->start()));
+  pushArg(ToRegister(lir->object()));
+
+  using Fn = TypedArrayObject* (*)(JSContext*, Handle<TypedArrayObject*>,
+                                   intptr_t, intptr_t);
+  callVM<Fn, js::TypedArraySubarray>(lir);
 }
 
 void CodeGenerator::visitGuardNumberToIntPtrIndex(
@@ -16715,6 +16923,16 @@ bool CodeGenerator::link(JSContext* cx) {
     return false;
   }
 
+  // Add all used nursery-values to the Value constant pool that's copied to the
+  // IonScript.
+  for (NurseryValueLabel& label : nurseryValueLabels_) {
+    Value v = snapshot_->nurseryValues()[label.nurseryIndex];
+    MOZ_ASSERT(v.isGCThing());
+    if (!graph.addConstantToPool(v, &label.constantPoolIndex)) {
+      return false;
+    }
+  }
+
   JitZone* jitZone = cx->zone()->jitZone();
 
   IonCompilationId compilationId =
@@ -16849,8 +17067,13 @@ bool CodeGenerator::link(JSContext* cx) {
                                        ImmPtr(ionScript), ImmPtr((void*)-1));
   }
 
-  for (NurseryObjectLabel label : ionNurseryObjectLabels_) {
+  for (NurseryObjectLabel label : nurseryObjectLabels_) {
     void* entry = ionScript->addressOfNurseryObject(label.nurseryIndex);
+    Assembler::PatchDataWithValueCheck(CodeLocationLabel(code, label.offset),
+                                       ImmPtr(entry), ImmPtr((void*)-1));
+  }
+  for (NurseryValueLabel label : nurseryValueLabels_) {
+    void* entry = &ionScript->getConstant(label.constantPoolIndex);
     Assembler::PatchDataWithValueCheck(CodeLocationLabel(code, label.offset),
                                        ImmPtr(entry), ImmPtr((void*)-1));
   }
@@ -16918,15 +17141,6 @@ bool CodeGenerator::link(JSContext* cx) {
   if (graph.numConstants()) {
     const Value* vp = graph.constantPool();
     ionScript->copyConstants(vp);
-    for (size_t i = 0; i < graph.numConstants(); i++) {
-      const Value& v = vp[i];
-      if (v.isGCThing()) {
-        if (gc::StoreBuffer* sb = v.toGCThing()->storeBuffer()) {
-          sb->putWholeCell(script);
-          break;
-        }
-      }
-    }
   }
 
   // Attach any generated script counts to the script.
@@ -18319,13 +18533,12 @@ void CodeGenerator::visitLoadUnboxedScalar(LLoadUnboxedScalar* lir) {
 
   Label fail;
   if (lir->index()->isConstant()) {
-    Address source =
-        ToAddress(elements, lir->index(), storageType, mir->offsetAdjustment());
+    Address source = ToAddress(elements, lir->index(), storageType);
     masm.loadFromTypedArray(storageType, source, out, temp0, temp1, &fail,
                             volatileRegs);
   } else {
     BaseIndex source(elements, ToRegister(lir->index()),
-                     ScaleFromScalarType(storageType), mir->offsetAdjustment());
+                     ScaleFromScalarType(storageType));
     masm.loadFromTypedArray(storageType, source, out, temp0, temp1, &fail,
                             volatileRegs);
   }
@@ -18344,12 +18557,11 @@ void CodeGenerator::visitLoadUnboxedInt64(LLoadUnboxedInt64* lir) {
   Scalar::Type storageType = mir->storageType();
 
   if (lir->index()->isConstant()) {
-    Address source =
-        ToAddress(elements, lir->index(), storageType, mir->offsetAdjustment());
+    Address source = ToAddress(elements, lir->index(), storageType);
     masm.load64(source, out);
   } else {
     BaseIndex source(elements, ToRegister(lir->index()),
-                     ScaleFromScalarType(storageType), mir->offsetAdjustment());
+                     ScaleFromScalarType(storageType));
     masm.load64(source, out);
   }
 }
@@ -21192,7 +21404,16 @@ void CodeGenerator::visitGuardHasGetterSetter(LGuardHasGetterSetter* lir) {
   Register temp2 = ToRegister(lir->temp2());
 
   masm.movePropertyKey(lir->mir()->propId(), temp1);
-  masm.movePtr(ImmGCPtr(lir->mir()->getterSetter()), temp2);
+
+  auto getterSetterVal = lir->mir()->getterSetterValue();
+  if (getterSetterVal.isValue()) {
+    auto* gs = getterSetterVal.toValue().toGCThing()->as<GetterSetter>();
+    masm.movePtr(ImmGCPtr(gs), temp2);
+  } else {
+    // Load the GetterSetter* from the Value stored in the IonScript.
+    Address valueAddr = getNurseryValueAddress(getterSetterVal, temp2);
+    masm.unboxNonDouble(valueAddr, temp2, JSVAL_TYPE_PRIVATE_GCTHING);
+  }
 
   using Fn = bool (*)(JSContext* cx, JSObject* obj, jsid id,
                       GetterSetter* getterSetter);
@@ -21221,6 +21442,13 @@ void CodeGenerator::visitGuardInt32IsNonNegative(
   Register index = ToRegister(lir->index());
 
   bailoutCmp32(Assembler::LessThan, index, Imm32(0), lir->snapshot());
+}
+
+void CodeGenerator::visitGuardIntPtrIsNonNegative(
+    LGuardIntPtrIsNonNegative* lir) {
+  Register index = ToRegister(lir->index());
+
+  bailoutCmpPtr(Assembler::LessThan, index, ImmWord(0), lir->snapshot());
 }
 
 void CodeGenerator::visitGuardInt32Range(LGuardInt32Range* lir) {
@@ -21689,6 +21917,52 @@ void CodeGenerator::visitMapObjectSize(LMapObjectSize* ins) {
   Register output = ToRegister(ins->output());
 
   masm.loadMapObjectSize(mapObj, output);
+}
+
+void CodeGenerator::visitWeakMapGetObject(LWeakMapGetObject* ins) {
+  Register weakMap = ToRegister(ins->weakMap());
+  Register obj = ToRegister(ins->object());
+  Register temp = ToRegister(ins->temp0());
+  ValueOperand output = ToOutValue(ins);
+
+  // The result Value will be stored on the stack.
+  masm.reserveStack(sizeof(Value));
+  masm.moveStackPtrTo(temp);
+
+  using Fn = void (*)(WeakMapObject*, JSObject*, Value*);
+  masm.setupAlignedABICall();
+  masm.passABIArg(weakMap);
+  masm.passABIArg(obj);
+  masm.passABIArg(temp);
+  masm.callWithABI<Fn, js::WeakMapObject::getObject>();
+
+  masm.Pop(output);
+}
+
+void CodeGenerator::visitWeakMapHasObject(LWeakMapHasObject* ins) {
+  Register weakMap = ToRegister(ins->weakMap());
+  Register obj = ToRegister(ins->object());
+  Register output = ToRegister(ins->output());
+
+  using Fn = bool (*)(WeakMapObject*, JSObject*);
+  masm.setupAlignedABICall();
+  masm.passABIArg(weakMap);
+  masm.passABIArg(obj);
+  masm.callWithABI<Fn, js::WeakMapObject::hasObject>();
+  masm.storeCallBoolResult(output);
+}
+
+void CodeGenerator::visitWeakSetHasObject(LWeakSetHasObject* ins) {
+  Register weakSet = ToRegister(ins->weakSet());
+  Register obj = ToRegister(ins->object());
+  Register output = ToRegister(ins->output());
+
+  using Fn = bool (*)(WeakSetObject*, JSObject*);
+  masm.setupAlignedABICall();
+  masm.passABIArg(weakSet);
+  masm.passABIArg(obj);
+  masm.callWithABI<Fn, js::WeakSetObject::hasObject>();
+  masm.storeCallBoolResult(output);
 }
 
 void CodeGenerator::visitDateFillLocalTimeSlots(LDateFillLocalTimeSlots* ins) {

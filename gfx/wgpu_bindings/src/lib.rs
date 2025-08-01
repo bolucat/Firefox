@@ -43,6 +43,14 @@ pub struct FfiSlice<'a, T> {
 }
 
 impl<'a, T> FfiSlice<'a, T> {
+    pub fn from_slice(slice: &'a [T]) -> FfiSlice<'a, T> {
+        Self {
+            data: slice.as_ptr(),
+            length: slice.len(),
+            _marker: PhantomData,
+        }
+    }
+
     pub unsafe fn as_slice(&self) -> &'a [T] {
         if self.data.is_null() {
             // It is invalid to construct a rust slice with a null pointer.
@@ -145,6 +153,7 @@ pub struct RemoteTextureTxnId(u64);
 #[derive(serde::Serialize, serde::Deserialize)]
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
+#[cfg(target_os = "windows")]
 pub struct FfiLUID {
     low_part: core::ffi::c_ulong,
     high_part: core::ffi::c_long,
@@ -350,7 +359,11 @@ pub enum BufferMapResult<'a> {
 enum ServerMessage<'a> {
     RequestAdapterResponse(id::AdapterId, Option<AdapterInformation<Cow<'a, str>>>),
     RequestDeviceResponse(id::DeviceId, id::QueueId, Option<String>),
-    PopErrorScopeResponse(u8 /* PopErrorScopeResultType */, Cow<'a, str>),
+    PopErrorScopeResponse(
+        id::DeviceId,
+        u8, /* PopErrorScopeResultType */
+        Cow<'a, str>,
+    ),
     CreateRenderPipelineResponse {
         pipeline_id: id::RenderPipelineId,
         implicit_ids: Option<ImplicitLayout<'a>>,
@@ -361,9 +374,9 @@ enum ServerMessage<'a> {
         implicit_ids: Option<ImplicitLayout<'a>>,
         error: Option<PipelineError>,
     },
-    CreateShaderModuleResponse(Vec<ShaderModuleCompilationMessage>),
+    CreateShaderModuleResponse(id::ShaderModuleId, Vec<ShaderModuleCompilationMessage>),
     BufferMapResponse(id::BufferId, BufferMapResult<'a>),
-    QueueOnSubmittedWorkDoneResponse,
+    QueueOnSubmittedWorkDoneResponse(id::QueueId),
 }
 
 #[repr(C)]

@@ -552,8 +552,6 @@ export class BaseContent extends React.PureComponent {
     const { initialized, customizeMenuVisible } = App;
     const prefs = props.Prefs.values;
 
-    const shortcutsRefresh = prefs["newtabShortcuts.refresh"];
-
     const activeWallpaper = prefs[`newtabWallpapers.wallpaper`];
     const wallpapersEnabled = prefs["newtabWallpapers.enabled"];
     const weatherEnabled = prefs.showWeather;
@@ -601,6 +599,18 @@ export class BaseContent extends React.PureComponent {
     const mayHaveWeather = prefs["system.showWeather"];
     const { mayHaveSponsoredTopSites } = prefs;
     const supportUrl = prefs["support.url"];
+
+    // Widgets experiment pref check
+    const mayHaveWidgets = prefs["widgets.system.enabled"];
+    const mayHaveListsWidget = prefs["widgets.system.lists.enabled"];
+    const mayHaveTimerWidget = prefs["widgets.system.focusTimer.enabled"];
+
+    const enabledWidgets = {
+      listsEnabled: prefs["widgets.lists.enabled"],
+      timerEnabled: prefs["widgets.focusTimer.enabled"],
+      trendingSearchEnabled: prefs["trendingSearch.enabled"],
+      weatherEnabled: prefs.showWeather,
+    };
 
     // Trending Searches experiment pref check
     const mayHaveTrendingSearch =
@@ -652,7 +662,6 @@ export class BaseContent extends React.PureComponent {
       prefs.showSearch ? "has-search" : "no-search",
       // layoutsVariantAEnabled ? "layout-variant-a" : "", // Layout experiment variant A
       // layoutsVariantBEnabled ? "layout-variant-b" : "", // Layout experiment variant B
-      shortcutsRefresh ? "shortcuts-refresh" : "", // Shortcuts refresh experiment
       pocketEnabled ? "has-recommended-stories" : "no-recommended-stories",
       sectionsEnabled ? "has-sections-grid" : "",
     ]
@@ -707,6 +716,7 @@ export class BaseContent extends React.PureComponent {
             openPreferences={this.openPreferences}
             setPref={this.setPref}
             enabledSections={enabledSections}
+            enabledWidgets={enabledWidgets}
             wallpapersEnabled={wallpapersEnabled}
             activeWallpaper={activeWallpaper}
             pocketRegion={pocketRegion}
@@ -716,6 +726,9 @@ export class BaseContent extends React.PureComponent {
             mayHaveInferredPersonalization={mayHaveInferredPersonalization}
             mayHaveWeather={mayHaveWeather}
             mayHaveTrendingSearch={mayHaveTrendingSearch}
+            mayHaveWidgets={mayHaveWidgets}
+            mayHaveTimerWidget={mayHaveTimerWidget}
+            mayHaveListsWidget={mayHaveListsWidget}
             spocMessageVariant={spocMessageVariant}
             showing={customizeMenuVisible}
           />

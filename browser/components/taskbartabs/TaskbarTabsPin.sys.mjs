@@ -3,17 +3,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
-
 let lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
   ShellService: "resource:///modules/ShellService.sys.mjs",
   TaskbarTabsUtils: "resource:///modules/taskbartabs/TaskbarTabsUtils.sys.mjs",
-});
-
-XPCOMUtils.defineLazyServiceGetters(lazy, {
-  Favicons: ["@mozilla.org/browser/favicon-service;1", "nsIFaviconService"],
 });
 
 ChromeUtils.defineLazyGetter(lazy, "logConsole", () => {
@@ -33,21 +27,23 @@ export const TaskbarTabsPin = {
    * @param {TaskbarTab} aTaskbarTab - A Taskbar Tab to pin to the taskbar.
    * @returns {Promise} Resolves once finished.
    */
-  async pinTaskbarTab(aTaskbarTab) {
+  async pinTaskbarTab(aTaskbarTab, aRegistry) {
     lazy.logConsole.info("Pinning Taskbar Tab to the taskbar.");
 
-    let iconPath = await createTaskbarIconFromFavicon(aTaskbarTab);
-
-    let shortcut = await createShortcut(aTaskbarTab, iconPath);
-
     try {
+      let iconPath = await createTaskbarIconFromFavicon(aTaskbarTab);
+
+      let shortcut = await createShortcut(aTaskbarTab, iconPath, aRegistry);
+
       await lazy.ShellService.pinShortcutToTaskbar(
         aTaskbarTab.id,
         "Programs",
         shortcut
       );
+      Glean.webApp.pin.record({ result: "Success" });
     } catch (e) {
       lazy.logConsole.error(`An error occurred while pinning: ${e.message}`);
+      Glean.webApp.pin.record({ result: e.name ?? "Unknown exception" });
     }
   },
 
@@ -57,21 +53,33 @@ export const TaskbarTabsPin = {
    * @param {TaskbarTab} aTaskbarTab - The Taskbar Tab to unpin from the taskbar.
    * @returns {Promise} Resolves once finished.
    */
-  async unpinTaskbarTab(aTaskbarTab) {
-    lazy.logConsole.info("Unpinning Taskbar Tab from the taskbar.");
+  async unpinTaskbarTab(aTaskbarTab, aRegistry) {
+    try {
+      lazy.logConsole.info("Unpinning Taskbar Tab from the taskbar.");
 
-    let { relativePath } = await generateShortcutInfo(aTaskbarTab);
-    lazy.ShellService.unpinShortcutFromTaskbar("Programs", relativePath);
+      let { relativePath } = await generateShortcutInfo(aTaskbarTab);
+      lazy.ShellService.unpinShortcutFromTaskbar("Programs", relativePath);
 
-    let iconFile = getIconFile(aTaskbarTab);
+      let iconFile = getIconFile(aTaskbarTab);
 
-    lazy.logConsole.debug(`Deleting ${relativePath}`);
-    lazy.logConsole.debug(`Deleting ${iconFile.path}`);
+      lazy.logConsole.debug(`Deleting ${relativePath}`);
+      lazy.logConsole.debug(`Deleting ${iconFile.path}`);
 
-    await Promise.all([
-      lazy.ShellService.deleteShortcut("Programs", relativePath),
-      IOUtils.remove(iconFile.path),
-    ]);
+      await Promise.all([
+        lazy.ShellService.deleteShortcut("Programs", relativePath).then(() => {
+          // Only update if that didn't throw an error.
+          aRegistry.patchTaskbarTab(aTaskbarTab, {
+            shortcutRelativePath: null,
+          });
+        }),
+        IOUtils.remove(iconFile.path),
+      ]);
+
+      Glean.webApp.unpin.record({ result: "Success" });
+    } catch (e) {
+      lazy.logConsole.error(`An error occurred while unpinning: ${e.message}`);
+      Glean.webApp.unpin.record({ result: e.name ?? "Unknown exception" });
+    }
   },
 };
 
@@ -86,26 +94,7 @@ async function createTaskbarIconFromFavicon(aTaskbarTab) {
   lazy.logConsole.info("Creating Taskbar Tabs shortcut icon.");
 
   let url = Services.io.newURI(aTaskbarTab.startUrl);
-  let favicon = await lazy.Favicons.getFaviconForPage(url);
-
-  let imgContainer;
-  if (favicon) {
-    lazy.logConsole.debug(`Using favicon at URI ${favicon.dataURI.spec}.`);
-    try {
-      imgContainer = await getImageFromUri(favicon.dataURI);
-    } catch (e) {
-      lazy.logConsole.error(
-        `${e.message}, falling through to default favicon.`
-      );
-    }
-  }
-
-  if (!imgContainer) {
-    lazy.logConsole.debug(
-      `Unable to retrieve icon for ${aTaskbarTab.startUrl}, using default favicon at ${lazy.Favicons.defaultFavicon.spec}.`
-    );
-    imgContainer = await getImageFromUri(lazy.Favicons.defaultFavicon);
-  }
+  let imgContainer = await lazy.TaskbarTabsUtils.getFavicon(url);
 
   let iconFile = getIconFile(aTaskbarTab);
 
@@ -119,66 +108,13 @@ async function createTaskbarIconFromFavicon(aTaskbarTab) {
 }
 
 /**
- * Retrieves an image given a URI.
- *
- * @param {nsIURI} aUri - The URI to retrieve an image from.
- * @returns {Promise<imgIContainer>} Resolves to an image container.
- */
-async function getImageFromUri(aUri) {
-  // Creating the Taskbar Tabs icon should not result in a network request, so
-  // limit channels to `chrome` and in-memory `data` URIs.
-  if (!(aUri.scheme === "data" || aUri.scheme === "chrome")) {
-    throw new Error(
-      `Scheme "${aUri.scheme}" is not supported for creating a Taskbar Tab icon`
-    );
-  }
-
-  const channel = Services.io.newChannelFromURI(
-    aUri,
-    null,
-    Services.scriptSecurityManager.getSystemPrincipal(),
-    null,
-    Ci.nsILoadInfo.SEC_ALLOW_CROSS_ORIGIN_SEC_CONTEXT_IS_NULL,
-    Ci.nsIContentPolicy.TYPE_IMAGE
-  );
-
-  const imgTools = Cc["@mozilla.org/image/tools;1"].getService(Ci.imgITools);
-
-  let decodePromise = Promise.withResolvers();
-  let observer = imgTools.createScriptedObserver({
-    sizeAvailable() {
-      decodePromise.resolve();
-    },
-  });
-
-  let imgPromise = Promise.withResolvers();
-  imgTools.decodeImageFromChannelAsync(
-    aUri,
-    channel,
-    (img, status) => {
-      if (!Components.isSuccessCode(status)) {
-        imgPromise.reject(
-          new Error(`Error retrieving image from URI ${aUri.spec}`)
-        );
-      } else {
-        imgPromise.resolve(img);
-      }
-    },
-    observer
-  );
-
-  let [img] = await Promise.all([imgPromise.promise, decodePromise.promise]);
-  return img;
-}
-
-/**
  * Creates a shortcut that opens Firefox with relevant Taskbar Tabs flags.
  *
  * @param {TaskbarTab} aTaskbarTab - The Taskbar Tab to generate a shortcut for.
  * @param {nsIFile} aFileIcon - The icon file to use for the shortcut.
  * @returns {Promise<string>} The path to the created shortcut.
  */
-async function createShortcut(aTaskbarTab, aFileIcon) {
+async function createShortcut(aTaskbarTab, aFileIcon, aRegistry) {
   lazy.logConsole.info("Creating Taskbar Tabs shortcut.");
 
   let { relativePath, description } = await generateShortcutInfo(aTaskbarTab);
@@ -189,7 +125,7 @@ async function createShortcut(aTaskbarTab, aFileIcon) {
   let targetfile = Services.dirsvc.get("XREExeF", Ci.nsIFile);
   let profileFolder = Services.dirsvc.get("ProfD", Ci.nsIFile);
 
-  return await lazy.ShellService.createShortcut(
+  const absolutePath = await lazy.ShellService.createShortcut(
     targetfile,
     [
       "-taskbar-tab",
@@ -208,6 +144,13 @@ async function createShortcut(aTaskbarTab, aFileIcon) {
     "Programs",
     relativePath
   );
+
+  // Only update if that didn't throw an error.
+  aRegistry.patchTaskbarTab(aTaskbarTab, {
+    shortcutRelativePath: relativePath,
+  });
+
+  return absolutePath;
 }
 
 /**

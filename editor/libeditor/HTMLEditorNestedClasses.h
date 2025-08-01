@@ -1103,7 +1103,8 @@ class MOZ_STACK_CLASS HTMLEditor::AutoDeleteRangesHandler final {
    */
   [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult
   DeleteParentBlocksWithTransactionIfEmpty(HTMLEditor& aHTMLEditor,
-                                           const EditorDOMPoint& aPoint);
+                                           const EditorDOMPoint& aPoint,
+                                           const Element& aEditingHost);
 
   [[nodiscard]] MOZ_CAN_RUN_SCRIPT Result<CaretPoint, nsresult>
   FallbackToDeleteRangeWithTransaction(HTMLEditor& aHTMLEditor,
@@ -1456,6 +1457,12 @@ HTMLEditor::AutoDeleteRangesHandler::AutoBlockElementsJoiner final {
       const HTMLEditor& aHTMLEditor, nsRange& aRangeToDelete,
       const Element& aEditingHost, ComputeRangeFor aComputeRangeFor) const;
 
+  /**
+   * Compute mLeafContentInOtherBlock from the DOM.
+   */
+  [[nodiscard]] nsIContent* ComputeLeafContentInOtherBlockElement(
+      nsIEditor::EDirection aDirectionAndAmount) const;
+
   class MOZ_STACK_CLASS AutoInclusiveAncestorBlockElementsJoiner;
 
   enum class Mode {
@@ -1481,6 +1488,7 @@ HTMLEditor::AutoDeleteRangesHandler::AutoBlockElementsJoiner final {
   nsCOMPtr<nsIContent> mLeftContent;
   nsCOMPtr<nsIContent> mRightContent;
   nsCOMPtr<nsIContent> mLeafContentInOtherBlock;
+  RefPtr<Element> mOtherBlockElement;
   // mSkippedInvisibleContents stores all content nodes which are skipped at
   // scanning mLeftContent and mRightContent.  The content nodes should be
   // removed at deletion.

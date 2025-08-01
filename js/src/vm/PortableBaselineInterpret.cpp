@@ -1202,6 +1202,8 @@ uint64_t ICInterpretOps(uint64_t arg0, uint64_t arg1, ICStub* stub,
           case GuardClassKind::Map:
           case GuardClassKind::BoundFunction:
           case GuardClassKind::Date:
+          case GuardClassKind::WeakMap:
+          case GuardClassKind::WeakSet:
             if (object->getClass() != jit::ClassFor(kind)) {
               FAIL_IC();
             }
@@ -1532,8 +1534,9 @@ uint64_t ICInterpretOps(uint64_t arg0, uint64_t arg1, ICStub* stub,
         uint32_t getterSetterOffset = cacheIRReader.stubOffset();
         JSObject* obj = reinterpret_cast<JSObject*>(READ_REG(objId.id()));
         jsid id = jsid::fromRawBits(stubInfo->getStubRawWord(cstub, idOffset));
-        GetterSetter* getterSetter = reinterpret_cast<GetterSetter*>(
-            stubInfo->getStubRawWord(cstub, getterSetterOffset));
+        Value getterSetterVal = Value::fromRawBits(
+            stubInfo->getStubRawInt64(cstub, getterSetterOffset));
+        auto* getterSetter = getterSetterVal.toGCThing()->as<GetterSetter>();
         if (!ObjectHasGetterSetterPure(ctx.frameMgr.cxForLocalUseOnly(), obj,
                                        id, getterSetter)) {
           FAIL_IC();

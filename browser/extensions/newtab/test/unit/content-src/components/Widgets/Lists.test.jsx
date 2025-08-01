@@ -13,7 +13,7 @@ const mockState = {
     lists: {
       "test-list": {
         label: "test",
-        tasks: [{ value: "task", completed: false }],
+        tasks: [{ value: "task", completed: false, isUrl: false }],
       },
     },
   },
@@ -95,5 +95,103 @@ describe("<Lists>", () => {
     input.simulate("keyDown", { key: "Enter" });
 
     assert.ok(dispatch.notCalled);
+  });
+
+  it("should remove task when deleteTask is run from task item panel menu", () => {
+    // confirm that there is a task available to delete
+    const initialTasks = mockState.ListsWidget.lists["test-list"].tasks;
+    assert.equal(initialTasks.length, 1);
+
+    const deleteButton = wrapper.find("panel-item.delete-item").at(0);
+    deleteButton.props().onClick();
+
+    assert.ok(dispatch.calledOnce);
+    const [action] = dispatch.getCall(0).args;
+    assert.equal(action.type, at.WIDGETS_LISTS_UPDATE);
+
+    // Check that the task list is now empty
+    const updatedTasks = action.data["test-list"].tasks;
+    assert.equal(updatedTasks.length, 0, "Expected task to be removed");
+  });
+
+  it("should add a task with a valid URL and render it as a link", () => {
+    const input = wrapper.find("input").at(0);
+    const testUrl = "https://www.example.com";
+
+    input.simulate("change", { target: { value: testUrl } });
+
+    // Set activeElement for Enter key detection
+    Object.defineProperty(document, "activeElement", {
+      value: input.getDOMNode(),
+      configurable: true,
+    });
+
+    input.simulate("keyDown", { key: "Enter" });
+
+    assert.ok(dispatch.calledOnce, "Expected dispatch to be called");
+
+    const [action] = dispatch.getCall(0).args;
+    assert.equal(action.type, at.WIDGETS_LISTS_UPDATE);
+
+    const newHyperlinkedTask = action.data["test-list"].tasks.find(
+      t => t.value === testUrl
+    );
+
+    assert.ok(newHyperlinkedTask, "Task with URL should be added");
+    assert.ok(newHyperlinkedTask.isUrl, "Task should be marked as a URL");
+  });
+
+  it("should dispatch list change when dropdown selection changes", () => {
+    const select = wrapper.find("moz-select").getDOMNode();
+    // need to create a new event since I couldnt figure out a way to
+    // trigger the change event to the moz-select component
+    const event = new Event("change", { bubbles: true });
+    select.value = "test-list";
+    select.dispatchEvent(event);
+
+    assert.ok(dispatch.calledOnce);
+    const [action] = dispatch.getCall(0).args;
+    assert.equal(action.type, at.WIDGETS_LISTS_CHANGE_SELECTED);
+    assert.equal(action.data, "test-list");
+  });
+
+  it("should delete list and select a fallback list", () => {
+    // Grab panel-item for deleting a list
+    const deleteList = wrapper.find("panel-item").at(2);
+    deleteList.props().onClick();
+
+    assert.ok(dispatch.calledTwice);
+    assert.equal(dispatch.getCall(0).args[0].type, at.WIDGETS_LISTS_UPDATE);
+    assert.equal(
+      dispatch.getCall(1).args[0].type,
+      at.WIDGETS_LISTS_CHANGE_SELECTED
+    );
+  });
+
+  it("should update list name when edited and saved", () => {
+    // Grab panel-item for editing a list
+    const editList = wrapper.find("panel-item").at(0);
+    editList.props().onClick();
+    wrapper.update();
+
+    const editableInput = wrapper.find("input.edit-list");
+    editableInput.simulate("change", { target: { value: "Updated List" } });
+    editableInput.simulate("keyDown", { key: "Enter" });
+
+    assert.ok(dispatch.calledOnce);
+    const [action] = dispatch.getCall(0).args;
+    assert.equal(action.type, at.WIDGETS_LISTS_UPDATE);
+    assert.equal(action.data["test-list"].label, "Updated List");
+  });
+
+  it("should create a new list and dispatch update and select list actions", () => {
+    const createListBtn = wrapper.find("panel-item").at(1); // assumes "Create a new list" is at index 1
+    createListBtn.props().onClick();
+    assert.ok(dispatch.calledTwice);
+    assert.equal(dispatch.getCall(0).args[0].type, at.WIDGETS_LISTS_UPDATE);
+    assert.equal(
+      dispatch.getCall(1).args[0].type,
+      at.WIDGETS_LISTS_CHANGE_SELECTED
+    );
   });
 });

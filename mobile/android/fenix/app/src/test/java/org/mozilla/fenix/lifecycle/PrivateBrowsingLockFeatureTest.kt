@@ -46,7 +46,7 @@ class PrivateBrowsingLockFeatureTest {
         val isFeatureEnabled = true
         val mode = BrowsingMode.Normal
 
-        val appStore = AppStore(initialState = AppState(mode = mode))
+        val appStore = AppStore(initialState = AppState(mode = mode, isPrivateScreenLocked = true))
         val browserStore = BrowserStore(
             BrowserState(
                 tabs = listOf(
@@ -82,10 +82,9 @@ class PrivateBrowsingLockFeatureTest {
                 selectedTabId = "mozilla",
             ),
         )
-        val feature = createFeature(browserStore = browserStore, appStore = appStore, storage = createStorage(isFeatureEnabled = isFeatureEnabled))
-        appStore.waitUntilIdle()
+        val useCase = PrivateBrowsingLockUseCases.AuthenticatedUseCase(appStore)
 
-        feature.onSuccessfulAuthentication()
+        useCase.invoke()
         appStore.waitUntilIdle()
 
         assertFalse(appStore.state.isPrivateScreenLocked)
@@ -154,7 +153,7 @@ class PrivateBrowsingLockFeatureTest {
         val isFeatureEnabled = true
         val mode = BrowsingMode.Private
 
-        val appStore = AppStore(initialState = AppState(mode = mode))
+        val appStore = AppStore(initialState = AppState(mode = mode, isPrivateScreenLocked = true))
         val browserStore = BrowserStore(
         BrowserState(
             tabs = listOf(
@@ -175,7 +174,7 @@ class PrivateBrowsingLockFeatureTest {
         val isFeatureEnabled = true
         val mode = BrowsingMode.Normal
 
-        val appStore = AppStore(initialState = AppState(mode = mode))
+        val appStore = AppStore(initialState = AppState(mode = mode, isPrivateScreenLocked = true))
         val browserStore = BrowserStore(
             BrowserState(
                 tabs = listOf(
@@ -463,7 +462,7 @@ class PrivateBrowsingLockFeatureTest {
 
         val activity = mockk<AppCompatActivity>(relaxed = true)
         every { activity.isChangingConfigurations } returns false
-        every { activity.hasWindowFocus() } returns false
+        every { activity.isFinishing } returns true
 
         feature.onPause(activity)
         appStore.waitUntilIdle()
@@ -498,7 +497,7 @@ class PrivateBrowsingLockFeatureTest {
 
         val activity = mockk<AppCompatActivity>(relaxed = true)
         every { activity.isChangingConfigurations } returns false
-        every { activity.hasWindowFocus() } returns false
+        every { activity.isFinishing } returns true
 
         feature.onPause(activity)
         appStore.waitUntilIdle()
@@ -529,7 +528,7 @@ class PrivateBrowsingLockFeatureTest {
 
         val activity = mockk<AppCompatActivity>(relaxed = true)
         every { activity.isChangingConfigurations } returns false
-        every { activity.hasWindowFocus() } returns false
+        every { activity.isFinishing } returns true
 
         feature.onPause(activity)
         appStore.waitUntilIdle()
@@ -559,7 +558,7 @@ class PrivateBrowsingLockFeatureTest {
 
         val activity = mockk<AppCompatActivity>(relaxed = true)
         every { activity.isChangingConfigurations } returns false
-        every { activity.hasWindowFocus() } returns false
+        every { activity.isFinishing } returns true
 
         feature.onPause(activity)
         appStore.waitUntilIdle()
@@ -590,7 +589,7 @@ class PrivateBrowsingLockFeatureTest {
 
         val activity = mockk<AppCompatActivity>(relaxed = true)
         every { activity.isChangingConfigurations } returns false
-        every { activity.hasWindowFocus() } returns false
+        every { activity.isFinishing } returns true
 
         feature.onPause(activity)
         appStore.waitUntilIdle()
@@ -621,7 +620,7 @@ class PrivateBrowsingLockFeatureTest {
 
         val activity = mockk<AppCompatActivity>(relaxed = true)
         every { activity.isChangingConfigurations } returns false
-        every { activity.hasWindowFocus() } returns false
+        every { activity.isFinishing } returns true
 
         feature.onPause(activity)
         appStore.waitUntilIdle()
@@ -648,15 +647,16 @@ class PrivateBrowsingLockFeatureTest {
                 selectedTabId = "mozilla",
             ),
         )
+        val useCase = PrivateBrowsingLockUseCases.AuthenticatedUseCase(appStore)
         val feature = createFeature(browserStore = browserStore, appStore = appStore, storage = createStorage(isFeatureEnabled = isFeatureEnabled))
         appStore.waitUntilIdle()
 
-        feature.onSuccessfulAuthentication()
+        useCase.invoke()
         appStore.waitUntilIdle()
 
         val activity = mockk<AppCompatActivity>(relaxed = true)
         every { activity.isChangingConfigurations } returns true
-        every { activity.hasWindowFocus() } returns false
+        every { activity.isFinishing } returns true
 
         feature.onPause(activity)
         appStore.waitUntilIdle()
@@ -681,15 +681,16 @@ class PrivateBrowsingLockFeatureTest {
                 selectedTabId = "mozilla",
             ),
         )
+        val useCase = PrivateBrowsingLockUseCases.AuthenticatedUseCase(appStore)
         val feature = createFeature(browserStore = browserStore, appStore = appStore, storage = createStorage(isFeatureEnabled = isFeatureEnabled))
         appStore.waitUntilIdle()
 
-        feature.onSuccessfulAuthentication()
+        useCase.invoke()
         appStore.waitUntilIdle()
 
         val activity = mockk<AppCompatActivity>(relaxed = true)
         every { activity.isChangingConfigurations } returns false
-        every { activity.hasWindowFocus() } returns true
+        every { activity.isFinishing } returns false
 
         feature.onPause(activity)
         appStore.waitUntilIdle()
@@ -713,15 +714,16 @@ class PrivateBrowsingLockFeatureTest {
                 selectedTabId = "mozilla",
             ),
         )
+        val useCase = PrivateBrowsingLockUseCases.AuthenticatedUseCase(appStore)
         val feature = createFeature(browserStore = browserStore, appStore = appStore, storage = createStorage(isFeatureEnabled = isFeatureEnabled))
         appStore.waitUntilIdle()
 
-        feature.onSuccessfulAuthentication()
+        useCase.invoke()
         appStore.waitUntilIdle()
 
         val activity = mockk<AppCompatActivity>(relaxed = true)
         every { activity.isChangingConfigurations } returns false
-        every { activity.hasWindowFocus() } returns true
+        every { activity.isFinishing } returns false
 
         // Feature skips locking
         feature.onPause(activity)
@@ -783,7 +785,7 @@ class PrivateBrowsingLockFeatureTest {
         val isFeatureEnabled = true
         val mode = BrowsingMode.Private
 
-        val appStore = AppStore(initialState = AppState(mode = mode))
+        val appStore = AppStore(initialState = AppState(mode = mode, isPrivateScreenLocked = true))
         val browserStore = BrowserStore(
             BrowserState(
                 tabs = listOf(
@@ -893,7 +895,7 @@ class PrivateBrowsingLockFeatureTest {
         val isFeatureEnabled = true
         val mode = BrowsingMode.Private
 
-        val appStore = AppStore(initialState = AppState(mode = mode))
+        val appStore = AppStore(initialState = AppState(mode = mode, isPrivateScreenLocked = true))
         val browserStore = BrowserStore(
             BrowserState(
                 tabs = listOf(

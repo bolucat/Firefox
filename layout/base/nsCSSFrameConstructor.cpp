@@ -1079,6 +1079,14 @@ void nsFrameConstructorState::ConstructBackdropFrameFor(nsIContent* aContent,
   }
 
   ComputedStyle* parentStyle = nsLayoutUtils::GetStyleFrame(aFrame)->Style();
+  if (parentStyle->GetPseudoType() != PseudoStyleType::NotPseudo) {
+    // ::backdrop only applies to actual elements in the top layer, for now at
+    // least. Prevent creating it for internal pseudos like
+    // ::-moz-snapshot-containing-block.
+    // https://drafts.csswg.org/css-position-4/#backdrop
+    return;
+  }
+
   RefPtr<ComputedStyle> style =
       mPresShell->StyleSet()->ResolvePseudoElementStyle(
           *aContent->AsElement(), PseudoStyleType::backdrop, nullptr,
@@ -5003,10 +5011,6 @@ void nsCSSFrameConstructor::AddFrameConstructionItems(
     ItemFlags aFlags) {
   nsContainerFrame* parentFrame = aInsertion.mParentFrame;
   if (!ShouldCreateItemsForChild(aState, aContent, parentFrame)) {
-    return;
-  }
-  if (MOZ_UNLIKELY(aParentStyle.StyleContent()->mContent.IsNone()) &&
-      StaticPrefs::layout_css_element_content_none_enabled()) {
     return;
   }
 
@@ -9388,14 +9392,6 @@ inline void nsCSSFrameConstructor::ConstructFramesFromItemList(
     nsContainerFrame* aParentFrame, bool aParentIsWrapperAnonBox,
     nsFrameList& aFrameList) {
 #ifdef DEBUG
-  if (aParentFrame->StyleContent()->mContent.IsNone() &&
-      StaticPrefs::layout_css_element_content_none_enabled()) {
-    for (FCItemIterator iter(aItems); !iter.IsDone(); iter.Next()) {
-      MOZ_ASSERT(iter.item().mContent->IsInNativeAnonymousSubtree() ||
-                 iter.item().mComputedStyle->IsPseudoOrAnonBox());
-    }
-  }
-
   // The assertion condition should match the logic in
   // MaybePushFloatContainingBlock().
   MOZ_ASSERT(!(ShouldSuppressFloatingOfDescendants(aParentFrame) ||

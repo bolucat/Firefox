@@ -5,6 +5,7 @@
 package org.mozilla.fenix.components.toolbar
 
 import android.content.Context
+import android.os.Handler
 import android.os.Looper
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.Lifecycle
@@ -23,6 +24,7 @@ import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.android.asCoroutineDispatcher
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.setMain
 import mozilla.components.browser.state.action.BrowserAction
@@ -31,14 +33,19 @@ import mozilla.components.browser.state.action.ContentAction.UpdateProgressActio
 import mozilla.components.browser.state.action.ContentAction.UpdateSecurityInfoAction
 import mozilla.components.browser.state.action.ContentAction.UpdateUrlAction
 import mozilla.components.browser.state.action.EngineAction
+import mozilla.components.browser.state.action.ShareResourceAction
 import mozilla.components.browser.state.action.TabListAction.AddTabAction
 import mozilla.components.browser.state.action.TabListAction.RemoveTabAction
 import mozilla.components.browser.state.ext.getUrl
+import mozilla.components.browser.state.search.RegionState
+import mozilla.components.browser.state.search.SearchEngine
 import mozilla.components.browser.state.state.BrowserState
 import mozilla.components.browser.state.state.ContentState
+import mozilla.components.browser.state.state.SearchState
 import mozilla.components.browser.state.state.SecurityInfoState
 import mozilla.components.browser.state.state.TabSessionState
 import mozilla.components.browser.state.state.content.DownloadState
+import mozilla.components.browser.state.state.content.ShareResourceState
 import mozilla.components.browser.state.state.createTab
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.browser.thumbnails.BrowserThumbnails
@@ -51,8 +58,10 @@ import mozilla.components.compose.browser.toolbar.concept.PageOrigin.Companion.C
 import mozilla.components.compose.browser.toolbar.concept.PageOrigin.Companion.PageOriginContextualMenuInteractions.CopyToClipboardClicked
 import mozilla.components.compose.browser.toolbar.concept.PageOrigin.Companion.PageOriginContextualMenuInteractions.LoadFromClipboardClicked
 import mozilla.components.compose.browser.toolbar.concept.PageOrigin.Companion.PageOriginContextualMenuInteractions.PasteFromClipboardClicked
+import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarAction
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteraction.BrowserToolbarEvent
+import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteraction.BrowserToolbarEvent.Source
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteraction.BrowserToolbarMenu
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteraction.CombinedEventAndMenu
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarMenuItem.BrowserToolbarMenuButton
@@ -67,6 +76,7 @@ import mozilla.components.compose.browser.toolbar.store.ProgressBarConfig
 import mozilla.components.concept.engine.EngineSession.LoadUrlFlags
 import mozilla.components.concept.engine.cookiehandling.CookieBannersStorage
 import mozilla.components.concept.engine.permission.SitePermissionsStorage
+import mozilla.components.concept.engine.prompt.ShareData
 import mozilla.components.concept.engine.utils.ABOUT_HOME_URL
 import mozilla.components.concept.storage.BookmarksStorage
 import mozilla.components.feature.session.SessionUseCases
@@ -77,6 +87,7 @@ import mozilla.components.lib.state.Middleware
 import mozilla.components.support.ktx.util.URLStringUtils
 import mozilla.components.support.test.ext.joinBlocking
 import mozilla.components.support.test.middleware.CaptureActionsMiddleware
+import mozilla.components.support.test.mock
 import mozilla.components.support.test.robolectric.testContext
 import mozilla.components.support.test.rule.MainCoroutineRule
 import mozilla.components.support.test.rule.runTestOnMain
@@ -117,12 +128,16 @@ import org.mozilla.fenix.components.NimbusComponents
 import org.mozilla.fenix.components.UseCases
 import org.mozilla.fenix.components.appstate.AppAction
 import org.mozilla.fenix.components.appstate.AppAction.CurrentTabClosed
+import org.mozilla.fenix.components.appstate.AppAction.SearchAction.SearchStarted
 import org.mozilla.fenix.components.appstate.AppAction.SnackbarAction.SnackbarDismissed
 import org.mozilla.fenix.components.appstate.AppAction.URLCopiedToClipboard
 import org.mozilla.fenix.components.appstate.AppState
 import org.mozilla.fenix.components.appstate.OrientationMode.Landscape
 import org.mozilla.fenix.components.appstate.OrientationMode.Portrait
 import org.mozilla.fenix.components.menu.MenuAccessPoint
+import org.mozilla.fenix.components.search.BOOKMARKS_SEARCH_ENGINE_ID
+import org.mozilla.fenix.components.search.HISTORY_SEARCH_ENGINE_ID
+import org.mozilla.fenix.components.search.TABS_SEARCH_ENGINE_ID
 import org.mozilla.fenix.components.toolbar.BrowserToolbarMiddleware.ToolbarAction
 import org.mozilla.fenix.components.toolbar.DisplayActions.AddBookmarkClicked
 import org.mozilla.fenix.components.toolbar.DisplayActions.EditBookmarkClicked
@@ -143,6 +158,7 @@ import org.mozilla.fenix.components.toolbar.TabCounterInteractions.CloseCurrentT
 import org.mozilla.fenix.components.toolbar.TabCounterInteractions.TabCounterClicked
 import org.mozilla.fenix.components.toolbar.TabCounterInteractions.TabCounterLongClicked
 import org.mozilla.fenix.components.usecases.FenixBrowserUseCases
+import org.mozilla.fenix.ext.directionsEq
 import org.mozilla.fenix.ext.isLargeWindow
 import org.mozilla.fenix.ext.nav
 import org.mozilla.fenix.ext.settings
@@ -165,6 +181,7 @@ class BrowserToolbarMiddlewareTest {
     private val appState: AppState = mockk(relaxed = true) {
         every { orientation } returns Portrait
     }
+    private val searchEngine: SearchEngine = fakeSearchState().customSearchEngines.first()
     private val appStore: AppStore = mockk(relaxed = true) {
         every { state } returns appState
     }
@@ -219,9 +236,9 @@ class BrowserToolbarMiddlewareTest {
         val newTabButton = toolbarBrowserActions[0]
         val tabCounterButton = toolbarBrowserActions[1] as TabCounterAction
         val menuButton = toolbarBrowserActions[2]
-        assertEquals(expectedNewTabButton, newTabButton)
+        assertEquals(expectedNewTabButton(), newTabButton)
         assertEqualsTabCounterButton(expectedTabCounterButton(), tabCounterButton)
-        assertEquals(expectedMenuButton, menuButton)
+        assertEquals(expectedMenuButton(), menuButton)
     }
 
     @Test
@@ -362,9 +379,9 @@ class BrowserToolbarMiddlewareTest {
         val newTabButton = toolbarBrowserActions[0]
         val tabCounterButton = toolbarBrowserActions[1] as TabCounterAction
         val menuButton = toolbarBrowserActions[2]
-        assertEquals(expectedNewTabButton, newTabButton)
+        assertEquals(expectedNewTabButton(), newTabButton)
         assertEqualsTabCounterButton(expectedTabCounterButton(), tabCounterButton)
-        assertEquals(expectedMenuButton, menuButton)
+        assertEquals(expectedMenuButton(), menuButton)
     }
 
     @Test
@@ -385,9 +402,9 @@ class BrowserToolbarMiddlewareTest {
         val newTabButton = toolbarBrowserActions[0] as ActionButtonRes
         val tabCounterButton = toolbarBrowserActions[1] as TabCounterAction
         val menuButton = toolbarBrowserActions[2] as ActionButtonRes
-        assertEquals(expectedNewTabButton, newTabButton)
+        assertEquals(expectedNewTabButton(), newTabButton)
         assertEqualsTabCounterButton(expectedTabCounterButton(), tabCounterButton)
-        assertEquals(expectedMenuButton, menuButton)
+        assertEquals(expectedMenuButton(), menuButton)
 
         // In portrait the navigation bar is displayed
         appStore.dispatch(AppAction.OrientationChange(Portrait)).joinBlocking()
@@ -530,7 +547,6 @@ class BrowserToolbarMiddlewareTest {
                 thumbnailsFeature.requestScreenshot()
             }
         }
-        assertEquals("tabs_tray", Events.browserToolbarAction.testGetValue()?.last()?.extra?.get("item"))
     }
 
     @Test
@@ -560,18 +576,6 @@ class BrowserToolbarMiddlewareTest {
                 thumbnailsFeature.requestScreenshot()
             }
         }
-        assertEquals("tabs_tray", Events.browserToolbarAction.testGetValue()?.last()?.extra?.get("item"))
-    }
-
-    @Test
-    fun `WHEN long clicking the tab counter button THEN record telemetry`() {
-        val middleware = buildMiddleware(browserStore = browserStore)
-        val toolbarStore = buildStore(middleware)
-        val tabCounterButton = toolbarStore.state.displayState.browserActionsEnd[1] as TabCounterAction
-
-        toolbarStore.dispatch((tabCounterButton.onLongClick as CombinedEventAndMenu).event)
-
-        assertEquals("tabs_tray_long_press", Events.browserToolbarAction.testGetValue()?.last()?.extra?.get("item"))
     }
 
     @Test
@@ -626,6 +630,31 @@ class BrowserToolbarMiddlewareTest {
                 ),
             )
         }
+    }
+
+    @Test
+    fun `GIVEN the current tab has search terms WHEN the page origin is clicked THEN start search in the browser screen`() {
+        val navController: NavController = mockk(relaxed = true)
+        val browsingModeManager = SimpleBrowsingModeManager(Normal)
+        val currentTab = createTab("test.com", searchTerms = "test")
+        val browserStore = BrowserStore(
+            BrowserState(
+                tabs = listOf(currentTab),
+                selectedTabId = currentTab.id,
+            ),
+        )
+        val middleware = buildMiddleware(browserStore = browserStore)
+        val toolbarStore = buildStore(
+            middleware = middleware,
+            navController = navController,
+            browsingModeManager = browsingModeManager,
+        )
+
+        toolbarStore.dispatch(toolbarStore.state.displayState.pageOrigin.onClick as BrowserToolbarAction)
+
+        verify(exactly = 0) { navController.navigate(any<NavDirections>()) }
+        verify { appStore.dispatch(SearchStarted(currentTab.id)) }
+        assertEquals(currentTab.content.searchTerms, toolbarStore.state.editState.query)
     }
 
     @Test
@@ -743,8 +772,9 @@ class BrowserToolbarMiddlewareTest {
     fun `WHEN choosing to paste from clipboard THEN start a new search with the current clipboard text`() {
         val navController: NavController = mockk(relaxed = true)
         val browsingModeManager = SimpleBrowsingModeManager(Normal)
+        val queryText = "test"
         val clipboard = ClipboardHandler(testContext).also {
-            it.text = "test"
+            it.text = queryText
         }
         val currentTab = createTab("firefox.com")
         val browserStore = BrowserStore(
@@ -770,17 +800,8 @@ class BrowserToolbarMiddlewareTest {
                 toolbarStore.dispatch(PasteFromClipboardClicked)
 
                 verify {
-                    navController.nav(
-                        R.id.browserFragment,
-                        BrowserFragmentDirections.actionGlobalSearchDialog(
-                            sessionId = currentTab.id,
-                            pastedText = "test",
-                        ),
-                        NavOptions.Builder()
-                            .setEnterAnim(R.anim.fade_in)
-                            .setExitAnim(R.anim.fade_out)
-                            .build(),
-                    )
+                    toolbarStore.dispatch(BrowserEditToolbarAction.SearchQueryUpdated(queryText))
+                    appStore.dispatch(SearchStarted(currentTab.id))
                 }
             }
         }
@@ -794,6 +815,13 @@ class BrowserToolbarMiddlewareTest {
         val clipboard = ClipboardHandler(testContext).also {
             it.text = clipboardUrl
         }
+        val currentTab = createTab("wikipedia.org", private = true)
+        val browserStore = BrowserStore(
+            BrowserState(
+                tabs = listOf(currentTab, createTab("firefox.com", private = true)),
+                selectedTabId = currentTab.id,
+            ),
+        )
         val browserUseCases: FenixBrowserUseCases = mockk(relaxed = true)
         val useCases: UseCases = mockk {
             every { fenixBrowserUseCases } returns browserUseCases
@@ -812,13 +840,15 @@ class BrowserToolbarMiddlewareTest {
         mockkStatic(Context::settings) {
             mockkStatic(NavController::nav) {
                 every { testContext.settings().toolbarPosition } returns ToolbarPosition.TOP
+                every { appStore.state.searchState.selectedSearchEngine?.searchEngine } returns searchEngine
 
-                toolbarStore.dispatch(LoadFromClipboardClicked)
+                toolbarStore.dispatch(LoadFromClipboardClicked).joinBlocking()
 
                 verify {
                     browserUseCases.loadUrlOrSearch(
                         searchTermOrURL = clipboardUrl,
                         newTab = false,
+                        searchEngine = searchEngine,
                         private = false,
                     )
                 }
@@ -1368,7 +1398,7 @@ class BrowserToolbarMiddlewareTest {
             val toolbarStore = buildStore(middleware, browsingModeManager = browsingModeManager, navController = navController)
 
             val shareButton = toolbarStore.state.displayState.pageActionsEnd[0]
-            assertEquals(expectedShareButton, shareButton)
+            assertEquals(expectedShareButton(), shareButton)
         }
     }
 
@@ -1382,7 +1412,89 @@ class BrowserToolbarMiddlewareTest {
         val toolbarStore = buildStore(middleware, browsingModeManager = browsingModeManager, navController = navController)
 
         val shareButton = toolbarStore.state.displayState.pageActionsEnd[0]
-        assertEquals(expectedShareButton, shareButton)
+        assertEquals(expectedShareButton(), shareButton)
+    }
+
+    @Test
+    fun `GIVEN the current tab shows a content page WHEN the share button is clicked THEN record telemetry and start sharing the local resource`() = runTestOnMain {
+        Dispatchers.setMain(StandardTestDispatcher())
+        every { appState.orientation } returns Landscape
+        every { settings.isTabStripEnabled } returns true
+        every { settings.shouldUseExpandedToolbar } returns false
+        val browserScreenStore = buildBrowserScreenStore()
+        val captureMiddleware = CaptureActionsMiddleware<BrowserState, BrowserAction>()
+        val currentTab = createTab("content://test", private = false)
+        val browserStore = BrowserStore(
+            initialState = BrowserState(
+                tabs = listOf(currentTab),
+                selectedTabId = currentTab.id,
+            ),
+            middleware = listOf(captureMiddleware),
+        )
+        val middleware = buildMiddleware(appStore, browserScreenStore, browserStore)
+        val toolbarStore = buildStore(
+            middleware,
+            browsingModeManager = browsingModeManager,
+            navController = navController,
+        )
+        testScheduler.advanceUntilIdle()
+
+        val shareButton = toolbarStore.state.displayState.browserActionsEnd[0] as ActionButtonRes
+        assertEquals(expectedShareButton(), shareButton)
+
+        toolbarStore.dispatch(shareButton.onClick as BrowserToolbarEvent)
+        testScheduler.advanceUntilIdle()
+        assertNotNull(AddressToolbar.shareTapped.testGetValue())
+        captureMiddleware.assertLastAction(ShareResourceAction.AddShareAction::class) {
+            assertEquals(currentTab.id, it.tabId)
+            assertEquals(ShareResourceState.LocalResource(currentTab.content.url), it.resource)
+        }
+    }
+
+    @Test
+    fun `GIVEN the current tab shows a normal webpage WHEN the share button is clicked THEN record telemetry and open the share dialog`() {
+        every { appState.orientation } returns Landscape
+        every { settings.isTabStripEnabled } returns true
+        every { settings.shouldUseExpandedToolbar } returns false
+        every { navController.currentDestination?.id } returns R.id.browserFragment
+        every { navController.navigate(any<NavDirections>(), null) } just Runs
+        val browserScreenStore = buildBrowserScreenStore()
+        val currentTab = createTab("test.com", private = false)
+        val browserStore = BrowserStore(
+            initialState = BrowserState(
+                tabs = listOf(currentTab),
+                selectedTabId = currentTab.id,
+            ),
+        )
+        val middleware = buildMiddleware(appStore, browserScreenStore, browserStore)
+        val toolbarStore = buildStore(
+            middleware,
+            browsingModeManager = browsingModeManager,
+            navController = navController,
+        )
+
+        val shareButton = toolbarStore.state.displayState.browserActionsEnd[0] as ActionButtonRes
+        assertEquals(expectedShareButton(), shareButton)
+
+        toolbarStore.dispatch(shareButton.onClick as BrowserToolbarEvent)
+        assertNotNull(AddressToolbar.shareTapped.testGetValue())
+        verify {
+            navController.navigate(
+                directions = directionsEq(
+                    BrowserFragmentDirections.actionGlobalShareFragment(
+                        sessionId = currentTab.id,
+                        data = arrayOf(
+                            ShareData(
+                                url = currentTab.content.url,
+                                title = currentTab.content.title,
+                            ),
+                        ),
+                        showPage = true,
+                    ),
+                ),
+                navOptions = null,
+            )
+        }
     }
 
     @Test
@@ -1395,7 +1507,7 @@ class BrowserToolbarMiddlewareTest {
 
         assertEquals(1, toolbarStore.state.displayState.browserActionsEnd.size)
         val toolbarButton = toolbarStore.state.displayState.browserActionsEnd[0]
-        assertNotEquals(expectedShareButton, toolbarButton)
+        assertNotEquals(expectedShareButton(), toolbarButton)
     }
 
     @Test
@@ -1413,7 +1525,7 @@ class BrowserToolbarMiddlewareTest {
             )
 
             val shareButton = toolbarStore.state.displayState.browserActionsEnd[0]
-            assertEquals(expectedShareButton, shareButton)
+            assertEquals(expectedShareButton(), shareButton)
         }
     }
 
@@ -1427,7 +1539,44 @@ class BrowserToolbarMiddlewareTest {
         val toolbarStore = buildStore(middleware, browsingModeManager = browsingModeManager, navController = navController)
 
         val shareButton = toolbarStore.state.displayState.browserActionsEnd[0]
-        assertEquals(expectedShareButton, shareButton)
+        assertEquals(expectedShareButton(), shareButton)
+    }
+
+    @Test
+    fun `WHEN cycling through portrait and landscape orientations THEN update what end page actions should be shown`() {
+        Dispatchers.setMain(Handler(Looper.getMainLooper()).asCoroutineDispatcher())
+        val appStore = AppStore()
+        every { settings.isTabStripEnabled } returns false
+        every { settings.shouldUseExpandedToolbar } returns false
+        val readerModeStatus: ReaderModeStatus = mockk(relaxed = true) {
+            every { isAvailable } returns true
+        }
+        every { browserScreenState.readerModeStatus } returns readerModeStatus
+        val pageTranslationStatus: PageTranslationStatus = mockk(relaxed = true) {
+            every { isTranslationPossible } returns true
+        }
+        every { browserScreenState.pageTranslationStatus } returns pageTranslationStatus
+        val middleware = buildMiddleware(appStore, browserScreenStore, browserStore)
+        val toolbarStore = buildStore(middleware)
+
+        assertEquals(
+            listOf(expectedReaderModeButton(false)),
+            toolbarStore.state.displayState.pageActionsEnd,
+        )
+
+        appStore.dispatch(AppAction.OrientationChange(Landscape)).joinBlocking()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(
+            listOf(expectedReaderModeButton(false), expectedTranslateButton, expectedShareButton()),
+            toolbarStore.state.displayState.pageActionsEnd,
+        )
+
+        appStore.dispatch(AppAction.OrientationChange(Portrait)).joinBlocking()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(
+            listOf(expectedReaderModeButton(false)),
+            toolbarStore.state.displayState.pageActionsEnd,
+        )
     }
 
     @Test
@@ -1488,7 +1637,7 @@ class BrowserToolbarMiddlewareTest {
     }
 
     @Test
-    fun `GIVEN the back button is shown WHEN interacted with THEN go back or show history and record telemetry`() = runTestOnMain {
+    fun `GIVEN the back button is shown WHEN interacted with THEN go back or show history`() = runTestOnMain {
         Dispatchers.setMain(StandardTestDispatcher())
         mockkStatic(Context::isLargeWindow) {
             every { any<Context>().isLargeWindow() } returns true
@@ -1512,17 +1661,14 @@ class BrowserToolbarMiddlewareTest {
             captureMiddleware.assertLastAction(EngineAction.GoBackAction::class) {
                 assertEquals(currentTab.id, it.tabId)
             }
-            assertEquals("back", Events.browserToolbarAction.testGetValue()?.last()?.extra?.get("item"))
-
             toolbarStore.dispatch(backButton.onLongClick as BrowserToolbarEvent)
             testScheduler.advanceUntilIdle()
             navController.navigate(BrowserFragmentDirections.actionGlobalTabHistoryDialogFragment(null))
-            assertEquals("back_long_press", Events.browserToolbarAction.testGetValue()?.last()?.extra?.get("item"))
         }
     }
 
     @Test
-    fun `GIVEN the forward button is shown WHEN interacted with THEN go forward or show history and record telemetry`() = runTestOnMain {
+    fun `GIVEN the forward button is shown WHEN interacted with THEN go forward or show history`() = runTestOnMain {
         Dispatchers.setMain(StandardTestDispatcher())
         mockkStatic(Context::isLargeWindow) {
             every { any<Context>().isLargeWindow() } returns true
@@ -1546,12 +1692,10 @@ class BrowserToolbarMiddlewareTest {
             captureMiddleware.assertLastAction(EngineAction.GoForwardAction::class) {
                 assertEquals(currentTab.id, it.tabId)
             }
-            assertEquals("forward", Events.browserToolbarAction.testGetValue()?.last()?.extra?.get("item"))
 
             toolbarStore.dispatch(forwardButton.onLongClick as BrowserToolbarEvent)
             testScheduler.advanceUntilIdle()
             navController.navigate(BrowserFragmentDirections.actionGlobalTabHistoryDialogFragment(null))
-            assertEquals("forward_long_press", Events.browserToolbarAction.testGetValue()?.last()?.extra?.get("item"))
         }
     }
 
@@ -1864,7 +2008,7 @@ class BrowserToolbarMiddlewareTest {
         assertEquals(R.drawable.mozac_ic_plus_24, result.drawableResId)
         assertEquals(R.string.home_screen_shortcut_open_new_tab_2, result.contentDescription)
         assertEquals(ActionButton.State.DEFAULT, result.state)
-        assertEquals(AddNewTab, result.onClick)
+        assertEquals(AddNewTab(Source.AddressBar), result.onClick)
         assertNull(result.onLongClick)
     }
 
@@ -2014,7 +2158,7 @@ class BrowserToolbarMiddlewareTest {
         assertEquals(R.drawable.mozac_ic_ellipsis_vertical_24, result.drawableResId)
         assertEquals(R.string.content_description_menu, result.contentDescription)
         assertEquals(ActionButton.State.DEFAULT, result.state)
-        assertEquals(MenuClicked, result.onClick)
+        assertEquals(MenuClicked(Source.AddressBar), result.onClick)
         assertNull(result.onLongClick)
     }
 
@@ -2124,7 +2268,7 @@ class BrowserToolbarMiddlewareTest {
             middleware.environment?.browsingModeManager?.mode == Private,
             action.showPrivacyMask,
         )
-        assertEquals(TabCounterClicked, action.onClick)
+        assertEquals(TabCounterClicked(Source.AddressBar), action.onClick)
         assertNotNull(action.onLongClick)
     }
 
@@ -2152,7 +2296,7 @@ class BrowserToolbarMiddlewareTest {
 
         assertEquals(R.drawable.mozac_ic_bookmark_fill_24, result.drawableResId)
         assertEquals(R.string.browser_menu_edit_bookmark, result.contentDescription)
-        assertEquals(EditBookmarkClicked, result.onClick)
+        assertEquals(EditBookmarkClicked(Source.AddressBar), result.onClick)
     }
 
     @Test
@@ -2166,7 +2310,7 @@ class BrowserToolbarMiddlewareTest {
 
         assertEquals(R.drawable.mozac_ic_bookmark_24, result.drawableResId)
         assertEquals(R.string.browser_menu_bookmark_this_page_2, result.contentDescription)
-        assertEquals(AddBookmarkClicked, result.onClick)
+        assertEquals(AddBookmarkClicked(Source.AddressBar), result.onClick)
     }
 
     @Test
@@ -2188,11 +2332,11 @@ class BrowserToolbarMiddlewareTest {
         val newTabButton = navigationActions[2] as ActionButtonRes
         val tabCounterButton = navigationActions[3] as TabCounterAction
         val menuButton = navigationActions[4] as ActionButtonRes
-        assertEquals(expectedBookmarkButton, bookmarkButton)
-        assertEquals(expectedShareButton, shareButton)
-        assertEquals(expectedNewTabButton, newTabButton)
-        assertEqualsTabCounterButton(expectedTabCounterButton(), tabCounterButton)
-        assertEquals(expectedMenuButton, menuButton)
+        assertEquals(expectedBookmarkButton(Source.NavigationBar), bookmarkButton)
+        assertEquals(expectedShareButton(Source.NavigationBar), shareButton)
+        assertEquals(expectedNewTabButton(Source.NavigationBar), newTabButton)
+        assertEqualsTabCounterButton(expectedTabCounterButton(source = Source.NavigationBar), tabCounterButton)
+        assertEquals(expectedMenuButton(Source.NavigationBar), menuButton)
     }
 
     @Test
@@ -2300,6 +2444,7 @@ class BrowserToolbarMiddlewareTest {
         tabCount: Int = 0,
         isPrivate: Boolean = false,
         shouldUseBottomToolbar: Boolean = false,
+        source: Source = Source.AddressBar,
     ) = TabCounterAction(
         count = tabCount,
         contentDescription = if (isPrivate) {
@@ -2314,21 +2459,21 @@ class BrowserToolbarMiddlewareTest {
             )
         },
         showPrivacyMask = isPrivate,
-        onClick = TabCounterClicked,
-        onLongClick = CombinedEventAndMenu(TabCounterLongClicked) {
+        onClick = TabCounterClicked(source),
+        onLongClick = CombinedEventAndMenu(TabCounterLongClicked(source)) {
             listOf(
                 BrowserToolbarMenuButton(
                     icon = DrawableResIcon(iconsR.drawable.mozac_ic_plus_24),
                     text = StringResText(R.string.mozac_browser_menu_new_tab),
                     contentDescription = StringResContentDescription(R.string.mozac_browser_menu_new_tab),
-                    onClick = AddNewTab,
+                    onClick = AddNewTab(source),
                 ),
 
                 BrowserToolbarMenuButton(
                     icon = DrawableResIcon(iconsR.drawable.mozac_ic_private_mode_24),
                     text = StringResText(R.string.mozac_browser_menu_new_private_tab),
                     contentDescription = StringResContentDescription(R.string.mozac_browser_menu_new_private_tab),
-                    onClick = AddNewPrivateTab,
+                    onClick = AddNewPrivateTab(source),
                 ),
 
                 BrowserToolbarMenuDivider,
@@ -2347,28 +2492,28 @@ class BrowserToolbarMiddlewareTest {
         },
     )
 
-    private val expectedNewTabButton = ActionButtonRes(
+    private fun expectedNewTabButton(source: Source = Source.AddressBar) = ActionButtonRes(
         drawableResId = R.drawable.mozac_ic_plus_24,
         contentDescription = R.string.home_screen_shortcut_open_new_tab_2,
-        onClick = AddNewTab,
+        onClick = AddNewTab(source),
     )
 
-    private val expectedMenuButton = ActionButtonRes(
+    private fun expectedMenuButton(source: Source = Source.AddressBar) = ActionButtonRes(
         drawableResId = R.drawable.mozac_ic_ellipsis_vertical_24,
         contentDescription = R.string.content_description_menu,
-        onClick = MenuClicked,
+        onClick = MenuClicked(source),
     )
 
-    private val expectedBookmarkButton = ActionButtonRes(
+    private fun expectedBookmarkButton(source: Source = Source.AddressBar) = ActionButtonRes(
         drawableResId = R.drawable.mozac_ic_bookmark_24,
         contentDescription = R.string.browser_menu_bookmark_this_page_2,
-        onClick = AddBookmarkClicked,
+        onClick = AddBookmarkClicked(source),
     )
 
-    private val expectedShareButton = ActionButtonRes(
+    private fun expectedShareButton(source: Source = Source.AddressBar) = ActionButtonRes(
         drawableResId = R.drawable.mozac_ic_share_android_24,
         contentDescription = R.string.browser_menu_share,
-        onClick = ShareClicked,
+        onClick = ShareClicked(source),
     )
 
     private fun buildMiddleware(
@@ -2458,4 +2603,32 @@ class BrowserToolbarMiddlewareTest {
             currentState = initialState
         }
     }
+
+    private fun fakeSearchState() = SearchState(
+        region = RegionState("US", "US"),
+        regionSearchEngines = listOf(
+            SearchEngine("engine-a", "Engine A", mock(), type = SearchEngine.Type.BUNDLED),
+            SearchEngine("engine-b", "Engine B", mock(), type = SearchEngine.Type.BUNDLED),
+        ),
+        customSearchEngines = listOf(
+            SearchEngine("engine-c", "Engine C", mock(), type = SearchEngine.Type.CUSTOM),
+        ),
+        applicationSearchEngines = listOf(
+            SearchEngine(TABS_SEARCH_ENGINE_ID, "Tabs", mock(), type = SearchEngine.Type.APPLICATION),
+            SearchEngine(BOOKMARKS_SEARCH_ENGINE_ID, "Bookmarks", mock(), type = SearchEngine.Type.APPLICATION),
+            SearchEngine(HISTORY_SEARCH_ENGINE_ID, "History", mock(), type = SearchEngine.Type.APPLICATION),
+        ),
+        additionalSearchEngines = listOf(
+            SearchEngine("engine-e", "Engine E", mock(), type = SearchEngine.Type.BUNDLED_ADDITIONAL),
+        ),
+        additionalAvailableSearchEngines = listOf(
+            SearchEngine("engine-f", "Engine F", mock(), type = SearchEngine.Type.BUNDLED_ADDITIONAL),
+        ),
+        hiddenSearchEngines = listOf(
+            SearchEngine("engine-g", "Engine G", mock(), type = SearchEngine.Type.BUNDLED),
+        ),
+        regionDefaultSearchEngineId = null,
+        userSelectedSearchEngineId = null,
+        userSelectedSearchEngineName = null,
+    )
 }

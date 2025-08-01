@@ -181,6 +181,8 @@ export class EngineURL {
   rels = [];
   /** @type {string} */
   template;
+  /** @type {string} */
+  displayName;
 
   /**
    * The name of the parameter used for the search term.
@@ -201,12 +203,15 @@ export class EngineURL {
    *   The URL to which search queries should be sent. For GET requests,
    *   must contain the string "{searchTerms}", to indicate where the user
    *   entered search terms should be inserted.
+   * @param {string} [displayName]
+   *   The display name of the URL, if any. This is useful if the URL
+   *   corresponds to a brand name distinct from the engine's brand name.
    *
    * @see https://web.archive.org/web/20060203040832/http://opensearch.a9.com/spec/1.1/querysyntax/#urltag
    *
    * @throws NS_ERROR_NOT_IMPLEMENTED if aType is unsupported.
    */
-  constructor(mimeType, requestMethod, template) {
+  constructor(mimeType, requestMethod, template, displayName) {
     if (!mimeType || !requestMethod || !template) {
       throw Components.Exception(
         "missing mimeType, method or template for EngineURL!",
@@ -257,6 +262,8 @@ export class EngineURL {
         this.#searchTermParam = name;
       }
     }
+
+    this.displayName = displayName;
   }
 
   /**
@@ -435,7 +442,7 @@ export class EngineURL {
     this.rels = json.rels;
 
     for (let param of json.params) {
-      // mozparam and purpose were only supported for app-provided engines.
+      // mozparam and purpose were only supported for config engines.
       // Always ignore them for engines loaded from JSON.
       if (!param.mozparam && !param.purpose) {
         this.addParam(param.name, param.value);
@@ -1092,8 +1099,7 @@ export class SearchEngine {
    *
    * - telemetryId: The telemetry id from the configuration, or derived from
    *                the WebExtension name.
-   * - other-<name>: The engine name prefixed by `other-` for non-app-provided
-   *                 engines.
+   * - other-<name>: The engine name prefixed by `other-` for non-config-engines.
    *
    * @returns {string}
    */
@@ -1106,14 +1112,13 @@ export class SearchEngine {
   }
 
   /**
-   * Return the built-in identifier of app-provided engines.
+   * Return the built-in identifier of config engines.
    *
-   * @returns {string|null}
+   * @returns {?string}
    *   Returns a valid if this is a built-in engine, null otherwise.
    */
   get identifier() {
-    // No identifier if If the engine isn't app-provided
-    return this.isAppProvided ? this._telemetryId : null;
+    return null;
   }
 
   get hidden() {
@@ -1134,14 +1139,24 @@ export class SearchEngine {
   }
 
   /**
-   * Whether or not this engine is provided by the application, e.g. it is
-   * in the list of configured search engines.
+   * This method should be overridden by app provided config engines.
    *
    * @returns {boolean}
-   *   This returns false for most engines, but may be overridden by particular
-   *   engine types, such as add-on engines which are used by the application.
+   *   Whether this engine is an app provided config engine, i.e. it comes
+   *   from the search-config-v2 and active in the user's environment.
    */
   get isAppProvided() {
+    return false;
+  }
+
+  /**
+   * This method should be overridden by config search engines.
+   *
+   * @returns {boolean}
+   *   Whether this engine is a config search engine, i.e. it comes from
+   *   the search-config-v2.
+   */
+  get isConfigEngine() {
     return false;
   }
 
@@ -1356,6 +1371,17 @@ export class SearchEngine {
   // from nsISearchEngine
   supportsResponseType(type) {
     return this._getURLOfType(type) != null;
+  }
+
+  // from nsISearchEngine
+  displayNameForURL(type) {
+    if (type) {
+      let url = this._getURLOfType(type);
+      if (url?.displayName) {
+        return url.displayName;
+      }
+    }
+    return this.name;
   }
 
   // from nsISearchEngine

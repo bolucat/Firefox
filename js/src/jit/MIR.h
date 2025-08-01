@@ -390,7 +390,7 @@ class AliasSet {
     // the ExpandoAndGeneration.
     DOMProxyExpando = 1 << 15,
 
-    // Hash table of a Map or Set object.
+    // Hash table of a Map/Set/WeakMap/WeakSet object.
     MapOrSetHashTable = 1 << 16,
 
     // Internal state of the random number generator
@@ -1447,25 +1447,45 @@ class MConstant : public MNullaryInstruction {
   void assertInitializedPayload() const {}
 #endif
 
+  explicit MConstant(MIRType type) : MNullaryInstruction(classOpcode) {
+    setResultType(type);
+    setMovable();
+  }
+  explicit MConstant(bool b) : MConstant(MIRType::Boolean) { payload_.b = b; }
+  explicit MConstant(double d) : MConstant(MIRType::Double) { payload_.d = d; }
+  explicit MConstant(float f) : MConstant(MIRType::Float32) { payload_.f = f; }
+  explicit MConstant(int32_t i) : MConstant(MIRType::Int32) {
+    payload_.i32 = i;
+  }
+  MConstant(MIRType type, int64_t i) : MConstant(type) {
+    MOZ_ASSERT(type == MIRType::Int64 || type == MIRType::IntPtr);
+    if (type == MIRType::Int64) {
+      payload_.i64 = i;
+    } else {
+      payload_.iptr = i;
+    }
+  }
+
   MConstant(TempAllocator& alloc, const Value& v);
   explicit MConstant(JSObject* obj);
   explicit MConstant(Shape* shape);
-  explicit MConstant(float f);
-  explicit MConstant(MIRType type, int64_t i);
 
  public:
   INSTRUCTION_HEADER(Constant)
   static MConstant* New(TempAllocator& alloc, const Value& v);
   static MConstant* New(TempAllocator::Fallible alloc, const Value& v);
-  static MConstant* New(TempAllocator& alloc, const Value& v, MIRType type);
+  static MConstant* NewBoolean(TempAllocator& alloc, bool b);
+  static MConstant* NewDouble(TempAllocator& alloc, double d);
   static MConstant* NewFloat32(TempAllocator& alloc, double d);
+  static MConstant* NewInt32(TempAllocator& alloc, int32_t i);
   static MConstant* NewInt64(TempAllocator& alloc, int64_t i);
   static MConstant* NewIntPtr(TempAllocator& alloc, intptr_t i);
+  static MConstant* NewMagic(TempAllocator& alloc, JSWhyMagic m);
+  static MConstant* NewNull(TempAllocator& alloc);
   static MConstant* NewObject(TempAllocator& alloc, JSObject* v);
   static MConstant* NewShape(TempAllocator& alloc, Shape* s);
-  static MConstant* Copy(TempAllocator& alloc, MConstant* src) {
-    return new (alloc) MConstant(*src);
-  }
+  static MConstant* NewString(TempAllocator& alloc, JSString* s);
+  static MConstant* NewUndefined(TempAllocator& alloc);
 
   // Try to convert this constant to boolean, similar to js::ToBoolean.
   // Returns false if the type is MIRType::Magic* or MIRType::Object.
@@ -1980,8 +2000,9 @@ class MNewTypedArray : public MUnaryInstruction, public NoTypePolicy::Data {
   INSTRUCTION_HEADER(NewTypedArray)
   TRIVIAL_NEW_WRAPPERS
 
-  TypedArrayObject* templateObject() const {
-    return &getOperand(0)->toConstant()->toObject().as<TypedArrayObject>();
+  auto* templateObject() const {
+    auto* cst = getOperand(0)->toConstant();
+    return &cst->toObject().as<FixedLengthTypedArrayObject>();
   }
 
   gc::Heap initialHeap() const { return initialHeap_; }
@@ -7178,7 +7199,6 @@ class MArrayPopShift : public MUnaryInstruction,
 // Load an unboxed scalar value from an array buffer view or other object.
 class MLoadUnboxedScalar : public MBinaryInstruction,
                            public NoTypePolicy::Data {
-  int32_t offsetAdjustment_ = 0;
   Scalar::Type storageType_;
   MemoryBarrierRequirement requiresBarrier_;
 
@@ -7211,10 +7231,6 @@ class MLoadUnboxedScalar : public MBinaryInstruction,
     return storageType_ == Scalar::Uint32 && type() == MIRType::Int32;
   }
   auto requiresMemoryBarrier() const { return requiresBarrier_; }
-  int32_t offsetAdjustment() const { return offsetAdjustment_; }
-  void setOffsetAdjustment(int32_t offsetAdjustment) {
-    offsetAdjustment_ = offsetAdjustment;
-  }
   AliasSet getAliasSet() const override {
     // When a barrier is needed make the instruction effectful by
     // giving it a "store" effect.
@@ -7233,9 +7249,6 @@ class MLoadUnboxedScalar : public MBinaryInstruction,
     }
     const MLoadUnboxedScalar* other = ins->toLoadUnboxedScalar();
     if (storageType_ != other->storageType_) {
-      return false;
-    }
-    if (offsetAdjustment() != other->offsetAdjustment()) {
       return false;
     }
     return congruentIfOperandsEqual(other);
@@ -7521,6 +7534,57 @@ class MStoreTypedArrayElementHole : public MQuaternaryInstruction,
 #endif
 
   ALLOW_CLONE(MStoreTypedArrayElementHole)
+};
+
+class MTypedArrayFill : public MQuaternaryInstruction,
+                        public StoreUnboxedScalarBase,
+                        public TypedArrayFillPolicy::Data {
+  MTypedArrayFill(MDefinition* object, MDefinition* value, MDefinition* start,
+                  MDefinition* end, Scalar::Type arrayType)
+      : MQuaternaryInstruction(classOpcode, object, value, start, end),
+        StoreUnboxedScalarBase(arrayType) {
+    MOZ_ASSERT(object->type() == MIRType::Object);
+    MOZ_ASSERT(start->type() == MIRType::IntPtr);
+    MOZ_ASSERT(end->type() == MIRType::IntPtr);
+    MOZ_ASSERT(arrayType >= 0 && arrayType < Scalar::MaxTypedArrayViewType);
+  }
+
+ public:
+  INSTRUCTION_HEADER(TypedArrayFill)
+  TRIVIAL_NEW_WRAPPERS
+  NAMED_OPERANDS((0, object), (1, value), (2, start), (3, end))
+
+  Scalar::Type elementType() const { return writeType(); }
+  AliasSet getAliasSet() const override {
+    // Loads typed array length and elements.
+    constexpr auto load =
+        AliasSet::Load(AliasSet::ArrayBufferViewLengthOrOffset |
+                       AliasSet::ObjectFields | AliasSet::UnboxedElement);
+
+    // Stores into typed array elements.
+    constexpr auto store = AliasSet::Store(AliasSet::UnboxedElement);
+
+    return load | store;
+  }
+
+  TruncateKind operandTruncateKind(size_t index) const override;
+
+  bool canConsumeFloat32(MUse* use) const override {
+    return use == getUseFor(1) && elementType() == Scalar::Float32;
+  }
+
+#ifdef DEBUG
+  // Float16 inputs are typed as float32, but this instruction can NOT consume
+  // float32 when its array-type is float16.
+  bool isConsistentFloat32Use(MUse* use) const override {
+    return use == getUseFor(1) && (elementType() == Scalar::Float32 ||
+                                   elementType() == Scalar::Float16);
+  }
+#endif
+
+  bool possiblyCalls() const override { return true; }
+
+  ALLOW_CLONE(MTypedArrayFill)
 };
 
 // Compute a 3-component "effective address":
@@ -7908,21 +7972,23 @@ class MGuardNullProto : public MUnaryInstruction,
 
 // Guard on a specific Value.
 class MGuardValue : public MUnaryInstruction, public BoxInputsPolicy::Data {
-  Value expected_;
+  ValueOrNurseryValueIndex expected_;
 
-  MGuardValue(MDefinition* val, const Value& expected)
+  MGuardValue(MDefinition* val, ValueOrNurseryValueIndex expected)
       : MUnaryInstruction(classOpcode, val), expected_(expected) {
     setGuard();
     setMovable();
     setResultType(MIRType::Value);
   }
+  MGuardValue(MDefinition* val, Value expected)
+      : MGuardValue(val, ValueOrNurseryValueIndex::fromValue(expected)) {}
 
  public:
   INSTRUCTION_HEADER(GuardValue)
   TRIVIAL_NEW_WRAPPERS
   NAMED_OPERANDS((0, value))
 
-  Value expected() const { return expected_; }
+  ValueOrNurseryValueIndex expected() const { return expected_; }
 
   bool congruentTo(const MDefinition* ins) const override {
     if (!ins->isGuardValue()) {

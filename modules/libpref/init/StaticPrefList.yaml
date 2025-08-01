@@ -378,11 +378,6 @@
   value: 1.2f
   mirror: always
 
-- name: apz.scrollbarbuttonrepeat.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # After a user has executed a pan gesture, we may receive momentum phase pan
 # gestures from the OS. This specifies how long we should wait following the
 # pan end gesture for possible momentum phase pan gestures before sending the
@@ -2592,6 +2587,12 @@
   value: true
   mirror: always
 
+# Enable relaxed Custom Element names
+- name: dom.custom_elements.relaxed_names.enabled
+  type: bool
+  value: true
+  mirror: always
+
 # Disable custom highlight API; implementation pending.
 - name: dom.customHighlightAPI.enabled
   type: RelaxedAtomicBool
@@ -3738,7 +3739,7 @@
 # information should be collected / submitted.
 - name: dom.private-attribution.submission.enabled
   type: bool
-  value: @IS_NOT_ANDROID@
+  value: false
   mirror: always
 
 # Is support for Window.paintWorklet enabled?
@@ -8987,6 +8988,12 @@
   mirror: always
   set_spidermonkey_pref: always
 
+- name: javascript.options.wasm_exception_force_stack_trace
+  type: bool
+  value: false
+  mirror: always
+  set_spidermonkey_pref: always
+
 - name: javascript.options.wasm_disable_huge_memory
   type: bool
   value: false
@@ -9901,13 +9908,6 @@
   mirror: always
   rust: true
 
-# Is support for the size-adjust @font-face descriptor enabled?
-- name: layout.css.size-adjust.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
 # Is support for the tech() function in the @font-face src descriptor enabled?
 - name: layout.css.font-tech.enabled
   type: RelaxedAtomicBool
@@ -9977,7 +9977,7 @@
 #    https://drafts.csswg.org/css-grid-2/#algo-grid-sizing
 - name: layout.css.grid-multi-pass-track-sizing.enabled
   type: bool
-  value: false
+  value: true
   mirror: always
 
 # Is support for :heading and :heading() pseudo classes enabled?
@@ -10678,13 +10678,6 @@
 
 # Is support for the ::details-content pseudo-element enabled?
 - name: layout.css.details-content.enabled
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-  rust: true
-
-# Is 'content:none' supported on (non-pseudo) elements?
-- name: layout.css.element-content-none.enabled
   type: RelaxedAtomicBool
   value: false
   mirror: always
@@ -14221,10 +14214,10 @@
   value: true
   mirror: always
 
-# This preference controls blocking requests for Local Network Access (LNA) failures.
+# This preference controls if we need to fail transactions for Local Network Access (LNA) failures.
 - name: network.lna.blocking
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # When this pref is true, loads triggered by scripts classified as trackers
@@ -14955,8 +14948,15 @@
 # network.http.http3.use_nspr_for_io is true.
 - name: network.http.http3.max_gso_segments
   type: RelaxedAtomicUint32
+#ifdef XP_WIN
+  # Disable GSO on Windows.
+  #
+  # See https://bugzilla.mozilla.org/show_bug.cgi?id=1979279 for details.
+  value: 1
+#else
   # Current industry standard. Likely worth tuning.
   value: 10
+#endif
   mirror: always
   rust: true
 
@@ -16564,26 +16564,8 @@
   value: false
   mirror: always
 
-# Prerequisite pref for mixed display content upgrading (images, audio, video).
+# Pref for mixed display content upgrading (images, audio, video).
 - name: security.mixed_content.upgrade_display_content
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
-# Upgrade images when the upgrading is enabled.
-- name: security.mixed_content.upgrade_display_content.image
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
-# Upgrade audio when the upgrading is enabled.
-- name: security.mixed_content.upgrade_display_content.audio
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
-# Upgrade videos when the upgrading is enabled.
-- name: security.mixed_content.upgrade_display_content.video
   type: RelaxedAtomicBool
   value: true
   mirror: always
@@ -17345,13 +17327,6 @@
 - name: svg.context-properties.content.enabled
   type: RelaxedAtomicBool
   value: false
-  mirror: always
-
-# This pref controls whether the `prefers-color-scheme` value of SVG images
-# reacts to the embedder `color-scheme` in content.
-- name: svg.embedder-prefers-color-scheme.content.enabled
-  type: RelaxedAtomicBool
-  value: true
   mirror: always
 
 # Enables the 'context-fill' and 'context-stroke' keywords for particular

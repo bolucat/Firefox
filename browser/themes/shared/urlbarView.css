@@ -1219,6 +1219,59 @@
   }
 }
 
+/* Market suggestions */
+
+.urlbarView-dynamic-market-item {
+  display: flex;
+  align-items: center;
+  padding-inline-end: var(--space-large);
+
+  --market-todays-change-perc-plus-color: light-dark(var(--color-green-60), var(--color-green-20));
+  --market-todays-change-perc-minus-color: light-dark(var(--color-red-70), var(--color-red-40));
+
+  &:hover,
+  &[selected] {
+    --market-todays-change-perc-plus-color: light-dark(var(--color-green-20), var(--color-green-60));
+    --market-todays-change-perc-minus-color: light-dark(var(--color-red-40), var(--color-red-70));
+  }
+
+  > .urlbarView-market-image {
+    /* The image size for realtime suggestion is larger than others by design */
+    width: 52px;
+    height: 52px;
+    margin-block: var(--space-small);
+    margin-inline-end: var(--space-small);
+  }
+
+  > .urlbarView-market-description {
+    display: flex;
+    flex-direction: column;
+    text-align: start;
+    grid-row-gap: var(--space-xxsmall);
+
+    > .urlbarView-market-name {
+      font-weight: var(--font-weight-bold);
+    }
+
+    > .urlbarView-market-todays-change-perc {
+      font-weight: var(--font-weight-bold);
+      font-size: var(--urlbarView-small-font-size);
+    }
+
+    > .urlbarView-market-todays-change-perc-plus {
+      color: var(--market-todays-change-perc-plus-color);
+    }
+
+    > .urlbarView-market-todays-change-perc-minus {
+      color: var(--market-todays-change-perc-minus-color);
+    }
+
+    > .urlbarView-market-last-price {
+      font-size: var(--urlbarView-small-font-size);
+    }
+  }
+}
+
 /* Search one-offs */
 
 #urlbar .search-one-offs:not([hidden]) {

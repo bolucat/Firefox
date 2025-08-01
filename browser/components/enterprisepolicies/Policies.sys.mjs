@@ -1099,13 +1099,13 @@ export var Policies = {
       ) {
         switch (param) {
           case "default-on":
-            value = "false";
+            value = false;
             break;
           case "default-off":
-            value = "true";
+            value = true;
             break;
           default:
-            value = (!param).toString();
+            value = !param;
             break;
         }
         // This policy is meant to change the default behavior, not to force it.
@@ -1116,25 +1116,25 @@ export var Policies = {
             BROWSER_DOCUMENT_URL,
             "toolbar-menubar",
             "autohide",
-            value
+            value ? "" : "-moz-missing\n"
           );
         });
       } else {
         switch (param) {
           case "always":
-            value = "false";
+            value = false;
             break;
           case "never":
             // Make sure Alt key doesn't show the menubar
             setAndLockPref("ui.key.menuAccessKeyFocuses", false);
-            value = "true";
+            value = true;
             break;
         }
         Services.xulStore.setValue(
           BROWSER_DOCUMENT_URL,
           "toolbar-menubar",
           "autohide",
-          value
+          value ? "" : "-moz-missing\n"
         );
         manager.disallowFeature("hideShowMenuBar");
       }
@@ -1202,7 +1202,8 @@ export var Policies = {
         // startup anyway.
         ContentBlockingPrefs.setPrefsToCategory(
           param.Category,
-          true // locked
+          true, // locked
+          false // preserveAllowListSettings
         );
         ContentBlockingPrefs.matchCBCategory();
       }
@@ -1265,6 +1266,21 @@ export var Policies = {
         PoliciesUtils.setDefaultPref(
           "privacy.fingerprintingProtection.pbmode",
           param.SuspectedFingerprinting,
+          param.Locked
+        );
+      }
+      if ("BaselineExceptions" in param) {
+        PoliciesUtils.setDefaultPref(
+          "privacy.trackingprotection.allow_list.baseline.enabled",
+          param.BaselineExceptions,
+          param.Locked
+        );
+      }
+
+      if ("ConvenienceExceptions" in param) {
+        PoliciesUtils.setDefaultPref(
+          "privacy.trackingprotection.allow_list.convenience.enabled",
+          param.ConvenienceExceptions,
           param.Locked
         );
       }

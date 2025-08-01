@@ -53,15 +53,14 @@ import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.filterState
 import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.ext.sort
-import org.mozilla.fenix.home.PocketUpdatesMiddleware
+import org.mozilla.fenix.home.PocketMiddleware
+import org.mozilla.fenix.home.SettingsBackedPocketSettings
 import org.mozilla.fenix.home.blocklist.BlocklistHandler
 import org.mozilla.fenix.home.blocklist.BlocklistMiddleware
 import org.mozilla.fenix.home.middleware.HomeTelemetryMiddleware
 import org.mozilla.fenix.home.setup.store.DefaultSetupChecklistRepository
 import org.mozilla.fenix.home.setup.store.SetupChecklistPreferencesMiddleware
 import org.mozilla.fenix.home.setup.store.SetupChecklistTelemetryMiddleware
-import org.mozilla.fenix.lifecycle.DefaultPrivateBrowsingLockStorage
-import org.mozilla.fenix.lifecycle.PrivateBrowsingLockFeature
 import org.mozilla.fenix.messaging.state.MessagingMiddleware
 import org.mozilla.fenix.nimbus.FxNimbus
 import org.mozilla.fenix.onboarding.FenixOnboarding
@@ -201,18 +200,14 @@ class Components(private val context: Context) {
     val performance by lazyMonitored { PerformanceComponent() }
     val push by lazyMonitored { Push(context, analytics.crashReporter) }
     val wifiConnectionMonitor by lazyMonitored { WifiConnectionMonitor(context as Application) }
-    val strictMode by lazyMonitored { StrictModeManager(Config, this, BuildManufacturerChecker()) }
-    val privateBrowsingLockFeature by lazyMonitored {
-        PrivateBrowsingLockFeature(
-            appStore = appStore,
-            browserStore = core.store,
-            storage = DefaultPrivateBrowsingLockStorage(
-                preferences = settings.preferences,
-                privateBrowsingLockPrefKey = context.getString(R.string.pref_key_private_browsing_locked),
-            ),
+
+    val strictMode by lazyMonitored {
+        StrictModeManager(
+            Config.channel.isDebug,
+            this,
+            BuildManufacturerChecker(),
         )
     }
-
     val settings by lazyMonitored { Settings(context) }
     val fenixOnboarding by lazyMonitored { FenixOnboarding(context) }
 
@@ -263,9 +258,11 @@ class Components(private val context: Context) {
             ).run { filterState(blocklistHandler) },
             middlewares = listOf(
                 BlocklistMiddleware(blocklistHandler),
-                PocketUpdatesMiddleware(
+                PocketMiddleware(
                     lazyMonitored { core.pocketStoriesService },
                     context.pocketStoriesSelectedCategoriesDataStore,
+                    SettingsBackedPocketSettings(settings),
+                    performance.visualCompletenessQueue,
                 ),
                 MessagingMiddleware(
                     controller = nimbus.messaging,
@@ -282,7 +279,10 @@ class Components(private val context: Context) {
                 HomeTelemetryMiddleware(),
                 SetupChecklistPreferencesMiddleware(DefaultSetupChecklistRepository(context)),
                 SetupChecklistTelemetryMiddleware(),
-                ReviewPromptMiddleware(settings),
+                ReviewPromptMiddleware(
+                    settings = settings,
+                    createJexlHelper = nimbus::createJexlHelper,
+                ),
                 AppVisualCompletenessMiddleware(performance.visualCompletenessQueue),
             ),
         ).also {

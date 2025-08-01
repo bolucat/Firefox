@@ -412,6 +412,8 @@ export class UrlbarController {
         let allowTabbingThroughResults =
           this.input.focusedViaMousedown ||
           this.input.searchMode?.isPreview ||
+          this.input.searchMode?.source ==
+            lazy.UrlbarUtils.RESULT_SOURCE.ACTIONS ||
           this.view.selectedElement ||
           (this.input.value &&
             this.input.getAttribute("pageproxystate") != "valid");
@@ -930,9 +932,15 @@ class TelemetryEvent {
       // enter search mode are picked. We should find a generalized way to
       // determine this instead of listing all the cases like this.
       details.isSessionOngoing = !!(
-        ["dismiss", "inaccurate_location", "show_less_frequently"].includes(
-          details.selType
-        ) || details.result?.payload.providesSearchMode
+        [
+          "dismiss",
+          "inaccurate_location",
+          "not_interested",
+          "not_now",
+          "opt_in",
+          "show_less_frequently",
+        ].includes(details.selType) ||
+        details.result?.payload.providesSearchMode
       );
     }
 

@@ -19,6 +19,8 @@
 #include "builtin/MapObject.h"
 #include "builtin/ModuleObject.h"
 #include "builtin/Object.h"
+#include "builtin/WeakMapObject.h"
+#include "builtin/WeakSetObject.h"
 #include "jit/BaselineIC.h"
 #include "jit/CacheIRCloner.h"
 #include "jit/CacheIRCompiler.h"
@@ -210,10 +212,6 @@ Shape* CacheIRCloner::getWeakShapeField(uint32_t stubOffset) {
   // No barrier is required to clone a weak pointer.
   return reinterpret_cast<Shape*>(readStubWord(stubOffset));
 }
-GetterSetter* CacheIRCloner::getWeakGetterSetterField(uint32_t stubOffset) {
-  // No barrier is required to clone a weak pointer.
-  return reinterpret_cast<GetterSetter*>(readStubWord(stubOffset));
-}
 JSObject* CacheIRCloner::getObjectField(uint32_t stubOffset) {
   return reinterpret_cast<JSObject*>(readStubWord(stubOffset));
 }
@@ -253,7 +251,11 @@ gc::AllocSite* CacheIRCloner::getAllocSiteField(uint32_t stubOffset) {
 jsid CacheIRCloner::getIdField(uint32_t stubOffset) {
   return jsid::fromRawBits(readStubWord(stubOffset));
 }
-const Value CacheIRCloner::getValueField(uint32_t stubOffset) {
+Value CacheIRCloner::getValueField(uint32_t stubOffset) {
+  return Value::fromRawBits(uint64_t(readStubInt64(stubOffset)));
+}
+Value CacheIRCloner::getWeakValueField(uint32_t stubOffset) {
+  // No barrier is required to clone a weak pointer.
   return Value::fromRawBits(uint64_t(readStubInt64(stubOffset)));
 }
 double CacheIRCloner::getDoubleField(uint32_t stubOffset) {
@@ -1069,8 +1071,10 @@ void GetPropIRGenerator::emitCallGetterResultGuards(NativeObject* obj,
       emitGuardGetterSetterSlot(holder, prop, objId, AccessorKind::Getter);
     }
   } else {
-    GetterSetter* gs = holder->getGetterSetter(prop);
-    writer.guardHasGetterSetter(objId, id, gs);
+    Value val = holder->getSlot(prop.slot());
+    MOZ_ASSERT(val.isPrivateGCThing());
+    MOZ_ASSERT(val.toGCThing()->is<GetterSetter>());
+    writer.guardHasGetterSetter(objId, id, val);
   }
 }
 
@@ -2134,6 +2138,10 @@ const JSClass* js::jit::ClassFor(GuardClassKind kind) {
       return &MapObject::class_;
     case GuardClassKind::Date:
       return &DateObject::class_;
+    case GuardClassKind::WeakMap:
+      return &WeakMapObject::class_;
+    case GuardClassKind::WeakSet:
+      return &WeakSetObject::class_;
   }
   MOZ_CRASH("unexpected kind");
 }
@@ -2158,6 +2166,8 @@ void IRGenerator::emitOptimisticClassGuard(ObjOperandId objId, JSObject* obj,
     case GuardClassKind::Set:
     case GuardClassKind::Map:
     case GuardClassKind::Date:
+    case GuardClassKind::WeakMap:
+    case GuardClassKind::WeakSet:
       MOZ_ASSERT(obj->hasClass(ClassFor(kind)));
       break;
 
@@ -4923,8 +4933,10 @@ AttachDecision SetPropIRGenerator::tryAttachSetter(HandleObject obj,
       emitGuardGetterSetterSlot(holder, *prop, objId, AccessorKind::Setter);
     }
   } else {
-    GetterSetter* gs = holder->getGetterSetter(*prop);
-    writer.guardHasGetterSetter(objId, id, gs);
+    Value val = holder->getSlot(prop->slot());
+    MOZ_ASSERT(val.isPrivateGCThing());
+    MOZ_ASSERT(val.toGCThing()->is<GetterSetter>());
+    writer.guardHasGetterSetter(objId, id, val);
   }
 
   if (CanAttachDOMGetterSetter(cx_, JSJitInfo::Setter, nobj, holder, *prop,
@@ -10842,6 +10854,108 @@ AttachDecision InlinableNativeIRGenerator::tryAttachMapSet() {
   return AttachDecision::Attach;
 }
 
+AttachDecision InlinableNativeIRGenerator::tryAttachWeakMapGet() {
+  // Ensure |this| is a WeakMapObject.
+  if (!thisval_.isObject() || !thisval_.toObject().is<WeakMapObject>()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Need a single object argument.
+  if (args_.length() != 1 || !args_[0].isObject()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Initialize the input operand.
+  Int32OperandId argcId = initializeInputOperand();
+
+  // Guard callee is the 'get' native function.
+  ObjOperandId calleeId = emitNativeCalleeGuard(argcId);
+
+  // Guard |this| is a WeakMapObject.
+  ValOperandId thisValId = loadThis(calleeId);
+  ObjOperandId objId = writer.guardToObject(thisValId);
+  emitOptimisticClassGuard(objId, &thisval_.toObject(),
+                           GuardClassKind::WeakMap);
+
+  // Guard the argument is an object.
+  ValOperandId argId = loadArgument(calleeId, ArgumentKind::Arg0);
+  ObjOperandId objArgId = writer.guardToObject(argId);
+
+  writer.weakMapGetObjectResult(objId, objArgId);
+  writer.returnFromIC();
+
+  trackAttached("WeakMapGet");
+  return AttachDecision::Attach;
+}
+
+AttachDecision InlinableNativeIRGenerator::tryAttachWeakMapHas() {
+  // Ensure |this| is a WeakMapObject.
+  if (!thisval_.isObject() || !thisval_.toObject().is<WeakMapObject>()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Need a single object argument.
+  if (args_.length() != 1 || !args_[0].isObject()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Initialize the input operand.
+  Int32OperandId argcId = initializeInputOperand();
+
+  // Guard callee is the 'has' native function.
+  ObjOperandId calleeId = emitNativeCalleeGuard(argcId);
+
+  // Guard |this| is a WeakMapObject.
+  ValOperandId thisValId = loadThis(calleeId);
+  ObjOperandId objId = writer.guardToObject(thisValId);
+  emitOptimisticClassGuard(objId, &thisval_.toObject(),
+                           GuardClassKind::WeakMap);
+
+  // Guard the argument is an object.
+  ValOperandId argId = loadArgument(calleeId, ArgumentKind::Arg0);
+  ObjOperandId objArgId = writer.guardToObject(argId);
+
+  writer.weakMapHasObjectResult(objId, objArgId);
+  writer.returnFromIC();
+
+  trackAttached("WeakMapHas");
+  return AttachDecision::Attach;
+}
+
+AttachDecision InlinableNativeIRGenerator::tryAttachWeakSetHas() {
+  // Ensure |this| is a WeakSetObject.
+  if (!thisval_.isObject() || !thisval_.toObject().is<WeakSetObject>()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Need a single object argument.
+  if (args_.length() != 1 || !args_[0].isObject()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Initialize the input operand.
+  Int32OperandId argcId = initializeInputOperand();
+
+  // Guard callee is the 'has' native function.
+  ObjOperandId calleeId = emitNativeCalleeGuard(argcId);
+
+  // Guard |this| is a WeakSetObject.
+  ValOperandId thisValId = loadThis(calleeId);
+  ObjOperandId objId = writer.guardToObject(thisValId);
+  emitOptimisticClassGuard(objId, &thisval_.toObject(),
+                           GuardClassKind::WeakSet);
+
+  // Guard the argument is an object.
+  ValOperandId argId = loadArgument(calleeId, ArgumentKind::Arg0);
+  ObjOperandId objArgId = writer.guardToObject(argId);
+
+  writer.weakSetHasObjectResult(objId, objArgId);
+  writer.returnFromIC();
+
+  trackAttached("WeakSetHas");
+  return AttachDecision::Attach;
+}
+
 AttachDecision InlinableNativeIRGenerator::tryAttachDateGetTime() {
   // Ensure |this| is a DateObject.
   if (!thisval_.isObject() || !thisval_.toObject().is<DateObject>()) {
@@ -11044,6 +11158,323 @@ AttachDecision CallIRGenerator::tryAttachFunCall(HandleFunction callee) {
     trackAttached("Native fun_call");
   }
 
+  return AttachDecision::Attach;
+}
+
+AttachDecision InlinableNativeIRGenerator::tryAttachTypedArrayFill() {
+  // Expected arguments: value, optional start, optional end.
+  if (args_.length() < 1 || args_.length() > 3) {
+    return AttachDecision::NoAction;
+  }
+
+  if (!isFirstStub()) {
+    // Attach only once to prevent slowdowns for polymorphic calls.
+    return AttachDecision::NoAction;
+  }
+
+  // Ensure |this| is a TypedArrayObject.
+  if (!thisval_.isObject() || !thisval_.toObject().is<TypedArrayObject>()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Both arguments must be valid indices.
+  int64_t unusedIndex;
+  if (args_.length() > 1 && !ValueIsInt64Index(args_[1], &unusedIndex)) {
+    return AttachDecision::NoAction;
+  }
+  if (args_.length() > 2 && !ValueIsInt64Index(args_[2], &unusedIndex)) {
+    return AttachDecision::NoAction;
+  }
+
+  auto* tarr = &thisval_.toObject().as<TypedArrayObject>();
+  auto elementType = tarr->type();
+
+  // Detached buffers throw.
+  if (tarr->hasDetachedBuffer()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Must not be an immutable typed array.
+  if (tarr->is<ImmutableTypedArrayObject>()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Resizable typed arrays not yet supported.
+  if (tarr->is<ResizableTypedArrayObject>()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Don't attach if the input type doesn't match the guard added below.
+  if (!ValueCanConvertToNumeric(elementType, args_[0])) {
+    return AttachDecision::NoAction;
+  }
+
+  // Initialize the input operand.
+  Int32OperandId argcId = initializeInputOperand();
+
+  // Guard callee is the `fill` native function.
+  ObjOperandId calleeId = emitNativeCalleeGuard(argcId);
+
+  // Guard this is an object.
+  ValOperandId thisValId = loadThis(calleeId);
+  ObjOperandId objId = writer.guardToObject(thisValId);
+
+  // Shape guard to check class.
+  writer.guardShapeForClass(objId, tarr->shape());
+
+  // Guard the array buffer is not detached.
+  writer.guardHasAttachedArrayBuffer(objId);
+
+  ValOperandId fillValId = loadArgument(calleeId, ArgumentKind::Arg0);
+  OperandId fillNumericId = emitNumericGuard(fillValId, args_[0], elementType);
+
+  // Convert |start| to IntPtr.
+  IntPtrOperandId intPtrStartId;
+  if (args_.length() > 1) {
+    ValOperandId startId = loadArgument(calleeId, ArgumentKind::Arg1);
+    intPtrStartId =
+        guardToIntPtrIndex(args_[1], startId, /* supportOOB = */ false);
+  } else {
+    // Absent first argument defaults to zero.
+    intPtrStartId = writer.loadInt32AsIntPtrConstant(0);
+  }
+
+  // Convert |end| to IntPtr.
+  IntPtrOperandId intPtrEndId;
+  if (args_.length() > 2) {
+    ValOperandId endId = loadArgument(calleeId, ArgumentKind::Arg2);
+    intPtrEndId = guardToIntPtrIndex(args_[2], endId, /* supportOOB = */ false);
+  } else {
+    // Absent second argument defaults to the typed array length.
+    intPtrEndId = writer.loadArrayBufferViewLength(objId);
+  }
+
+  writer.typedArrayFillResult(objId, fillNumericId, intPtrStartId, intPtrEndId,
+                              elementType);
+  writer.returnFromIC();
+
+  trackAttached("TypedArrayFill");
+  return AttachDecision::Attach;
+}
+
+AttachDecision InlinableNativeIRGenerator::tryAttachTypedArraySet() {
+  // Expected arguments: source (typed array), optional offset (int32).
+  if (args_.length() < 1 || args_.length() > 2) {
+    return AttachDecision::NoAction;
+  }
+
+  if (!isFirstStub()) {
+    // Attach only once to prevent slowdowns for polymorphic calls.
+    return AttachDecision::NoAction;
+  }
+
+  // Ensure |this| is a TypedArrayObject.
+  if (!thisval_.isObject() || !thisval_.toObject().is<TypedArrayObject>()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Ensure first argument is a TypedArrayObject.
+  if (!args_[0].isObject() || !args_[0].toObject().is<TypedArrayObject>()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Ensure optional second argument is a non-negative index.
+  uint64_t targetOffset = 0;
+  if (args_.length() > 1) {
+    int64_t offsetIndex;
+    if (!ValueIsInt64Index(args_[1], &offsetIndex) || offsetIndex < 0) {
+      return AttachDecision::NoAction;
+    }
+    targetOffset = uint64_t(offsetIndex);
+  }
+
+  auto* tarr = &thisval_.toObject().as<TypedArrayObject>();
+  auto* source = &args_[0].toObject().as<TypedArrayObject>();
+
+  // Detached buffers throw.
+  if (tarr->hasDetachedBuffer() || source->hasDetachedBuffer()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Target must not be an immutable typed array.
+  if (tarr->is<ImmutableTypedArrayObject>()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Typed array contents must be compatible.
+  if (Scalar::isBigIntType(tarr->type()) !=
+      Scalar::isBigIntType(source->type())) {
+    return AttachDecision::NoAction;
+  }
+
+  // `set()` throws if `sourceLength + targetOffset > targetLength`.
+  size_t targetLength = tarr->length().valueOr(0);
+  size_t sourceLength = source->length().valueOr(0);
+  if (targetOffset > targetLength ||
+      sourceLength > targetLength - targetOffset) {
+    return AttachDecision::NoAction;
+  }
+
+  // Resizable typed arrays not yet supported.
+  if (tarr->is<ResizableTypedArrayObject>() ||
+      source->is<ResizableTypedArrayObject>()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Infallible operation if bit-wise copying is possible.
+  bool canUseBitwiseCopy = CanUseBitwiseCopy(tarr->type(), source->type());
+
+  // Initialize the input operand.
+  Int32OperandId argcId = initializeInputOperand();
+
+  // Guard callee is the `set` native function.
+  ObjOperandId calleeId = emitNativeCalleeGuard(argcId);
+
+  // Guard this is an object.
+  ValOperandId thisValId = loadThis(calleeId);
+  ObjOperandId objId = writer.guardToObject(thisValId);
+
+  // Shape guard to check class.
+  writer.guardShapeForClass(objId, tarr->shape());
+
+  // Guard the array buffer is not detached.
+  writer.guardHasAttachedArrayBuffer(objId);
+
+  // Guard first argument is an object.
+  ValOperandId sourceId = loadArgument(calleeId, ArgumentKind::Arg0);
+  ObjOperandId sourceObjId = writer.guardToObject(sourceId);
+
+  // Shape guard to check class of first argument.
+  writer.guardShapeForClass(sourceObjId, source->shape());
+
+  // Guard the source is not detached. (Immutable typed arrays can't get
+  // detached.)
+  if (!source->is<ImmutableTypedArrayObject>()) {
+    writer.guardHasAttachedArrayBuffer(sourceObjId);
+  }
+
+  // Convert offset to IntPtr.
+  IntPtrOperandId intPtrOffsetId;
+  if (args_.length() > 1) {
+    ValOperandId offsetId = loadArgument(calleeId, ArgumentKind::Arg1);
+    intPtrOffsetId =
+        guardToIntPtrIndex(args_[1], offsetId, /* supportOOB = */ false);
+    writer.guardIntPtrIsNonNegative(intPtrOffsetId);
+  } else {
+    // Absent first argument defaults to zero.
+    intPtrOffsetId = writer.loadInt32AsIntPtrConstant(0);
+  }
+
+  writer.typedArraySetResult(objId, sourceObjId, intPtrOffsetId,
+                             canUseBitwiseCopy);
+  writer.returnFromIC();
+
+  trackAttached("TypedArraySet");
+  return AttachDecision::Attach;
+}
+
+AttachDecision InlinableNativeIRGenerator::tryAttachTypedArraySubarray() {
+  // Only handle argc <= 2.
+  if (args_.length() > 2) {
+    return AttachDecision::NoAction;
+  }
+
+  if (!isFirstStub()) {
+    // Attach only once to prevent slowdowns for polymorphic calls.
+    return AttachDecision::NoAction;
+  }
+
+  // Ensure |this| is a TypedArrayObject.
+  if (!thisval_.isObject() || !thisval_.toObject().is<TypedArrayObject>()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Both arguments must be valid indices.
+  int64_t unusedIndex;
+  if (args_.length() > 0 && !ValueIsInt64Index(args_[0], &unusedIndex)) {
+    return AttachDecision::NoAction;
+  }
+  if (args_.length() > 1 && !ValueIsInt64Index(args_[1], &unusedIndex)) {
+    return AttachDecision::NoAction;
+  }
+
+  auto* tarr = &thisval_.toObject().as<TypedArrayObject>();
+
+  // Detached buffer throws.
+  if (tarr->hasDetachedBuffer()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Resizable typed arrays not yet supported.
+  if (tarr->is<ResizableTypedArrayObject>()) {
+    return AttachDecision::NoAction;
+  }
+
+  // TypedArray species fuse must still be intact.
+  if (!cx_->realm()->realmFuses.optimizeTypedArraySpeciesFuse.intact()) {
+    return AttachDecision::NoAction;
+  }
+
+  // Ensure |tarr|'s prototype is the actual concrete TypedArray.prototype.
+  auto protoKey = StandardProtoKeyOrNull(tarr);
+  auto* proto = cx_->global()->maybeGetPrototype(protoKey);
+  if (!proto || tarr->staticPrototype() != proto) {
+    return AttachDecision::NoAction;
+  }
+
+  // Ensure no own "constructor" property.
+  if (tarr->containsPure(cx_->names().constructor)) {
+    return AttachDecision::NoAction;
+  }
+
+  // Initialize the input operand.
+  Int32OperandId argcId = initializeInputOperand();
+
+  // Guard callee is the `subarray` native function.
+  ObjOperandId calleeId = emitNativeCalleeGuard(argcId);
+
+  // Guard this is an object.
+  ValOperandId thisValId = loadThis(calleeId);
+  ObjOperandId objId = writer.guardToObject(thisValId);
+
+  // Shape guard to check class and prototype, and to ensure no own
+  // "constructor" property is present.
+  writer.guardShape(objId, tarr->shape());
+
+  // Guard the array buffer is not detached. (Immutable typed arrays can't get
+  // detached.)
+  if (!tarr->is<ImmutableTypedArrayObject>()) {
+    writer.guardHasAttachedArrayBuffer(objId);
+  }
+
+  // Guard the fuse is intact.
+  writer.guardFuse(RealmFuses::FuseIndex::OptimizeTypedArraySpeciesFuse);
+
+  // Convert |start| to IntPtr.
+  IntPtrOperandId intPtrStartId;
+  if (args_.length() > 0) {
+    ValOperandId startId = loadArgument(calleeId, ArgumentKind::Arg0);
+    intPtrStartId =
+        guardToIntPtrIndex(args_[0], startId, /* supportOOB = */ false);
+  } else {
+    // Absent first argument defaults to zero.
+    intPtrStartId = writer.loadInt32AsIntPtrConstant(0);
+  }
+
+  // Convert |end| to IntPtr.
+  IntPtrOperandId intPtrEndId;
+  if (args_.length() > 1) {
+    ValOperandId endId = loadArgument(calleeId, ArgumentKind::Arg1);
+    intPtrEndId = guardToIntPtrIndex(args_[1], endId, /* supportOOB = */ false);
+  } else {
+    // Absent second argument defaults to the typed array length.
+    intPtrEndId = writer.loadArrayBufferViewLength(objId);
+  }
+
+  writer.typedArraySubarrayResult(objId, intPtrStartId, intPtrEndId);
+  writer.returnFromIC();
+
+  trackAttached("TypedArraySubarray");
   return AttachDecision::Attach;
 }
 
@@ -11449,12 +11880,12 @@ InlinableNativeIRGenerator::tryAttachTypedArrayConstructorFromLength() {
   MOZ_ASSERT(flags_.isConstructing());
   MOZ_ASSERT(args_.length() == 0 || args_[0].isInt32());
 
-  // Expected arguments: length (int32)
-  if (args_.length() != 1) {
+  // Expected arguments: Optional length (int32)
+  if (args_.length() > 1) {
     return AttachDecision::NoAction;
   }
 
-  int32_t length = args_[0].toInt32();
+  int32_t length = args_.length() > 0 ? args_[0].toInt32() : 0;
 
   Scalar::Type type = TypedArrayConstructorType(target_);
   Rooted<TypedArrayObject*> templateObj(cx_);
@@ -11475,8 +11906,13 @@ InlinableNativeIRGenerator::tryAttachTypedArrayConstructorFromLength() {
   // Guard callee and newTarget are this TypedArray constructor function.
   ObjOperandId calleeId = emitNativeCalleeGuard(argcId);
 
-  ValOperandId arg0Id = loadArgument(calleeId, ArgumentKind::Arg0);
-  Int32OperandId lengthId = writer.guardToInt32(arg0Id);
+  Int32OperandId lengthId;
+  if (args_.length() > 0) {
+    ValOperandId arg0Id = loadArgument(calleeId, ArgumentKind::Arg0);
+    lengthId = writer.guardToInt32(arg0Id);
+  } else {
+    lengthId = writer.loadInt32Constant(0);
+  }
   writer.newTypedArrayFromLengthResult(templateObj, lengthId);
   writer.returnFromIC();
 
@@ -12586,9 +13022,17 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStub() {
     case InlinableNative::IntrinsicGuardToSharedArrayBuffer:
       return tryAttachGuardToSharedArrayBuffer();
 
-    // TypedArray intrinsics.
+    // TypedArray natives.
     case InlinableNative::TypedArrayConstructor:
       return AttachDecision::NoAction;  // Not callable.
+    case InlinableNative::TypedArrayFill:
+      return tryAttachTypedArrayFill();
+    case InlinableNative::TypedArraySet:
+      return tryAttachTypedArraySet();
+    case InlinableNative::TypedArraySubarray:
+      return tryAttachTypedArraySubarray();
+
+    // TypedArray intrinsics.
     case InlinableNative::IntrinsicIsTypedArray:
       return tryAttachIsTypedArray(/* isPossiblyWrapped = */ false);
     case InlinableNative::IntrinsicIsPossiblyWrappedTypedArray:
@@ -12681,6 +13125,14 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStub() {
       return tryAttachDateGet(DateComponent::Minutes);
     case InlinableNative::DateGetSeconds:
       return tryAttachDateGet(DateComponent::Seconds);
+
+    // WeakMap/WeakSet natives.
+    case InlinableNative::WeakMapGet:
+      return tryAttachWeakMapGet();
+    case InlinableNative::WeakMapHas:
+      return tryAttachWeakMapHas();
+    case InlinableNative::WeakSetHas:
+      return tryAttachWeakSetHas();
 
     // Testing functions.
     case InlinableNative::TestBailout:

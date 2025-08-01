@@ -1011,17 +1011,6 @@ async function createAndAttachTargetForTab(tab) {
   return target;
 }
 
-function isFissionEnabled() {
-  return SpecialPowers.useRemoteSubframes;
-}
-
-function isEveryFrameTargetEnabled() {
-  return Services.prefs.getBoolPref(
-    "devtools.every-frame-target.enabled",
-    false
-  );
-}
-
 /**
  * Open the inspector in a tab with given URL.
  * @param {string} url  The URL to open.

@@ -2072,25 +2072,6 @@
       }
     ]
   },
-  "1897120": {
-    "label": "Flipbook",
-    "bugs": {
-      "1897120": {
-        "issue": "broken-zooming",
-        "matches": ["*://flipbook.se.com/*", "*://*.flipbookpdf.net/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["desktop"],
-        "pref_check": { "layout.css.prefixes.transforms": false },
-        "content_scripts": {
-          "all_frames": true,
-          "js": ["bug1897120-turnjs-zoom-fix.js"]
-        }
-      }
-    ]
-  },
   "1897724": {
     "label": "app.homewyse.com",
     "bugs": {
@@ -2163,6 +2144,23 @@
       {
         "platforms": ["all"],
         "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
+  "1898915": {
+    "label": "africanews.com",
+    "bugs": {
+      "1898915": {
+        "issue": "unsupported-warning",
+        "matches": ["*://locator.dhl.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "content_scripts": {
+          "css": ["bug1898915-locator.dhl.com-hide-unsupported.css"]
+        }
       }
     ]
   },
@@ -2663,6 +2661,21 @@
       }
     ]
   },
+  "1899923": {
+    "label": "findmy.tokyo",
+    "bugs": {
+      "1899923": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://findmy.tokyo/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
   "1899929": {
     "label": "selecionases.saude.pe.gov.br",
     "bugs": {
@@ -2872,6 +2885,23 @@
         "platforms": ["all"],
         "content_scripts": {
           "css": ["bug1902383-wpartner.wemakeprice.com-hide-recommendation.css"]
+        }
+      }
+    ]
+  },
+  "1902385": {
+    "label": "bithumb.com",
+    "bugs": {
+      "1902385": {
+        "issue": "unsupported-warning",
+        "matches": ["*://www.bithumb.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "content_scripts": {
+          "css": ["bug1902385-www.bithumb.com-hide-unsupported.css"]
         }
       }
     ]
@@ -3233,6 +3263,24 @@
           "js": [
             "bug1902416-www.acionafacil.com.br-prevent-unsupported-alert.js"
           ]
+        }
+      }
+    ]
+  },
+  "1902419": {
+    "label": "jamsune.com",
+    "bugs": {
+      "1902419": {
+        "issue": "unsupported-warning",
+        "matches": ["*://www.jamsune.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "content_scripts": {
+          "all_frames": true,
+          "js": ["bug1902419-www.jamsune.com-prevent-unsupported-alert.js"]
         }
       }
     ]
@@ -5188,21 +5236,6 @@
       {
         "platforms": ["all"],
         "ua_string": ["change_Firefox_to_FireFox"]
-      }
-    ]
-  },
-  "1973920": {
-    "label": "app.genio.co",
-    "bugs": {
-      "1973920": {
-        "issue": "firefox-blocked-completely",
-        "matches": ["*://app.genio.co/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["desktop"],
-        "ua_string": ["add_Chrome"]
       }
     ]
   },

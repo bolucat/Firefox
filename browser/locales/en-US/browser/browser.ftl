@@ -100,6 +100,10 @@ urlbar-default-notification-anchor =
     .tooltiptext = Open message panel
 urlbar-geolocation-notification-anchor =
     .tooltiptext = Open location request panel
+urlbar-localhost-notification-anchor =
+    .tooltiptext = Manage local device access for this site
+urlbar-local-network-notification-anchor =
+    .tooltiptext = Manage sharing your local network access with this site
 urlbar-xr-notification-anchor =
     .tooltiptext = Open virtual reality permission panel
 urlbar-storage-access-anchor =
@@ -194,6 +198,10 @@ urlbar-search-mode-actions = Actions
 
 urlbar-geolocation-blocked =
     .tooltiptext = You have blocked location information for this website.
+urlbar-localhost-blocked =
+    .tooltiptext = You have blocked local device connections for this website.
+urlbar-local-network-blocked =
+    .tooltiptext = You have blocked local network connections for this website.
 urlbar-xr-blocked =
     .tooltiptext = You have blocked virtual reality device access for this website.
 urlbar-web-notifications-blocked =
@@ -715,6 +723,35 @@ urlbar-result-weather-title-city-only = <strong>{ $temperature }°{ $unit }</str
 #   $provider (String) - The name of the weather-data provider. It will be the
 #       name of a company, organization, or service.
 urlbar-result-weather-provider-sponsored = { $provider } · Sponsored
+
+## These strings are used for Realtime suggestions in the urlbar.
+## Market refers to stocks, indexes, and funds.
+
+# This string is shown as title when Market suggestion are disabled.
+urlbar-result-market-opt-in-title = Get stock market data right in your search bar
+
+# This string is shown as description when Market suggestion are disabled.
+urlbar-result-market-opt-in-description = Show market updates and more from our partners when you share search query data with { -vendor-short-name }. <a data-l10n-name="learn-more-link">Learn more</a>
+
+# This string is shown as button to activate online when realtime suggestion are disabled.
+urlbar-result-realtime-opt-in-allow = Show suggestions
+
+# This string is shown in split button to dismiss activation the Realtime suggestion.
+urlbar-result-realtime-opt-in-not-now = Not now
+urlbar-result-realtime-opt-in-dismiss = Dismiss
+urlbar-result-realtime-opt-in-dismiss-all =
+    .label = Don’t show these suggestions
+
+# This string is shown in the result menu.
+urlbar-result-menu-dont-show-market =
+  .label = Don’t show market suggestions
+
+# A message that replaces a result when the user dismisses Market suggestions.
+urlbar-result-dismissal-acknowledgment-market = Thanks for your feedback. You won’t see market suggestions anymore.
+
+# A message that replaces a result when the user dismisses all suggestions of a
+# particular type.
+urlbar-result-dismissal-acknowledgment-all = Thanks for your feedback. You won’t see these suggestions anymore.
 
 ## Strings used for buttons in the urlbar
 

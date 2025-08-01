@@ -372,11 +372,15 @@ export const storybookTables = {
   "border-color": [
     {
       value: {
-        comment: "TODO Bug 1821203 - Gray tones need to be consolidated",
-        light: "#CFCFD8",
-        dark: "#3A3944",
+        brand: {
+          light: "var(--color-gray-50)",
+          dark: "var(--color-gray-70)",
+          default: "light-dark(var(--color-gray-50), var(--color-gray-70))",
+        },
         prefersContrast: "CanvasText",
-        default: "light-dark(#CFCFD8, #3A3944)",
+        platform: {
+          default: "color-mix(in srgb, currentColor 50%, transparent)",
+        },
       },
       name: "--border-color",
     },
@@ -885,7 +889,7 @@ export const storybookTables = {
     },
   ],
   "icon-size": [
-    { value: "var(--icon-size-small)", name: "--icon-size-default" },
+    { value: "var(--icon-size-small)", name: "--icon-size" },
     { value: "12px", name: "--icon-size-xsmall" },
     { value: "var(--size-item-small)", name: "--icon-size-small" },
     { value: "20px", name: "--icon-size-medium" },
@@ -1050,11 +1054,13 @@ export const variableLookupTable = {
     default: "light-dark(var(--color-yellow-0), var(--color-yellow-90))",
   },
   "border-color": {
-    comment: "TODO Bug 1821203 - Gray tones need to be consolidated",
-    light: "#CFCFD8",
-    dark: "#3A3944",
+    brand: {
+      light: "var(--color-gray-50)",
+      dark: "var(--color-gray-70)",
+      default: "light-dark(var(--color-gray-50), var(--color-gray-70))",
+    },
     prefersContrast: "CanvasText",
-    default: "light-dark(#CFCFD8, #3A3944)",
+    platform: { default: "color-mix(in srgb, currentColor 50%, transparent)" },
   },
   "border-color-transparent": {
     default: "transparent",
@@ -1536,7 +1542,7 @@ export const variableLookupTable = {
     prefersContrast: "var(--icon-color)",
     default: "light-dark(var(--color-red-60), var(--color-red-20))",
   },
-  "icon-size-default": "var(--icon-size-small)",
+  "icon-size": "var(--icon-size-small)",
   "icon-size-xsmall": "12px",
   "icon-size-small": "var(--size-item-small)",
   "icon-size-medium": "20px",

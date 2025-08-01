@@ -2160,7 +2160,7 @@ pref("font.size.monospace.x-math", 13);
   pref("font.name-list.monospace.x-armn", "Arial AMU");
 
   pref("font.name-list.serif.x-beng", "Vrinda, Akaash, Likhan, Ekushey Punarbhaba");
-  pref("font.name-list.sans-serif.x-beng", "Vrinda, Akaash, Likhan, Ekushey Punarbhaba");
+  pref("font.name-list.sans-serif.x-beng", "Nirmala Text, Vrinda, Akaash, Likhan, Ekushey Punarbhaba");
   pref("font.name-list.monospace.x-beng", "Mitra Mono, Likhan, Mukti Narrow");
 
   pref("font.name-list.serif.x-cans", "Aboriginal Serif, BJCree Uni");
@@ -3135,10 +3135,6 @@ pref("extensions.originControls.grantByDefault", true);
 // purposes only. Setting this to false will break moz-extension URI loading
 // unless other process sandboxing and extension remoting prefs are changed.
 pref("extensions.webextensions.protocol.remote", true);
-
-// Enable userScripts API by default.
-pref("extensions.webextensions.userScripts.enabled", true);
-pref("extensions.userScripts.mv3.enabled", true);
 
 // Whether or not the installed extensions should be migrated to the storage.local IndexedDB backend.
 pref("extensions.webextensions.ExtensionStorageIDB.enabled", true);

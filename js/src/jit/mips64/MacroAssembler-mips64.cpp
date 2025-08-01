@@ -761,6 +761,25 @@ FaultingCodeOffset MacroAssemblerMIPS64::ma_store(
   return fco;
 }
 
+void MacroAssemblerMIPS64Compat::computeScaledAddress32(
+    const BaseIndex& address, Register dest) {
+  Register base = address.base;
+  Register index = address.index;
+  int32_t shift = Imm32::ShiftOf(address.scale).value;
+  ScratchRegisterScope scratch(asMasm());
+  if (shift && base == zero) {
+    MOZ_ASSERT(shift <= 4);
+    ma_sll(dest, index, Imm32(shift));
+  } else if (shift) {
+    Register tmp = dest == base ? scratch : dest;
+    MOZ_ASSERT(shift <= 4);
+    ma_sll(tmp, index, Imm32(shift));
+    as_addu(dest, base, tmp);
+  } else {
+    as_addu(dest, base, index);
+  }
+}
+
 void MacroAssemblerMIPS64Compat::computeScaledAddress(const BaseIndex& address,
                                                       Register dest) {
   int32_t shift = Imm32::ShiftOf(address.scale).value;
@@ -2374,6 +2393,7 @@ void MacroAssembler::wasmTruncateDoubleToUInt32(FloatRegister input,
                                                 Register output,
                                                 bool isSaturating,
                                                 Label* oolEntry) {
+  branchDouble(Assembler::DoubleUnordered, input, input, oolEntry);
   as_truncld(ScratchDoubleReg, input);
   moveFromDouble(ScratchDoubleReg, output);
   ma_dsrl(ScratchRegister, output, Imm32(32));
@@ -2385,6 +2405,7 @@ void MacroAssembler::wasmTruncateFloat32ToUInt32(FloatRegister input,
                                                  Register output,
                                                  bool isSaturating,
                                                  Label* oolEntry) {
+  branchFloat(Assembler::DoubleUnordered, input, input, oolEntry);
   as_truncls(ScratchDoubleReg, input);
   moveFromDouble(ScratchDoubleReg, output);
   ma_dsrl(ScratchRegister, output, Imm32(32));
@@ -2442,6 +2463,9 @@ void MacroAssembler::wasmTruncateDoubleToUInt64(
 
   Label done;
 
+  // Guard against NaN.
+  branchDouble(Assembler::DoubleUnordered, input, input, oolEntry);
+
   as_truncld(ScratchDoubleReg, input);
   // ma_li INT64_MAX
   ma_li(SecondScratchReg, Imm32(-1));
@@ -2496,6 +2520,9 @@ void MacroAssembler::wasmTruncateFloat32ToUInt64(
   Register output = output_.reg;
 
   Label done;
+
+  // Guard against NaN.
+  branchFloat(Assembler::DoubleUnordered, input, input, oolEntry);
 
   as_truncls(ScratchDoubleReg, input);
   // ma_li INT64_MAX

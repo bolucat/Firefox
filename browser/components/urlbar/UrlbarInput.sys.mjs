@@ -73,7 +73,6 @@ ChromeUtils.defineLazyGetter(lazy, "logger", () =>
 );
 
 const DEFAULT_FORM_HISTORY_NAME = "searchbar-history";
-const SEARCH_BUTTON_CLASS = "urlbar-search-button";
 
 const UNLIMITED_MAX_RESULTS = 99;
 
@@ -205,7 +204,6 @@ export class UrlbarInput {
     this._searchModeIndicatorClose = this._searchModeIndicator.querySelector(
       "#urlbar-search-mode-indicator-close"
     );
-    this._searchModeLabel = this.querySelector("#urlbar-label-search-mode");
 
     ChromeUtils.defineLazyGetter(this, "valueFormatter", () => {
       return new lazy.UrlbarValueFormatter(this);
@@ -3842,9 +3840,7 @@ export class UrlbarInput {
     }
 
     this._searchModeIndicatorTitle.textContent = "";
-    this._searchModeLabel.textContent = "";
     this._searchModeIndicatorTitle.removeAttribute("data-l10n-id");
-    this._searchModeLabel.removeAttribute("data-l10n-id");
 
     if (!engineName && !source) {
       try {
@@ -3860,7 +3856,6 @@ export class UrlbarInput {
     if (engineName) {
       // Set text content for the search mode indicator.
       this._searchModeIndicatorTitle.textContent = engineName;
-      this._searchModeLabel.textContent = engineName;
       this.document.l10n.setAttributes(
         this.inputField,
         isGeneralPurposeEngine
@@ -3879,7 +3874,6 @@ export class UrlbarInput {
       let sourceName = lazy.UrlbarUtils.getResultSourceName(source);
       let l10nID = `urlbar-search-mode-${sourceName}`;
       this.document.l10n.setAttributes(this._searchModeIndicatorTitle, l10nID);
-      this.document.l10n.setAttributes(this._searchModeLabel, l10nID);
       this.document.l10n.setAttributes(this.inputField, messageIDs[sourceName]);
     }
 
@@ -4112,8 +4106,8 @@ export class UrlbarInput {
     }
 
     const engine = Services.search.getEngineByName(engineName);
-    if (!engine.isAppProvided) {
-      // Set the engine name to an empty string for non-default engines, which'll
+    if (!engine.isConfigEngine) {
+      // Set the engine name to an empty string for non-config-engines, which'll
       // make sure we display the default placeholder string.
       engineName = "";
     }
@@ -4251,8 +4245,7 @@ export class UrlbarInput {
   _on_click(event) {
     if (
       event.target == this.inputField ||
-      event.target == this._inputContainer ||
-      event.target.classList.contains(SEARCH_BUTTON_CLASS)
+      event.target == this._inputContainer
     ) {
       this._maybeSelectAll();
       this.#maybeUntrimUrl();
@@ -4366,8 +4359,7 @@ export class UrlbarInput {
 
         if (
           event.target != this.inputField &&
-          event.target != this._inputContainer &&
-          !event.target.classList.contains(SEARCH_BUTTON_CLASS)
+          event.target != this._inputContainer
         ) {
           break;
         }
@@ -4393,18 +4385,13 @@ export class UrlbarInput {
           this.inputField.setSelectionRange(0, 0);
         }
 
-        if (event.target.classList.contains(SEARCH_BUTTON_CLASS)) {
-          this._preventClickSelectsAll = true;
-          this.search(lazy.UrlbarTokenizer.RESTRICT.SEARCH);
-        } else {
-          // Do not suppress the focus border if we are already focused. If we
-          // did, we'd hide the focus border briefly then show it again if the
-          // user has Top Sites disabled, creating a flashing effect.
-          this.view.autoOpen({
-            event,
-            suppressFocusBorder: !hasFocus,
-          });
-        }
+        // Do not suppress the focus border if we are already focused. If we
+        // did, we'd hide the focus border briefly then show it again if the
+        // user has Top Sites disabled, creating a flashing effect.
+        this.view.autoOpen({
+          event,
+          suppressFocusBorder: !hasFocus,
+        });
         break;
       }
       case this.window:

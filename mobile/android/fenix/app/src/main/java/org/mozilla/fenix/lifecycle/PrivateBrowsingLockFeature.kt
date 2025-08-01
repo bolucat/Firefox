@@ -106,25 +106,16 @@ class PrivateBrowsingLockFeature(
     init {
         isFeatureEnabled = storage.isFeatureEnabled
 
+        // Use our app state during feature init which can happen after Activity recreation.
+        val isLocked =
+            browserStore.state.privateTabs.isNotEmpty() && appStore.state.isPrivateScreenLocked
+
         updateFeatureState(
             isFeatureEnabled = isFeatureEnabled,
-            isLocked = browserStore.state.privateTabs.isNotEmpty(),
+            isLocked = isLocked,
         )
 
         observeFeatureStateUpdates()
-    }
-
-    /**
-     * Handles a successful authentication event by unlocking the private browsing mode.
-     *
-     * This should be called by biometric or password authentication mechanisms (e.g., fingerprint,
-     * face unlock, or PIN entry) once the user has successfully authenticated. It updates the app state
-     * to reflect that private browsing tabs are now accessible.
-     */
-    fun onSuccessfulAuthentication() {
-        appStore.dispatch(
-            PrivateBrowsingLockAction.UpdatePrivateBrowsingLock(isLocked = false),
-        )
     }
 
     private fun observeFeatureStateUpdates() {
@@ -230,7 +221,7 @@ class PrivateBrowsingLockFeature(
         if (appStore.state.isPrivateScreenLocked) return
 
         // Optionally skip if the window still has focus (e.g. while showing a system dialog).
-        if (!shouldLockFocusedWindow && activity.hasWindowFocus()) return
+        if (!shouldLockFocusedWindow && !activity.isFinishing) return
 
         // Skip locking private mode if there are no private tabs.
         if (browserStore.state.privateTabs.isEmpty()) return
@@ -241,6 +232,34 @@ class PrivateBrowsingLockFeature(
             ),
         )
     }
+}
+
+/**
+ * Use cases pertaining to [PrivateBrowsingLockFeature].
+ *
+ * @param appStore the application's [AppStore].
+ */
+class PrivateBrowsingLockUseCases(appStore: AppStore) {
+
+    /**
+     * Use case to be called at the end of a successful authentication.
+     */
+    class AuthenticatedUseCase internal constructor(private val appStore: AppStore) {
+        /**
+         * Handles a successful authentication event by unlocking the private browsing mode.
+         *
+         * This should be called by biometric or password authentication mechanisms (e.g., fingerprint,
+         * face unlock, or PIN entry) once the user has successfully authenticated. It updates the app state
+         * to reflect that private browsing tabs are now accessible.
+         */
+        operator fun invoke() {
+            appStore.dispatch(
+                PrivateBrowsingLockAction.UpdatePrivateBrowsingLock(isLocked = false),
+            )
+        }
+    }
+
+    val authenticatedUseCase by lazy { AuthenticatedUseCase(appStore) }
 }
 
 /**
@@ -327,7 +346,7 @@ private fun handleVerificationSuccess(
     onVerified: (() -> Unit)? = null,
 ) {
     PrivateBrowsingLocked.authSuccess.record()
-    context.components.privateBrowsingLockFeature.onSuccessfulAuthentication()
+    context.components.useCases.privateBrowsingLockUseCases.authenticatedUseCase()
 
     onVerified?.invoke()
 }

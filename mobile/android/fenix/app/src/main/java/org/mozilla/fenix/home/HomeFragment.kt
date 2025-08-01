@@ -7,11 +7,14 @@ package org.mozilla.fenix.home
 import android.annotation.SuppressLint
 import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AppCompatActivity
@@ -32,10 +35,8 @@ import androidx.core.graphics.drawable.toDrawable
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import com.google.android.material.appbar.AppBarLayout
@@ -59,7 +60,6 @@ import mozilla.components.concept.sync.AuthType
 import mozilla.components.concept.sync.OAuthAccount
 import mozilla.components.feature.accounts.push.SendTabUseCases
 import mozilla.components.feature.tab.collections.TabCollection
-import mozilla.components.feature.top.sites.TopSite
 import mozilla.components.feature.top.sites.TopSitesFeature
 import mozilla.components.lib.state.ext.consumeFlow
 import mozilla.components.lib.state.ext.consumeFrom
@@ -80,6 +80,7 @@ import org.mozilla.fenix.browser.tabstrip.TabStrip
 import org.mozilla.fenix.components.Components
 import org.mozilla.fenix.components.HomepageThumbnailIntegration
 import org.mozilla.fenix.components.TabCollectionStorage
+import org.mozilla.fenix.components.VoiceSearchFeature
 import org.mozilla.fenix.components.appstate.AppAction
 import org.mozilla.fenix.components.appstate.AppAction.ContentRecommendationsAction
 import org.mozilla.fenix.components.appstate.AppAction.MessagingAction
@@ -144,7 +145,6 @@ import org.mozilla.fenix.microsurvey.ui.MicrosurveyRequestPrompt
 import org.mozilla.fenix.microsurvey.ui.ext.MicrosurveyUIData
 import org.mozilla.fenix.microsurvey.ui.ext.toMicrosurveyUIData
 import org.mozilla.fenix.nimbus.FxNimbus
-import org.mozilla.fenix.onboarding.HomeScreenPopupManager
 import org.mozilla.fenix.onboarding.WidgetPinnedReceiver
 import org.mozilla.fenix.perf.MarkersFragmentLifecycleCallbacks
 import org.mozilla.fenix.perf.StartupTimeline
@@ -160,11 +160,11 @@ import org.mozilla.fenix.tabstray.DefaultTabManagementFeatureHelper
 import org.mozilla.fenix.tabstray.Page
 import org.mozilla.fenix.tabstray.TabsTrayAccessPoint
 import org.mozilla.fenix.theme.FirefoxTheme
+import org.mozilla.fenix.utils.Settings
 import org.mozilla.fenix.utils.allowUndo
 import org.mozilla.fenix.utils.showAddSearchWidgetPromptIfSupported
 import org.mozilla.fenix.wallpapers.Wallpaper
 import java.lang.ref.WeakReference
-import org.mozilla.fenix.GleanMetrics.TabStrip as TabStripMetrics
 
 @Suppress("TooManyFunctions", "LargeClass")
 class HomeFragment : Fragment() {
@@ -250,8 +250,16 @@ class HomeFragment : Fragment() {
     private val tabsCleanupFeature = ViewBoundFeatureWrapper<TabsCleanupFeature>()
     private val searchSelectorBinding = ViewBoundFeatureWrapper<SearchSelectorBinding>()
     private val searchSelectorMenuBinding = ViewBoundFeatureWrapper<SearchSelectorMenuBinding>()
-    private val homeScreenPopupManager = ViewBoundFeatureWrapper<HomeScreenPopupManager>()
     private val thumbnailsFeature = ViewBoundFeatureWrapper<HomepageThumbnailIntegration>()
+
+    private val voiceSearchFeature by lazy(LazyThreadSafetyMode.NONE) {
+        ViewBoundFeatureWrapper<VoiceSearchFeature>()
+    }
+
+    private val voiceSearchLauncher: ActivityResultLauncher<Intent> =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            voiceSearchFeature.get()?.handleVoiceSearchResult(result.resultCode, result.data)
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // DO NOT ADD ANYTHING ABOVE THIS getProfilerTime CALL!
@@ -487,8 +495,8 @@ class HomeFragment : Fragment() {
                         this@HomeFragment.registerCollectionStorageObserver()
                     }
 
-                    override fun removeCollectionWithUndo(tabCollection: TabCollection) {
-                        this@HomeFragment.removeCollectionWithUndo(tabCollection)
+                    override fun removeCollection(tabCollection: TabCollection) {
+                        this@HomeFragment.removeCollection(tabCollection)
                     }
 
                     override fun showTabTray() {
@@ -596,6 +604,16 @@ class HomeFragment : Fragment() {
                     hideWhenKeyboardShown = true,
                 )
 
+                voiceSearchFeature.set(
+                    feature = VoiceSearchFeature(
+                        context = activity,
+                        appStore = activity.components.appStore,
+                        voiceSearchLauncher = voiceSearchLauncher,
+                    ),
+                    owner = viewLifecycleOwner,
+                    view = binding.root,
+                )
+
                 HomeToolbarComposable(
                     context = activity,
                     homeBinding = binding,
@@ -675,7 +693,10 @@ class HomeFragment : Fragment() {
                 },
             ),
             onDismiss = {
-                homeScreenPopupManager.get()?.onSearchBarCFRDismissed()
+                with(requireComponents.settings) {
+                    lastCfrShownTimeInMillis = System.currentTimeMillis()
+                    shouldShowSearchBarCFR = false
+                }
             },
             text = {
                 FirefoxTheme {
@@ -858,14 +879,6 @@ class HomeFragment : Fragment() {
             },
         )
 
-        homeScreenPopupManager.set(
-            feature = HomeScreenPopupManager(
-                settings = requireContext().settings(),
-            ),
-            owner = viewLifecycleOwner,
-            view = binding.root,
-        )
-
         toolbarView.build(requireComponents.core.store.state)
         if (requireContext().settings().isTabStripEnabled) {
             initTabStrip()
@@ -918,16 +931,6 @@ class HomeFragment : Fragment() {
             owner = viewLifecycleOwner,
             view = view,
         )
-
-        viewLifecycleOwner.lifecycleScope.launch {
-            viewLifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                homeScreenPopupManager.get()?.searchBarCFRVisibility?.collect { showSearchBarCfr ->
-                    if (showSearchBarCfr) {
-                        showEncourageSearchCfr()
-                    }
-                }
-            }
-        }
 
         observeReviewPromptState()
 
@@ -1143,20 +1146,7 @@ class HomeFragment : Fragment() {
     }
 
     @VisibleForTesting
-    internal fun removeCollectionWithUndo(tabCollection: TabCollection) {
-        val snackbarMessage = getString(R.string.snackbar_collection_deleted)
-
-        lifecycleScope.allowUndo(
-            binding.dynamicSnackbarContainer,
-            snackbarMessage,
-            getString(R.string.snackbar_deleted_undo),
-            {
-                requireComponents.core.tabCollectionStorage.createCollection(tabCollection)
-            },
-            operation = { },
-            elevation = TOAST_ELEVATION,
-        )
-
+    internal fun removeCollection(tabCollection: TabCollection) {
         lifecycleScope.launch(IO) {
             requireComponents.core.tabCollectionStorage.removeCollection(tabCollection)
         }
@@ -1180,6 +1170,13 @@ class HomeFragment : Fragment() {
 
         evaluateMessagesForMicrosurvey(components)
 
+        maybeShowEncourageSearchCfr(
+            canShowCfr = components.settings.canShowCfr,
+            shouldShowCFR = components.settings.shouldShowSearchBarCFR,
+            showCfr = ::showEncourageSearchCfr,
+            recordExposure = { FxNimbus.features.encourageSearchCfr.recordExposure() },
+        )
+
         BiometricAuthenticationManager.biometricAuthenticationNeededInfo.shouldShowAuthenticationPrompt =
             true
         BiometricAuthenticationManager.biometricAuthenticationNeededInfo.authenticationStatus =
@@ -1188,6 +1185,19 @@ class HomeFragment : Fragment() {
 
     private fun evaluateMessagesForMicrosurvey(components: Components) =
         components.appStore.dispatch(MessagingAction.Evaluate(FenixMessageSurfaceId.MICROSURVEY))
+
+    @VisibleForTesting
+    internal fun maybeShowEncourageSearchCfr(
+        canShowCfr: Boolean,
+        shouldShowCFR: Boolean,
+        showCfr: () -> Unit,
+        recordExposure: () -> Unit,
+    ) {
+        if (canShowCfr && shouldShowCFR) {
+            showCfr()
+            recordExposure()
+        }
+    }
 
     override fun onPause() {
         super.onPause()

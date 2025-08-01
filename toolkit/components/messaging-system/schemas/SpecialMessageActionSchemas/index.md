@@ -279,25 +279,12 @@ Disable a message by adding to an indexedDb list of blocked messages
 
 Action for setting various browser prefs
 
-Prefs that can be changed with this action are:
-
-- `browser.dataFeatureRecommendations.enabled`
-- `browser.migrate.content-modal.about-welcome-behavior`
-- `browser.migrate.content-modal.import-all.enabled`
-- `browser.migrate.preferences-entrypoint.enabled`
-- `browser.startup.homepage`
-- `browser.startup.windowsLaunchOnLogin.disableLaunchOnLoginPrompt`
-- `browser.privateWindowSeparation.enabled`
-- `browser.firefox-view.feature-tour`
-- `browser.pdfjs.feature-tour`
-- `browser.newtab.feature-tour`
-- `cookiebanners.service.mode`
-- `cookiebanners.service.mode.privateBrowsing`
-- `cookiebanners.service.detectOnly`
-- `messaging-system.askForFeedback`
+Prefs that can be changed with this action can be found in the `allowList`
+definition for Special Message Actions in
+<a href="https://searchfox.org/mozilla-central/search?q=allowedPrefs&path=toolkit%2Fcomponents%2Fmessaging-system&case=false&regexp=false">SearchFox</a>.
 
 Any pref that begins with `messaging-system-action.` is also allowed.
-Alternatively, if the pref is not present in the list above and does not begin
+If the pref is not present in the list above and does not begin
 with `messaging-system-action.`, it will be created and prepended with
 `messaging-system-action.`. For example, `example.pref` will be created as
 `messaging-system-action.example.pref`.
@@ -403,9 +390,9 @@ Sets the visibility of the bookmarks toolbar.
 ```
 
 
-### `DATAREPORTING_NOTIFY_DATA_POLICY_INTERACTED`
+### `SET_TERMS_OF_USE_INTERACTED`
 
-Notify Firefox that the notification policy was interacted with.
+Notify Firefox that the Terms of Use policy was interacted with.
 
 - args: (none)
 

@@ -31,8 +31,6 @@ const PREF_OPT_OUT_STUDIES_ENABLED = "app.shield.optoutstudies.enabled";
 const PREF_NORMANDY_ENABLED = "app.normandy.enabled";
 
 const PREF_ADDON_RECOMMENDATIONS_ENABLED = "browser.discovery.enabled";
-const PREF_PRIVATE_ATTRIBUTION_ENABLED =
-  "dom.private-attribution.submission.enabled";
 
 const PREF_PASSWORD_GENERATION_AVAILABLE = "signon.generation.available";
 const { BEHAVIOR_REJECT_TRACKER_AND_PARTITION_FOREIGN } = Ci.nsICookieService;
@@ -1107,6 +1105,16 @@ var gPrivacyPane = {
       gPrivacyPane.showLocationExceptions
     );
     setEventListener(
+      "localHostSettingsButton",
+      "command",
+      gPrivacyPane.showLocalHostExceptions
+    );
+    setEventListener(
+      "localNetworkSettingsButton",
+      "command",
+      gPrivacyPane.showLocalNetworkExceptions
+    );
+    setEventListener(
       "xrSettingsButton",
       "command",
       gPrivacyPane.showXRExceptions
@@ -1222,7 +1230,6 @@ var gPrivacyPane = {
         this.initOptOutStudyCheckbox();
       }
       this.initAddonRecommendationsCheckbox();
-      this.initPrivateAttributionCheckbox();
     }
 
     let signonBundle = document.getElementById("signonBundle");
@@ -1497,8 +1504,8 @@ var gPrivacyPane = {
           defaults.getBoolPref(
             "privacy.trackingprotection.cryptomining.enabled"
           )
-            ? "cm"
-            : "-cm"
+            ? "cryptoTP"
+            : "-cryptoTP"
         );
         rulesArray.push(
           defaults.getBoolPref(
@@ -1572,11 +1579,11 @@ var gPrivacyPane = {
               selector + " .fingerprinters-option"
             ).hidden = true;
             break;
-          case "cm":
+          case "cryptoTP":
             document.querySelector(selector + " .cryptominers-option").hidden =
               false;
             break;
-          case "-cm":
+          case "-cryptoTP":
             document.querySelector(selector + " .cryptominers-option").hidden =
               true;
             break;
@@ -2703,6 +2710,38 @@ var gPrivacyPane = {
     );
   },
 
+  // LOCALHOST
+
+  /**
+   * Displays the localhost exceptions dialog where specific site localhost
+   * preferences can be set.
+   */
+  showLocalHostExceptions() {
+    let params = { permissionType: "localhost" };
+
+    gSubDialog.open(
+      "chrome://browser/content/preferences/dialogs/sitePermissions.xhtml",
+      { features: "resizable=yes" },
+      params
+    );
+  },
+
+  // LOCAL-NETWORK
+
+  /**
+   * Displays the local network exceptions dialog where specific site local network
+   * preferences can be set.
+   */
+  showLocalNetworkExceptions() {
+    let params = { permissionType: "local-network" };
+
+    gSubDialog.open(
+      "chrome://browser/content/preferences/dialogs/sitePermissions.xhtml",
+      { features: "resizable=yes" },
+      params
+    );
+  },
+
   // XR
 
   /**
@@ -3507,19 +3546,6 @@ var gPrivacyPane = {
     dataCollectionCheckboxHandler({
       checkbox: document.getElementById("addonRecommendationEnabled"),
       pref: PREF_ADDON_RECOMMENDATIONS_ENABLED,
-    });
-  },
-
-  initPrivateAttributionCheckbox() {
-    dataCollectionCheckboxHandler({
-      checkbox: document.getElementById("privateAttribution"),
-      pref: PREF_PRIVATE_ATTRIBUTION_ENABLED,
-      matchPref() {
-        return AppConstants.MOZ_TELEMETRY_REPORTING;
-      },
-      isDisabled() {
-        return !AppConstants.MOZ_TELEMETRY_REPORTING;
-      },
     });
   },
 
