@@ -7,6 +7,8 @@
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
+  BrowserSearchTelemetry:
+    "moz-src:///browser/components/search/BrowserSearchTelemetry.sys.mjs",
   BrowserUtils: "resource://gre/modules/BrowserUtils.sys.mjs",
   BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.sys.mjs",
   ContextualIdentityService:
@@ -86,6 +88,13 @@ export class nsContextMenu {
    * @type {Promise<{sourceLanguage: string, targetLanguage: string}>}
    */
   #translationsLangPairPromise;
+
+  /**
+   * The value of the `main-context-menu-new-feature-badge` l10n string. Fetched
+   * lazily.
+   * @type {string}
+   */
+  #newFeatureBadgeL10nString;
 
   constructor(aXulMenu, aIsShift) {
     this.window = aXulMenu.ownerGlobal;
@@ -2889,14 +2898,21 @@ export class nsContextMenu {
     });
 
     if (!menuitem.hidden) {
+      let visualSearchUrl = menuitem.engine.wrappedJSObject.getURLOfType(
+        lazy.SearchUtils.URL_TYPE.VISUAL_SEARCH
+      );
       this.window.document.l10n.setAttributes(
         menuitem,
         "main-context-menu-visual-search",
         {
-          engine: menuitem.engine.displayNameForURL(
-            lazy.SearchUtils.URL_TYPE.VISUAL_SEARCH
-          ),
+          engine: visualSearchUrl.displayName || menuitem.engine.name,
         }
+      );
+      this.#setNewFeatureBadge(menuitem, visualSearchUrl.isNew());
+      lazy.BrowserSearchTelemetry.recordSapImpression(
+        this.browser,
+        menuitem.engine,
+        "contextmenu_visual"
       );
     }
   }
@@ -2935,5 +2951,38 @@ export class nsContextMenu {
       excludeUserContextId: this.contentData.userContextId,
     };
     return this.window.createUserContextMenu(aEvent, createMenuOptions);
+  }
+
+  /**
+   * Sets or removes the `badge` attribute on a menuitem. If it should be set,
+   * it will be set to the value of the `main-context-menu-new-feature-badge`
+   * l10n string. If the string has already been cached, the badge is set
+   * synchronously, so there won't be any visual pop-in. Otherwise the string is
+   * first fetched and cached, and then the badge is set asynchronously.
+   *
+   * This method is async but only for ease of implementation. It doesn't need
+   * to be awaited unless you need to block until the badge is set.
+   *
+   * @param {Element}
+   *   The menuitem that should be badged.
+   */
+  async #setNewFeatureBadge(menuitem, shouldShow) {
+    if (!shouldShow) {
+      menuitem.removeAttribute("badge");
+      return;
+    }
+
+    if (this.#newFeatureBadgeL10nString) {
+      menuitem.setAttribute("badge", this.#newFeatureBadgeL10nString);
+      return;
+    }
+
+    let value = await this.window.document.l10n.formatValue(
+      "main-context-menu-new-feature-badge"
+    );
+    if (value) {
+      this.#newFeatureBadgeL10nString = value;
+      this.#setNewFeatureBadge(menuitem, shouldShow);
+    }
   }
 }

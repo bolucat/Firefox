@@ -12,6 +12,9 @@ pub use glean::{
     RecordedEvent, TimeUnit, TimerId,
 };
 
+#[macro_use]
+mod metric_getter;
+
 mod boolean;
 mod counter;
 mod custom_distribution;
@@ -27,7 +30,6 @@ mod labeled_custom_distribution;
 mod labeled_memory_distribution;
 mod labeled_timing_distribution;
 mod memory_distribution;
-mod metric_getter;
 mod numerator;
 mod object;
 mod ping;
@@ -215,6 +217,11 @@ pub(crate) mod profiler_utils {
                     // label we got while retrieveing the metric, is valid,
                     // use them directly.
                     Some(label) => {
+                        // If the label comes from a dual_labeled_counter,
+                        // it is prefixed and delimited with a record separator
+                        // which we should adapt for display.
+                        let label = label.strip_prefix('\x1E').unwrap_or(&label);
+                        let label = label.replace('\x1E', ", ");
                         json_writer.unique_string_property("id", &metadata.name);
                         json_writer.unique_string_property("label", &label);
                     }

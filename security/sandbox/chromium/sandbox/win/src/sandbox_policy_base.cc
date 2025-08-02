@@ -429,12 +429,8 @@ bool ConfigBase::GetUseRestrictingSIDs() {
   return use_restricting_sids_;
 }
 
-void ConfigBase::SetAllowEveryoneForUserRestricted() {
-  allow_everyone_for_user_restricted_ = true;
-}
-
-bool ConfigBase::GetAllowEveryoneForUserRestricted() {
-  return allow_everyone_for_user_restricted_;
+void ConfigBase::SetForceKnownDllLoadingFallback() {
+  force_known_dll_loading_fallback_ = true;
 }
 
 ResultCode ConfigBase::SetJobLevel(JobLevel job_level, uint32_t ui_exceptions) {
@@ -613,8 +609,7 @@ ResultCode PolicyBase::MakeTokens(
   // with the process and therefore with any thread that is not impersonating.
   absl::optional<base::win::AccessToken> primary = CreateRestrictedToken(
       config()->GetLockdownTokenLevel(), integrity_level, TokenType::kPrimary,
-      lockdown_default_dacl, random_sid, config()->GetUseRestrictingSIDs(),
-      config()->GetAllowEveryoneForUserRestricted());
+      lockdown_default_dacl, random_sid, config()->GetUseRestrictingSIDs());
   if (!primary) {
     return SBOX_ERROR_CANNOT_CREATE_RESTRICTED_TOKEN;
   }
@@ -642,8 +637,7 @@ ResultCode PolicyBase::MakeTokens(
   absl::optional<base::win::AccessToken> impersonation = CreateRestrictedToken(
       config()->GetInitialTokenLevel(), integrity_level,
       TokenType::kImpersonation, lockdown_default_dacl, random_sid,
-      config()->GetUseRestrictingSIDs(),
-      config()->GetAllowEveryoneForUserRestricted());
+      config()->GetUseRestrictingSIDs());
   if (!impersonation) {
     return SBOX_ERROR_CANNOT_CREATE_RESTRICTED_IMP_TOKEN;
   }
@@ -777,7 +771,9 @@ ResultCode PolicyBase::SetupAllInterceptions(TargetProcess& target) {
   for (const std::wstring& dll : config()->blocklisted_dlls())
     manager.AddToUnloadModules(dll.c_str());
 
-  if (!SetupBasicInterceptions(&manager, config()->is_csrss_connected()))
+  if (!SetupBasicInterceptions(&manager,
+                               config()->force_known_dll_loading_fallback_,
+                               config()->is_csrss_connected()))
     return SBOX_ERROR_SETUP_BASIC_INTERCEPTIONS;
 
   ResultCode rc = manager.InitializeInterceptions();

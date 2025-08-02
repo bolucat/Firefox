@@ -29,7 +29,12 @@ class NativeLayerWaylandExternal;
 class NativeLayerWaylandRender;
 
 struct LayerState {
+  // Layer is visible (has correct size/position), we should paint it
   bool mIsVisible : 1;
+  // Layer has been rendered and it's visible
+  bool mIsRendered : 1;
+
+  // Layer visibility has been changed
   bool mMutatedVisibility : 1;
   // Layer stacking order was changed (layer was added/removed/mapped/unmapped)
   bool mMutatedStackingOrder : 1;
@@ -39,17 +44,19 @@ struct LayerState {
   // to show new content.
   bool mMutatedFrontBuffer : 1;
   // Was rendered in last cycle.
-  bool mRendered : 1;
+  bool mRenderedLastCycle : 1;
 
   // For debugging purposse. Resets the layer state
   // to force full init.
   void InvalidateAll() {
     mIsVisible = false;
+    mIsRendered = false;
+
     mMutatedVisibility = true;
     mMutatedStackingOrder = true;
     mMutatedPlacement = true;
     mMutatedFrontBuffer = true;
-    mRendered = false;
+    mRenderedLastCycle = false;
   }
 };
 
@@ -68,7 +75,6 @@ class NativeLayerRootWayland final : public NativeLayerRoot {
   void AppendLayer(NativeLayer* aLayer) override;
   void RemoveLayer(NativeLayer* aLayer) override;
   void SetLayers(const nsTArray<RefPtr<NativeLayer>>& aLayers) override;
-  void ClearLayers();
 
   void PrepareForCommit() override { mFrameInProcess = true; };
   bool CommitToScreen() override;
@@ -76,7 +82,9 @@ class NativeLayerRootWayland final : public NativeLayerRoot {
   // Main thread only
   GdkWindow* GetGdkWindow() const;
 
-  RefPtr<widget::WaylandSurface> GetWaylandSurface() { return mSurface; }
+  RefPtr<widget::WaylandSurface> GetRootWaylandSurface() {
+    return mRootSurface;
+  }
 
   RefPtr<widget::DRMFormat> GetDRMFormat() { return mDRMFormat; }
 
@@ -110,8 +118,8 @@ class NativeLayerRootWayland final : public NativeLayerRoot {
   // Map NativeLayerRootWayland and all child surfaces.
   // Returns true if we're set.
   bool MapLocked(const widget::WaylandSurfaceLock& aProofOfLock);
-
   bool IsEmptyLocked(const widget::WaylandSurfaceLock& aProofOfLock);
+  void ClearLayersLocked(const widget::WaylandSurfaceLock& aProofOfLock);
 
 #ifdef MOZ_LOGGING
   void LogStatsLocked(const widget::WaylandSurfaceLock& aProofOfLock);
@@ -126,7 +134,7 @@ class NativeLayerRootWayland final : public NativeLayerRoot {
   // or handle any callbacks.
   // We also use widget::WaylandSurfaceLock for locking whole layer for
   // read/write.
-  RefPtr<widget::WaylandSurface> mSurface;
+  RefPtr<widget::WaylandSurface> mRootSurface;
 
   // Copy of DRM format we use to create DMABuf surfaces
   RefPtr<widget::DRMFormat> mDRMFormat;
@@ -144,6 +152,12 @@ class NativeLayerRootWayland final : public NativeLayerRoot {
   // they have been added or removed.
   nsTArray<RefPtr<NativeLayerWayland>> mMainThreadUpdateSublayers;
 
+  // Child layers which has been removed and are
+  // waiting to be unmapped. We do that in sync with root surface to avoid
+  // flickering. When unmapped they're moved to mMainThreadUpdateSublayers
+  // for final clean up at main thread.
+  nsTArray<RefPtr<NativeLayerWayland>> mRemovedSublayers;
+
   // External buffers (DMABuf) used by the layers.
   // We want to cache and reuse wl_buffer of external images.
   nsTArray<widget::WaylandBufferDMABUFHolder> mExternalBuffers;
@@ -156,6 +170,8 @@ class NativeLayerRootWayland final : public NativeLayerRoot {
   // State flags used for optimizations
   // Layers have been added/removed
   bool mRootMutatedStackingOrder = false;
+  // All layers has been rendered
+  bool mRootAllLayersRendered = false;
   bool mMainThreadUpdateQueued = false;
   bool mIsFullscreen = false;
 };
