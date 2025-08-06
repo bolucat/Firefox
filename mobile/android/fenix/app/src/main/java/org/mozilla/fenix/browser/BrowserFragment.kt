@@ -61,6 +61,7 @@ import org.mozilla.fenix.home.HomeFragment
 import org.mozilla.fenix.nimbus.FxNimbus
 import org.mozilla.fenix.settings.quicksettings.protections.cookiebanners.getCookieBannerUIMode
 import org.mozilla.fenix.shortcut.PwaOnboardingObserver
+import org.mozilla.fenix.termsofuse.shouldShowTermsOfUsePrompt
 import org.mozilla.fenix.theme.ThemeManager
 import kotlin.lazy
 
@@ -110,6 +111,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                     contentLayout = binding.browserLayout,
                     tabPreview = binding.tabPreview,
                     toolbarLayout = browserToolbarView.layout,
+                    navBarLayout = browserNavigationBar?.layout,
                     store = components.core.store,
                     selectTabUseCase = components.useCases.tabsUseCases.selectTab,
                     onSwipeStarted = {
@@ -160,6 +162,12 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 ),
                 owner = this,
                 view = view,
+            )
+        }
+
+        if (requireContext().settings().shouldShowTermsOfUsePrompt()) {
+            findNavController().navigate(
+                BrowserFragmentDirections.actionGlobalTermsOfUseDialog(),
             )
         }
     }

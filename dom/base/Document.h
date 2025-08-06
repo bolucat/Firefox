@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <new>
 #include <utility>
+
 #include "ErrorList.h"
 #include "MainThreadUtils.h"
 #include "Units.h"
@@ -23,11 +24,9 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/BasicEvents.h"
 #include "mozilla/BitSet.h"
-#include "mozilla/RenderingPhase.h"
-#include "mozilla/OriginTrials.h"
-#include "mozilla/ContentBlockingNotifier.h"
 #include "mozilla/CORSMode.h"
 #include "mozilla/CallState.h"
+#include "mozilla/ContentBlockingNotifier.h"
 #include "mozilla/FlushType.h"
 #include "mozilla/FunctionRef.h"
 #include "mozilla/HashTable.h"
@@ -35,10 +34,12 @@
 #include "mozilla/Maybe.h"
 #include "mozilla/MozPromise.h"
 #include "mozilla/NotNull.h"
+#include "mozilla/OriginTrials.h"
 #include "mozilla/PageloadEvent.h"
 #include "mozilla/PointerLockManager.h"
 #include "mozilla/PreloadService.h"
 #include "mozilla/RefPtr.h"
+#include "mozilla/RenderingPhase.h"
 #include "mozilla/Result.h"
 #include "mozilla/SegmentedVector.h"
 #include "mozilla/ServoStyleSet.h"
@@ -52,12 +53,12 @@
 #include "mozilla/dom/DocumentOrShadowRoot.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/EventTarget.h"
+#include "mozilla/dom/LargestContentfulPaint.h"
 #include "mozilla/dom/Nullable.h"
 #include "mozilla/dom/RadioGroupContainer.h"
 #include "mozilla/dom/TreeOrderedArray.h"
-#include "mozilla/dom/ViewportMetaData.h"
-#include "mozilla/dom/LargestContentfulPaint.h"
 #include "mozilla/dom/UserActivation.h"
+#include "mozilla/dom/ViewportMetaData.h"
 #include "mozilla/dom/WakeLockBinding.h"
 #include "nsAtom.h"
 #include "nsCOMArray.h"
@@ -66,7 +67,6 @@
 #include "nsCompatibility.h"
 #include "nsContentListDeclarations.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsTHashMap.h"
 #include "nsDebug.h"
 #include "nsGkAtoms.h"
 #include "nsHashKeys.h"
@@ -99,6 +99,7 @@
 #include "nsRefPtrHashtable.h"
 #include "nsString.h"
 #include "nsTArray.h"
+#include "nsTHashMap.h"
 #include "nsTHashSet.h"
 #include "nsTLiteralString.h"
 #include "nsTObserverArray.h"
@@ -3763,6 +3764,11 @@ class Document : public nsINode,
 
   // Called to track whether this document has had any interaction.
   // This is used to track whether we should permit "beforeunload".
+  // Note: These APIs are deprecated (bug 1766214), and should not be used in
+  // new code. Please use HasBeenUserGestureActivated() or
+  // HasValidTransientUserGestureActivation() APIs which align with the spec
+  // (https://html.spec.whatwg.org/multipage/interaction.html#tracking-user-activation)
+  // more and also support fission nicer.
   void SetUserHasInteracted();
   bool UserHasInteracted() { return mUserHasInteracted; }
   void ResetUserInteractionTimer();

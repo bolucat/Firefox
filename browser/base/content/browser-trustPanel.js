@@ -9,7 +9,8 @@ ChromeUtils.defineESModuleGetters(this, {
   ContentBlockingAllowList:
     "resource://gre/modules/ContentBlockingAllowList.sys.mjs",
   E10SUtils: "resource://gre/modules/E10SUtils.sys.mjs",
-  PanelMultiView: "resource:///modules/PanelMultiView.sys.mjs",
+  PanelMultiView:
+    "moz-src:///browser/components/customizableui/PanelMultiView.sys.mjs",
   PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
   SiteDataManager: "resource:///modules/SiteDataManager.sys.mjs",
   UrlbarPrefs: "resource:///modules/UrlbarPrefs.sys.mjs",
@@ -343,7 +344,7 @@ class TrustPanel {
     let blockingKey = blocking ? "blocking" : "not-blocking";
     document.l10n.setAttributes(
       document.getElementById("trustpanel-blockerDetailsView"),
-      `protections-${blockingKey}-${blocker.l10nKeys.title}`
+      blocker.l10nKeys.title[blockingKey]
     );
     document.l10n.setAttributes(
       document.getElementById("trustpanel-blocker-details-header"),

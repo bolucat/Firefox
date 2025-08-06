@@ -6,7 +6,7 @@
 let lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
-  ShellService: "resource:///modules/ShellService.sys.mjs",
+  ShellService: "moz-src:///browser/components/shell/ShellService.sys.mjs",
   TaskbarTabsUtils: "resource:///modules/taskbartabs/TaskbarTabsUtils.sys.mjs",
 });
 
@@ -164,7 +164,7 @@ async function createShortcut(aTaskbarTab, aFileIcon, aRegistry) {
 async function generateShortcutInfo(aTaskbarTab) {
   const l10n = new Localization([
     "branding/brand.ftl",
-    "preview/taskbartabs.ftl",
+    "browser/taskbartabs.ftl",
   ]);
 
   let humanName = generateName(aTaskbarTab);

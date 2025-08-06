@@ -5,12 +5,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/dom/VideoEncoder.h"
-#include "EncoderConfig.h"
-#include "mozilla/dom/VideoEncoderBinding.h"
-#include "mozilla/dom/VideoColorSpaceBinding.h"
-#include "mozilla/dom/VideoColorSpace.h"
-#include "mozilla/dom/VideoFrame.h"
 
+#include "EncoderConfig.h"
 #include "EncoderTraits.h"
 #include "ImageContainer.h"
 #include "VideoUtils.h"
@@ -22,7 +18,10 @@
 #include "mozilla/dom/EncodedVideoChunkBinding.h"
 #include "mozilla/dom/ImageUtils.h"
 #include "mozilla/dom/Promise.h"
+#include "mozilla/dom/VideoColorSpace.h"
 #include "mozilla/dom/VideoColorSpaceBinding.h"
+#include "mozilla/dom/VideoEncoderBinding.h"
+#include "mozilla/dom/VideoFrame.h"
 #include "mozilla/dom/VideoFrameBinding.h"
 #include "mozilla/dom/WebCodecsUtils.h"
 #include "nsIGlobalObject.h"
@@ -280,12 +279,11 @@ EncoderConfig VideoEncoderConfigInternal::ToEncoderConfig() const {
   // For real-time usage, typically used in web conferencing, YUV420 is the most
   // common format and is set as the default. Otherwise, Gecko's preferred
   // format, BGRA, is assumed.
-  EncoderConfig::SampleFormat format;
+  EncoderConfig::SampleFormat format(usage == Usage::Realtime
+                                         ? dom::ImageBitmapFormat::YUV420P
+                                         : dom::ImageBitmapFormat::BGRA32);
   if (usage == Usage::Realtime) {
-    format.mPixelFormat = ImageBitmapFormat::YUV420P;
     format.mColorSpace.mRange.emplace(gfx::ColorRange::LIMITED);
-  } else {
-    format.mPixelFormat = ImageBitmapFormat::BGRA32;
   }
   return EncoderConfig(codecType, {mWidth, mHeight}, usage, format,
                        SaturatingCast<uint32_t>(mFramerate.refOr(0.f)), 0,

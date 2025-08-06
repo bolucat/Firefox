@@ -179,25 +179,14 @@ class PrivateBrowsingLockFeature(
         }
     }
 
-    override fun onPause(owner: LifecycleOwner) {
-        super.onPause(owner)
-
-        if (owner is Activity) {
-            maybeLockPrivateMode(
-                activity = owner,
-                shouldLockFocusedWindow = false,
-            )
-        }
-    }
-
     override fun onStop(owner: LifecycleOwner) {
         super.onStop(owner)
 
-        if (owner is Activity) {
-            maybeLockPrivateMode(
-                activity = owner,
-                shouldLockFocusedWindow = true,
-            )
+        if (!isFeatureEnabled) return
+
+        // lock when activity hits onStop and it isn’t a config-change restart
+        if (owner is Activity && !owner.isChangingConfigurations) {
+            maybeLockPrivateModeOnStop()
         }
     }
 
@@ -206,31 +195,15 @@ class PrivateBrowsingLockFeature(
         storage.startObservingSharedPrefs()
     }
 
-    @Suppress("ReturnCount")
-    private fun maybeLockPrivateMode(
-        activity: Activity,
-        shouldLockFocusedWindow: Boolean,
-    ) {
-        if (!isFeatureEnabled) return
-
-        // Skip if the activity is being recreated (e.g. browsing mode change).
-        if (activity.isChangingConfigurations) return
-
-        // Avoid redundant locking if already locked during onStop; onStop handles an edge case when
-        // the app is minimized while showing a system dialog (e.g. notification permission).
-        if (appStore.state.isPrivateScreenLocked) return
-
-        // Optionally skip if the window still has focus (e.g. while showing a system dialog).
-        if (!shouldLockFocusedWindow && !activity.isFinishing) return
-
-        // Skip locking private mode if there are no private tabs.
-        if (browserStore.state.privateTabs.isEmpty()) return
-
-        appStore.dispatch(
-            PrivateBrowsingLockAction.UpdatePrivateBrowsingLock(
-                isLocked = true,
-            ),
-        )
+    private fun maybeLockPrivateModeOnStop() {
+        // When the app gets inactive with opened tabs, we lock the private mode.
+        if (browserStore.state.privateTabs.isNotEmpty()) {
+            appStore.dispatch(
+                PrivateBrowsingLockAction.UpdatePrivateBrowsingLock(
+                    isLocked = true,
+                ),
+            )
+        }
     }
 }
 

@@ -25,10 +25,12 @@ ChromeUtils.defineESModuleGetters(this, {
   BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.sys.mjs",
   CFRPageActions: "resource:///modules/asrouter/CFRPageActions.sys.mjs",
   Color: "resource://gre/modules/Color.sys.mjs",
-  ContentAnalysis: "resource:///modules/ContentAnalysis.sys.mjs",
+  ContentAnalysis:
+    "moz-src:///browser/components/contentanalysis/content/ContentAnalysis.sys.mjs",
   ContextualIdentityService:
     "resource://gre/modules/ContextualIdentityService.sys.mjs",
-  CustomizableUI: "resource:///modules/CustomizableUI.sys.mjs",
+  CustomizableUI:
+    "moz-src:///browser/components/customizableui/CustomizableUI.sys.mjs",
   DevToolsSocketStatus:
     "resource://devtools/shared/security/DevToolsSocketStatus.sys.mjs",
   DownloadUtils: "resource://gre/modules/DownloadUtils.sys.mjs",
@@ -53,8 +55,10 @@ ChromeUtils.defineESModuleGetters(this, {
     "moz-src:///browser/components/search/OpenSearchManager.sys.mjs",
   PageActions: "resource:///modules/PageActions.sys.mjs",
   PageThumbs: "resource://gre/modules/PageThumbs.sys.mjs",
-  PanelMultiView: "resource:///modules/PanelMultiView.sys.mjs",
-  PanelView: "resource:///modules/PanelMultiView.sys.mjs",
+  PanelMultiView:
+    "moz-src:///browser/components/customizableui/PanelMultiView.sys.mjs",
+  PanelView:
+    "moz-src:///browser/components/customizableui/PanelMultiView.sys.mjs",
   PictureInPicture: "resource://gre/modules/PictureInPicture.sys.mjs",
   PlacesTransactions: "resource://gre/modules/PlacesTransactions.sys.mjs",
   PlacesUIUtils: "moz-src:///browser/components/places/PlacesUIUtils.sys.mjs",
@@ -66,7 +70,8 @@ ChromeUtils.defineESModuleGetters(this, {
     "moz-src:///toolkit/profile/ProfilesDatastoreService.sys.mjs",
   PromptUtils: "resource://gre/modules/PromptUtils.sys.mjs",
   ReaderMode: "moz-src:///toolkit/components/reader/ReaderMode.sys.mjs",
-  ResetPBMPanel: "resource:///modules/ResetPBMPanel.sys.mjs",
+  ResetPBMPanel:
+    "moz-src:///browser/components/privatebrowsing/ResetPBMPanel.sys.mjs",
   SafeBrowsing: "resource://gre/modules/SafeBrowsing.sys.mjs",
   Sanitizer: "resource:///modules/Sanitizer.sys.mjs",
   ScreenshotsUtils: "resource:///modules/ScreenshotsUtils.sys.mjs",
@@ -88,8 +93,10 @@ ChromeUtils.defineESModuleGetters(this, {
   TaskbarTabsChrome:
     "resource:///modules/taskbartabs/TaskbarTabsChrome.sys.mjs",
   TelemetryEnvironment: "resource://gre/modules/TelemetryEnvironment.sys.mjs",
-  ToolbarContextMenu: "resource:///modules/ToolbarContextMenu.sys.mjs",
-  ToolbarDropHandler: "resource:///modules/ToolbarDropHandler.sys.mjs",
+  ToolbarContextMenu:
+    "moz-src:///browser/components/customizableui/ToolbarContextMenu.sys.mjs",
+  ToolbarDropHandler:
+    "moz-src:///browser/components/customizableui/ToolbarDropHandler.sys.mjs",
   ToolbarIconColor: "moz-src:///browser/themes/ToolbarIconColor.sys.mjs",
   TranslationsParent: "resource://gre/actors/TranslationsParent.sys.mjs",
   UITour: "moz-src:///browser/components/uitour/UITour.sys.mjs",
@@ -348,7 +355,7 @@ ChromeUtils.defineLazyGetter(this, "gBrowserBundle", () => {
 
 ChromeUtils.defineLazyGetter(this, "gCustomizeMode", () => {
   let { CustomizeMode } = ChromeUtils.importESModule(
-    "resource:///modules/CustomizeMode.sys.mjs"
+    "moz-src:///browser/components/customizableui/CustomizeMode.sys.mjs"
   );
   return new CustomizeMode(window);
 });
@@ -462,7 +469,7 @@ ChromeUtils.defineLazyGetter(this, "PopupNotifications", () => {
         return anchorElement;
       }
       let fallback = [
-        document.getElementById("searchmode-switcher-icon"),
+        gURLBar.querySelector(".searchmode-switcher-icon"),
         document.getElementById("identity-icon"),
         document.getElementById("remote-control-icon"),
       ];
@@ -1597,9 +1604,9 @@ function FillHistoryMenu(event) {
       item.setAttribute("historyindex", j - index);
 
       if (j != index) {
-        // Use list-style-image rather than the image attribute in order to
+        // Use --menuitem-icon rather than the image attribute in order to
         // allow CSS to override this.
-        item.style.listStyleImage = `url(page-icon:${uri})`;
+        item.style.setProperty("--menuitem-icon", `url(page-icon:${uri})`);
       }
 
       if (j < index) {

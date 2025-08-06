@@ -5,6 +5,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "VideoFrameContainer.h"
+
 #include "mozilla/Logging.h"
 
 #ifdef MOZ_WIDGET_ANDROID
@@ -67,21 +68,11 @@ void VideoFrameContainer::UpdatePrincipalHandleForFrameIDLocked(
 
 #ifdef MOZ_WIDGET_ANDROID
 static void NotifySetCurrent(Image* aImage) {
-  MOZ_LOG_FMT(gVideoFrameContainer, LogLevel::Debug,
-              "NotifySetCurrent, serial={}", aImage->GetSerial());
-  if (aImage == nullptr) {
-    return;
-  }
-
-  SurfaceTextureImage* image = aImage->AsSurfaceTextureImage();
-  if (image == nullptr) {
+  if (aImage) {
     MOZ_LOG_FMT(gVideoFrameContainer, LogLevel::Debug,
-                "NotifySetCurrent, SurfaceTextureImage was nullptr serial={}",
-                aImage->GetSerial());
-    return;
+                "NotifySetCurrent, serial={}", aImage->GetSerial());
+    aImage->OnSetCurrent();
   }
-
-  image->OnSetCurrent();
 }
 #endif
 

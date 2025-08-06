@@ -66,7 +66,6 @@ import java.util.StringTokenizer;
 import org.jetbrains.annotations.NotNull;
 import org.mozilla.gecko.annotation.RobocopTarget;
 import org.mozilla.gecko.annotation.WrapForJNI;
-import org.mozilla.gecko.util.HardwareCodecCapabilityUtils;
 import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.InputDeviceUtils;
 import org.mozilla.gecko.util.ProxySelector;
@@ -755,16 +754,6 @@ public class GeckoAppShell {
     intent.addCategory(Intent.CATEGORY_HOME);
     intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
     applicationContext.startActivity(intent);
-  }
-
-  @WrapForJNI(calledFrom = "gecko")
-  private static boolean hasHWVP8Encoder() {
-    return HardwareCodecCapabilityUtils.hasHWVP8(true /* aIsEncoder */);
-  }
-
-  @WrapForJNI(calledFrom = "gecko")
-  private static boolean hasHWVP8Decoder() {
-    return HardwareCodecCapabilityUtils.hasHWVP8(false /* aIsEncoder */);
   }
 
   @WrapForJNI(calledFrom = "gecko")
@@ -1591,6 +1580,11 @@ public class GeckoAppShell {
 
   @WrapForJNI(calledFrom = "any")
   public static int getAudioOutputFramesPerBuffer() {
+    if (BuildConfig.DEBUG_BUILD && isIsolatedProcess()) {
+      // AudioManager.getProperty won't return on isolated process
+      throw new UnsupportedOperationException(
+          "getAudioOutputFramesPerBuffer is not supported in isolated processes");
+    }
     final int DEFAULT = 512;
 
     final AudioManager am =
@@ -1607,6 +1601,11 @@ public class GeckoAppShell {
 
   @WrapForJNI(calledFrom = "any")
   public static int getAudioOutputSampleRate() {
+    if (BuildConfig.DEBUG_BUILD && isIsolatedProcess()) {
+      // AudioManager.getProperty won't return on isolated process
+      throw new UnsupportedOperationException(
+          "getAudioOutputSampleRate is not supported in isolated processes");
+    }
     final int DEFAULT = 44100;
 
     final AudioManager am =
@@ -1709,6 +1708,7 @@ public class GeckoAppShell {
   @WrapForJNI
   public static native boolean isInteractiveWidgetDefaultResizesVisual();
 
+  @WrapForJNI
   @SuppressLint("NewApi")
   public static boolean isIsolatedProcess() {
     // This method was added in SDK 16 but remained hidden until SDK 28, meaning we are okay to call

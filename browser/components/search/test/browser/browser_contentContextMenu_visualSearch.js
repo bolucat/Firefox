@@ -32,6 +32,7 @@ const SEARCH_CONFIG = [
         visualSearch: {
           base: "https://example.com/visual-search-1",
           searchTermParamName: "url",
+          acceptedContentTypes: ["image/png"],
         },
       },
     },
@@ -189,6 +190,18 @@ add_task(async function contextClick_selectedText() {
   await SpecialPowers.spawn(gBrowser.selectedBrowser, [], async function () {
     let selection = content.getSelection();
     selection.removeAllRanges();
+  });
+});
+
+// With a default engine that supports visual search, context-clicking an image
+// of an unsupported type should not show the visual search menuitem.
+add_task(async function contextClick_unsupportedImage() {
+  await setDefaultEngineAndCheckMenu({
+    // SVG is unsupported because it's not in the engine config's
+    // `acceptedContentTypes`.
+    selector: "#image-svg",
+    defaultEngineId: "visual-search-1",
+    shouldBeShown: false,
   });
 });
 
@@ -418,9 +431,14 @@ async function openAndCheckMenu({
     "The visual search menuitem should be shown as expected"
   );
   if (shouldBeShown) {
+    let expectedLabel = `Search Image with ${expectedEngineNameInLabel}`;
+    await TestUtils.waitForCondition(
+      () => item.label == expectedLabel,
+      "Waiting for expected label to be set on item: " + expectedLabel
+    );
     Assert.equal(
       item.label,
-      `Search Image with ${expectedEngineNameInLabel}`,
+      expectedLabel,
       "The visual search menuitem should have the expected label"
     );
     await checkNewBadge({ item, shouldHaveNewBadge });

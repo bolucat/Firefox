@@ -4,14 +4,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/dom/HTMLOptGroupElement.h"
+
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/Maybe.h"
-#include "mozilla/dom/HTMLOptGroupElement.h"
 #include "mozilla/dom/HTMLOptGroupElementBinding.h"
 #include "mozilla/dom/HTMLSelectElement.h"  // SafeOptionListMutation
 #include "nsGkAtoms.h"
-#include "nsStyleConsts.h"
 #include "nsIFrame.h"
+#include "nsStyleConsts.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(OptGroup)
 
@@ -34,15 +35,6 @@ NS_IMPL_ELEMENT_CLONE(HTMLOptGroupElement)
 
 void HTMLOptGroupElement::GetEventTargetParent(EventChainPreVisitor& aVisitor) {
   aVisitor.mCanHandle = false;
-
-  if (nsIFrame* frame = GetPrimaryFrame()) {
-    // FIXME(emilio): This poking at the style of the frame is broken unless we
-    // flush before every event handling, which we don't really want to.
-    if (frame->StyleUI()->UserInput() == StyleUserInput::None) {
-      return;
-    }
-  }
-
   nsGenericHTMLElement::GetEventTargetParent(aVisitor);
 }
 

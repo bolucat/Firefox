@@ -1009,9 +1009,9 @@ main section {
 .top-site-outer .title .search-topsite {
   margin-inline-end: var(--space-xxsmall);
   fill: currentColor;
-  background-size: 12px;
-  height: 12px;
-  width: 12px;
+  background-size: var(--icon-size-xsmall);
+  height: var(--icon-size-xsmall);
+  width: var(--icon-size-xsmall);
   background-position: center;
   background-repeat: no-repeat;
   background-color: transparent;
@@ -1516,7 +1516,7 @@ main section {
   }
 }
 .search-wrapper .search-inner-wrapper.no-handoff input {
-  padding-inline-end: calc(48px + var(--space-medium));
+  padding-inline-end: calc(var(--size-item-xlarge) + var(--space-medium));
 }
 .search-wrapper .search-inner-wrapper:has(.trending-searches-pill-wrapper) {
   display: flex;
@@ -1564,7 +1564,7 @@ main section {
   height: 100%;
   inset-inline-end: 0;
   position: absolute;
-  width: 48px;
+  width: var(--size-item-xlarge);
 }
 .search-wrapper .search-button:focus, .search-wrapper .search-button:hover {
   background-color: var(--newtab-element-hover-color);
@@ -4186,7 +4186,7 @@ main section {
   height: 16px;
   margin-inline-start: var(--space-xsmall);
   vertical-align: top;
-  width: 12px;
+  width: var(--icon-size-xsmall);
 }
 .more-recommendations:dir(rtl)::after {
   background-image: url("chrome://global/skin/icons/arrow-left-12.svg");
@@ -4607,19 +4607,19 @@ main section {
   --timer-violet-light: var(--color-violet-0);
   /* Complete timer */
   --timer-green: var(--color-green-20);
-  height: 0;
+  min-height: 0;
   opacity: 0;
   position: relative;
   width: 162px;
   overflow: hidden;
-  transition: height 0.8s ease, opacity 0.8s ease;
+  transition: min-height 0.8s ease, opacity 0.8s ease;
   /* main timer colours */
   /* break timer colours */
   /* timer turns green when complete */
 }
 .progress-circle-wrapper.visible {
   opacity: 1;
-  height: 162px;
+  min-height: 162px;
 }
 .progress-circle-wrapper .progress-circle-background,
 .progress-circle-wrapper .progress-circle,
@@ -4631,7 +4631,7 @@ main section {
   position: absolute;
 }
 .progress-circle-wrapper .progress-circle-background {
-  background-color: var(--border-color);
+  background-color: var(--border-color-interactive);
 }
 .progress-circle-wrapper .progress-circle,
 .progress-circle-wrapper .progress-circle-complete {
@@ -4680,6 +4680,11 @@ main section {
   position: absolute;
   width: 100%;
   z-index: 10;
+}
+
+.timer-set-minutes:focus,
+.timer-set-seconds:focus {
+  outline: var(--focus-outline);
 }
 
 .set-timer-controls-wrapper {
@@ -8341,6 +8346,9 @@ main section {
   inset-block-end: calc(var(--space-medium) * -1);
   transform: rotate(45deg);
 }
+.feature-highlight .feature-highlight-modal.inset-block-start:dir(rtl)::after {
+  transform: rotate(225deg);
+}
 .feature-highlight .feature-highlight-modal.inset-block-end {
   inset-block-start: 100%;
   margin-block-start: var(--space-xlarge);
@@ -8550,26 +8558,6 @@ main section {
   margin-inline-start: var(--space-small);
 }
 
-.wallpaper-feature-highlight .icon.icon-dismiss {
-  background: transparent url("chrome://global/skin/icons/close.svg");
-  background-size: var(--size-item-small);
-  height: var(--size-item-small);
-  width: var(--size-item-small);
-  position: absolute;
-  margin: 0;
-  inset-block-start: calc(var(--space-large) + var(--space-xxsmall));
-  inset-inline-end: calc(var(--space-large) + var(--space-xxsmall));
-}
-@media (prefers-color-scheme: dark) {
-  .wallpaper-feature-highlight .icon.icon-dismiss {
-    --dark-icon-color: var(--color-gray-70);
-    color: var(--dark-icon-color);
-  }
-}
-.wallpaper-feature-highlight .icon.icon-dismiss:hover {
-  --dark-icon-hover: var(--color-gray-60);
-  color: var(--dark-icon-hover);
-}
 .wallpaper-feature-highlight .feature-highlight .feature-highlight-modal {
   --arrow-size: 24px;
   width: auto;
@@ -8622,6 +8610,15 @@ main section {
   width: var(--arrow-size);
   box-shadow: 4px -4px 6px -2px rgba(0, 0, 0, 0.15);
   pointer-events: none;
+}
+.wallpaper-feature-highlight .feature-highlight .feature-highlight-modal > moz-button {
+  margin-inline-start: calc(-1 * var(--space-xlarge));
+}
+@media (prefers-color-scheme: dark) {
+  .wallpaper-feature-highlight .feature-highlight .feature-highlight-modal > moz-button {
+    --dark-icon-color: var(--color-gray-70);
+    background-color: var(--dark-icon-color);
+  }
 }
 
 .shortcut-feature-highlight .feature-highlight-modal {

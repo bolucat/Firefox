@@ -4714,7 +4714,7 @@
 
 - name: dom.workers.throttling.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: once
 
 - name: dom.workers.serialized-sab-access
@@ -6618,6 +6618,16 @@
 - name: gfx.canvas.accelerated.min-size
   type: RelaxedAtomicInt32
   value: 128
+  mirror: always
+
+- name: gfx.canvas.accelerated.max-export-surfaces
+  type: RelaxedAtomicUint32
+  value: 100
+  mirror: always
+
+- name: gfx.canvas.accelerated.max-export-surface-memory
+  type: RelaxedAtomicUint32
+  value: 512 * 1024 * 1024
   mirror: always
 
 - name: gfx.canvas.accelerated.max-surface-size
@@ -9701,13 +9711,6 @@
 #
 # Only for testing purposes.
 - name: layout.css.moz-control-character-visibility.enabled
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-  rust: true
-
-# Whether the `-moz-user-input` property is exposed to content.
-- name: layout.css.moz-user-input.enabled
   type: RelaxedAtomicBool
   value: false
   mirror: always
@@ -15555,11 +15558,6 @@
 - name: places.frecency.pages.alternative.featureGate
   type: bool
   value: false
-  mirror: once
-
-- name: places.frecency.pages.alternative.maxDaysFromToday
-  type: uint32_t
-  value: 60
   mirror: once
 
 - name: places.frecency.pages.alternative.veryHighWeight

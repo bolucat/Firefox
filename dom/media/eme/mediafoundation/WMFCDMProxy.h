@@ -7,15 +7,14 @@
 #ifndef DOM_MEDIA_EME_MEDIAFOUNDATION_WMFCDMPROXY_H_
 #define DOM_MEDIA_EME_MEDIAFOUNDATION_WMFCDMPROXY_H_
 
-#include "mozilla/CDMProxy.h"
 #include "mozilla/CDMCaps.h"
+#include "mozilla/CDMProxy.h"
 #include "mozilla/MozPromise.h"
-#include "mozilla/dom/BindingDeclarations.h"
-#include "mozilla/dom/MediaKeys.h"
-#include "mozilla/dom/MediaKeySession.h"
 #include "mozilla/RefPtr.h"
 #include "mozilla/WMFCDMImpl.h"
-
+#include "mozilla/dom/BindingDeclarations.h"
+#include "mozilla/dom/MediaKeySession.h"
+#include "mozilla/dom/MediaKeys.h"
 #include "nsString.h"
 
 namespace dom {
@@ -38,8 +37,8 @@ class WMFCDMProxy : public CDMProxy {
             const nsAString& aTopLevelOrigin, const nsAString& aName) override;
 
   void CreateSession(uint32_t aCreateSessionToken,
-                     MediaKeySessionType aSessionType, PromiseId aPromiseId,
-                     const nsAString& aInitDataType,
+                     dom::MediaKeySessionType aSessionType,
+                     PromiseId aPromiseId, const nsAString& aInitDataType,
                      nsTArray<uint8_t>& aInitData) override;
 
   void LoadSession(PromiseId aPromiseId, dom::MediaKeySessionType aSessionType,

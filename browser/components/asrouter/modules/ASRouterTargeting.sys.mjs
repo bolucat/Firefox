@@ -31,7 +31,7 @@ const { NewTabUtils } = ChromeUtils.importESModule(
 
 // eslint-disable-next-line mozilla/use-static-import
 const { ShellService } = ChromeUtils.importESModule(
-  "resource:///modules/ShellService.sys.mjs"
+  "moz-src:///browser/components/shell/ShellService.sys.mjs"
 );
 
 // eslint-disable-next-line mozilla/use-static-import
@@ -46,11 +46,13 @@ ChromeUtils.defineESModuleGetters(lazy, {
   AboutNewTab: "resource:///modules/AboutNewTab.sys.mjs",
   ASRouterPreferences:
     "resource:///modules/asrouter/ASRouterPreferences.sys.mjs",
-  AttributionCode: "resource:///modules/AttributionCode.sys.mjs",
+  AttributionCode:
+    "moz-src:///browser/components/attribution/AttributionCode.sys.mjs",
   BrowserUtils: "resource://gre/modules/BrowserUtils.sys.mjs",
   BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.sys.mjs",
   ClientEnvironment: "resource://normandy/lib/ClientEnvironment.sys.mjs",
-  CustomizableUI: "resource:///modules/CustomizableUI.sys.mjs",
+  CustomizableUI:
+    "moz-src:///browser/components/customizableui/CustomizableUI.sys.mjs",
   FeatureCalloutBroker:
     "resource:///modules/asrouter/FeatureCalloutBroker.sys.mjs",
   HomePage: "resource:///modules/HomePage.sys.mjs",
@@ -264,7 +266,11 @@ function CacheUnhandledCampaignAction() {
         if (!lazy.didHandleCampaignAction) {
           const attributionData =
             lazy.AttributionCode.getCachedAttributionData();
-          const ALLOWED_CAMPAIGN_ACTIONS = ["SET_DEFAULT_BROWSER"];
+          const ALLOWED_CAMPAIGN_ACTIONS = [
+            "PIN_AND_DEFAULT",
+            "PIN_FIREFOX_TO_TASKBAR",
+            "SET_DEFAULT_BROWSER",
+          ];
           const campaign = attributionData?.campaign?.toUpperCase();
           if (campaign && ALLOWED_CAMPAIGN_ACTIONS.includes(campaign)) {
             this._value = campaign;

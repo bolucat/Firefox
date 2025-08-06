@@ -13,11 +13,12 @@
 #include "FFmpegVideoDecoder.h"
 #include "MP4Decoder.h"
 #include "PlatformDecoderModule.h"
-#include "VideoUtils.h"
 #include "VPXDecoder.h"
+#include "VideoUtils.h"
 #include "mozilla/DataMutex.h"
 #include "mozilla/StaticPrefs_media.h"
 #include "mozilla/gfx/gfxVars.h"
+#include "prenv.h"
 
 #ifdef DEBUG
 #  include "mozilla/AppShutdown.h"
@@ -36,14 +37,16 @@ class FFmpegDecoderModule : public PlatformDecoderModule {
 #endif
   }
   static void Init(FFmpegLibWrapper* aLib) {
-#if (defined(XP_WIN) || defined(MOZ_WIDGET_GTK)) && \
+#if (defined(XP_WIN) || defined(MOZ_WIDGET_GTK) || \
+     defined(MOZ_WIDGET_ANDROID)) &&               \
     defined(MOZ_USE_HWDECODE) && !defined(MOZ_FFVPX_AUDIOONLY)
 #  ifdef XP_WIN
     if (!XRE_IsGPUProcess()) {
       return;
     }
 #  else
-    if (!XRE_IsRDDProcess()) {
+    if (!XRE_IsRDDProcess() && !XRE_IsUtilityProcess() &&
+        !(XRE_IsParentProcess() && PR_GetEnv("MOZ_RUN_GTEST"))) {
       return;
     }
 #  endif
@@ -61,6 +64,10 @@ class FFmpegDecoderModule : public PlatformDecoderModule {
         AV_HWDEVICE_TYPE_VAAPI,
         AV_HWDEVICE_TYPE_NONE,  // Placeholder for V4L2.
 #  endif
+#  ifdef MOZ_WIDGET_ANDROID
+        AV_HWDEVICE_TYPE_MEDIACODEC,
+        AV_HWDEVICE_TYPE_NONE,  // Placeholder for audio.
+#  endif
     };
 
     struct CodecEntry {
@@ -77,17 +84,22 @@ class FFmpegDecoderModule : public PlatformDecoderModule {
 #  if LIBAVCODEC_VERSION_MAJOR >= 55
         {AV_CODEC_ID_VP9, gfx::gfxVars::UseVP9HwDecode()},
 #  endif
-#  if defined(MOZ_WIDGET_GTK) && LIBAVCODEC_VERSION_MAJOR >= 54
+#  if (defined(MOZ_WIDGET_GTK) || defined(MOZ_WIDGET_ANDROID)) && \
+      LIBAVCODEC_VERSION_MAJOR >= 54
         {AV_CODEC_ID_VP8, gfx::gfxVars::UseVP8HwDecode()},
 #  endif
 
     // These proprietary video codecs can only be decoded via hardware by using
     // the system ffmpeg, not supported by ffvpx.
-#  if defined(MOZ_WIDGET_GTK) && !defined(FFVPX_VERSION)
+#  if (defined(MOZ_WIDGET_GTK) && !defined(FFVPX_VERSION)) || \
+      defined(MOZ_WIDGET_ANDROID)
 #    if LIBAVCODEC_VERSION_MAJOR >= 55
         {AV_CODEC_ID_HEVC, gfx::gfxVars::UseHEVCHwDecode()},
 #    endif
         {AV_CODEC_ID_H264, gfx::gfxVars::UseH264HwDecode()},
+#  endif
+#  ifdef MOZ_WIDGET_ANDROID
+        {AV_CODEC_ID_AAC, true},
 #  endif
     };
 
@@ -124,8 +136,8 @@ class FFmpegDecoderModule : public PlatformDecoderModule {
                 ("Support %s for hw decoding", AVCodecToString(entry.mId)));
       }
     }
-#endif  // (XP_WIN || MOZ_WIDGET_GTK) && MOZ_USE_HWDECODE &&
-        // !MOZ_FFVPX_AUDIOONLY
+#endif  // (XP_WIN || MOZ_WIDGET_GTK || MOZ_WIDGET_ANDROID) && MOZ_USE_HWDECODE
+        // && !MOZ_FFVPX_AUDIOONLY
   }
 
   static already_AddRefed<PlatformDecoderModule> Create(
@@ -151,7 +163,7 @@ class FFmpegDecoderModule : public PlatformDecoderModule {
             CreateDecoderParams::Option::HardwareDecoderNotAllowed),
         aParams.mOptions.contains(
             CreateDecoderParams::Option::Output8BitPerChannel),
-        aParams.mTrackingId);
+        aParams.mTrackingId, aParams.mCDM);
 
     // Ensure that decoding is exclusively performed using HW decoding in
     // the GPU process. If FFmpeg does not support HW decoding, reset the
@@ -286,15 +298,13 @@ class FFmpegDecoderModule : public PlatformDecoderModule {
   }
 
   bool IsHWDecodingSupported(AVCodecID aCodec) const {
-    if (!gfx::gfxVars::IsInitialized() ||
-        !gfx::gfxVars::CanUseHardwareVideoDecoding()) {
-      return false;
-    }
 #ifdef FFVPX_VERSION
     if (!StaticPrefs::media_ffvpx_hw_enabled()) {
       return false;
     }
 #endif
+    // We don't need to check the gfxVars again because we check them when we
+    // populated sSupportedHWCodecs.
     auto hwCodecs = sSupportedHWCodecs.Lock();
     return hwCodecs->Contains(aCodec);
   }
