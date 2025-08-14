@@ -324,15 +324,7 @@
       if (!this._showTabHoverPreview) {
         return;
       }
-      if (!this.previewPanel) {
-        // load the tab preview component
-        const TabHoverPreviewPanel = ChromeUtils.importESModule(
-          "chrome://browser/content/tabbrowser/tab-hover-preview.mjs"
-        ).default;
-        this.previewPanel = new TabHoverPreviewPanel(
-          document.getElementById("tab-preview-panel")
-        );
-      }
+      this.ensureTabPreviewPanelLoaded();
       this.previewPanel.activate(event.target);
     }
 
@@ -344,24 +336,21 @@
       if (!this._showTabGroupHoverPreview) {
         return;
       }
-
-      if (!this.tabGroupPreviewPanel) {
-        const TabGroupHoverPreviewPanel = ChromeUtils.importESModule(
-          "chrome://browser/content/tabbrowser/tabgroup-hover-preview.mjs"
-        ).default;
-        this.tabGroupPreviewPanel = new TabGroupHoverPreviewPanel(
-          document.getElementById("tabgroup-preview-panel")
-        );
-      }
-      this.tabGroupPreviewPanel.activate(event.target);
+      this.ensureTabPreviewPanelLoaded();
+      this.previewPanel.activate(event.target.group);
     }
 
     on_TabGroupLabelHoverEnd(event) {
-      // TODO bug1971237: determine a more appropriate value for this delay
-      // and consider making it adjustable
-      setTimeout(() => {
-        this.tabGroupPreviewPanel?.deactivate(event.target);
-      }, 50);
+      this.previewPanel?.deactivate(event.target.group);
+    }
+
+    ensureTabPreviewPanelLoaded() {
+      if (!this.previewPanel) {
+        const TabHoverPanelSet = ChromeUtils.importESModule(
+          "chrome://browser/content/tabbrowser/tab-hover-preview.mjs"
+        ).default;
+        this.previewPanel = new TabHoverPanelSet(window);
+      }
     }
 
     on_TabGroupExpand() {
@@ -763,7 +752,7 @@
         return;
       }
 
-      this.previewPanel?.deactivate();
+      this.previewPanel?.deactivate(null, { force: true });
       this.startTabDrag(event, tab);
     }
 
@@ -1803,20 +1792,25 @@
       if (this.#allTabs) {
         return this.#allTabs;
       }
-      let children = Array.from(this.arrowScrollbox.children);
-      // remove arrowScrollbox periphery element
-      children.pop();
+      // Remove temporary periphery element added at drag start.
+      let pinnedChildren = Array.from(this.pinnedTabsContainer.children);
+      if (pinnedChildren?.at(-1)?.id == "pinned-tabs-container-periphery") {
+        pinnedChildren.pop();
+      }
+      let unpinnedChildren = Array.from(this.arrowScrollbox.children);
+      // remove arrowScrollbox periphery element.
+      unpinnedChildren.pop();
 
       // explode tab groups
       // Iterate backwards over the array to preserve indices while we modify
       // things in place
-      for (let i = children.length - 1; i >= 0; i--) {
-        if (children[i].tagName == "tab-group") {
-          children.splice(i, 1, ...children[i].tabs);
+      for (let i = unpinnedChildren.length - 1; i >= 0; i--) {
+        if (unpinnedChildren[i].tagName == "tab-group") {
+          unpinnedChildren.splice(i, 1, ...unpinnedChildren[i].tabs);
         }
       }
 
-      this.#allTabs = [...this.pinnedTabsContainer.children, ...children];
+      this.#allTabs = [...pinnedChildren, ...unpinnedChildren];
       return this.#allTabs;
     }
 
@@ -1889,13 +1883,17 @@
 
       let elementIndex = 0;
 
-      for (let i = 0; i < this.pinnedTabsContainer.childElementCount; i++) {
-        this.pinnedTabsContainer.children[i].elementIndex = elementIndex++;
-      }
-      let children = Array.from(this.arrowScrollbox.children);
+      let unpinnedChildren = Array.from(this.arrowScrollbox.children);
+      let pinnedChildren = Array.from(this.pinnedTabsContainer.children);
 
       let focusableItems = [];
-      for (let child of children) {
+      for (let child of pinnedChildren) {
+        if (isTab(child)) {
+          child.elementIndex = elementIndex++;
+          focusableItems.push(child);
+        }
+      }
+      for (let child of unpinnedChildren) {
         if (isTab(child) && child.visible) {
           child.elementIndex = elementIndex++;
           focusableItems.push(child);
@@ -1911,10 +1909,7 @@
         }
       }
 
-      this.#focusableItems = [
-        ...this.pinnedTabsContainer.children,
-        ...focusableItems,
-      ];
+      this.#focusableItems = focusableItems;
 
       return this.#focusableItems;
     }
@@ -2322,6 +2317,7 @@
       let unpinnedRect = window.windowUtils.getBoundsWithoutFlushing(
         this.arrowScrollbox.scrollbox
       );
+      let tabContainerRect = window.windowUtils.getBoundsWithoutFlushing(this);
 
       if (this.pinnedTabsContainer.firstChild) {
         this.pinnedTabsContainer.scrollbox.style.height =
@@ -2363,17 +2359,10 @@
       ).x;
 
       let movingTabsIndex = movingTabs.findIndex(t => t._tPos == tab._tPos);
-      // When the promo card is visible, we need to account for its height
-      // before calculating position. Otherwise, it will appear to "jump" to
-      // the top upon starting the drag.
-      const startingPosition = this.dragToPinPromoCard.shouldRender
-        ? window.windowUtils.getBoundsWithoutFlushing(this.dragToPinPromoCard)
-            .height
-        : 0;
       // Update moving tabs absolute position based on original dragged tab position
       // Moving tabs with a lower index are moved before the dragged tab and moving
       // tabs with a higher index are moved after the dragged tab.
-      let position = startingPosition;
+      let position = 0;
       // Position moving tabs after dragged tab
       for (let movingTab of movingTabs.slice(movingTabsIndex)) {
         movingTab = elementToMove(movingTab);
@@ -2395,10 +2384,7 @@
           position += rect.width;
         } else if (this.verticalMode) {
           movingTab.style.top =
-            rect.top -
-            (gBrowser.pinnedTabCount > 0 ? pinnedRect.top : unpinnedRect.top) +
-            position +
-            "px";
+            rect.top - tabContainerRect.top + position + "px";
           position += rect.height;
         } else if (this.#rtlMode) {
           movingTab.style.left =
@@ -2412,11 +2398,11 @@
       }
       // Reset position so we can next handle moving tabs before the dragged tab
       if (this.verticalMode) {
-        position = startingPosition - rect.height;
+        position = -rect.height;
       } else if (this.#rtlMode) {
-        position = 0 + rect.width;
+        position = rect.width;
       } else {
-        position = 0 - rect.width;
+        position = -rect.width;
       }
       // Position moving tabs before dragged tab
       for (let movingTab of movingTabs.slice(0, movingTabsIndex).reverse()) {
@@ -2424,10 +2410,7 @@
         movingTab.setAttribute("dragtarget", "");
         if (this.verticalMode) {
           movingTab.style.top =
-            rect.top -
-            (gBrowser.pinnedTabCount > 0 ? pinnedRect.top : unpinnedRect.top) +
-            position +
-            "px";
+            rect.top - tabContainerRect.top + position + "px";
           position -= rect.height;
         } else if (this.#rtlMode) {
           movingTab.style.left =

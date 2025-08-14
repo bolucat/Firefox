@@ -5,15 +5,12 @@
 package org.mozilla.fenix.ui
 
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
-import mozilla.components.concept.engine.mediasession.MediaSession
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.mozilla.fenix.customannotations.SkipLeaks
 import org.mozilla.fenix.customannotations.SmokeTest
 import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.helpers.HomeActivityIntentTestRule
-import org.mozilla.fenix.helpers.MatcherHelper
 import org.mozilla.fenix.helpers.MockBrowserDataHelper
 import org.mozilla.fenix.helpers.RetryTestRule
 import org.mozilla.fenix.helpers.TestAssetHelper
@@ -26,7 +23,6 @@ import org.mozilla.fenix.helpers.TestHelper.verifySnackBarText
 import org.mozilla.fenix.helpers.TestSetup
 import org.mozilla.fenix.helpers.perf.DetectMemoryLeaksRule
 import org.mozilla.fenix.ui.robots.browserScreen
-import org.mozilla.fenix.ui.robots.clickPageObject
 import org.mozilla.fenix.ui.robots.homeScreen
 import org.mozilla.fenix.ui.robots.navigationToolbar
 import org.mozilla.fenix.ui.robots.notificationShade
@@ -449,9 +445,9 @@ class TabbedBrowsingTest : TestSetup() {
         }
     }
 
-    @Ignore("Temporarily disabled: https://bugzilla.mozilla.org/show_bug.cgi?id=1972361")
+    // TestRail link: https://mozilla.testrail.io/index.php?/cases/view/526244
     @Test
-    fun privateModeDoNotPersistAfterRestartTest() {
+    fun privateModeStaysAsDefaultAfterRestartTest() {
         val defaultWebPage = TestAssetHelper.getGenericAsset(mockWebServer, 1)
 
         navigationToolbar {
@@ -463,6 +459,7 @@ class TabbedBrowsingTest : TestSetup() {
         restartApp(composeTestRule.activityRule)
 
         homeScreen {
+            verifyPrivateBrowsingHomeScreenItems()
         }.openTabDrawer(composeTestRule) {
         }.toggleToNormalTabs {
             verifyExistingOpenTabs(defaultWebPage.title)
@@ -488,6 +485,7 @@ class TabbedBrowsingTest : TestSetup() {
         closeApp(composeTestRule.activityRule)
         restartApp(composeTestRule.activityRule)
         homeScreen {
+            verifyPrivateBrowsingHomeScreenItems()
         }.openTabDrawer(composeTestRule) {
             verifyNoOpenTabsInPrivateBrowsing()
         }

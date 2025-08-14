@@ -487,29 +487,42 @@ bool CanonicalBrowsingContext::HasHistoryEntry(nsISHEntry* aEntry) {
 void CanonicalBrowsingContext::SwapHistoryEntries(nsISHEntry* aOldEntry,
                                                   nsISHEntry* aNewEntry) {
   // XXX Should we check also loading entries?
-  if (mActiveEntry == aOldEntry) {
-    nsCOMPtr<SessionHistoryEntry> newEntry = do_QueryInterface(aNewEntry);
-    MOZ_LOG(gSHLog, LogLevel::Verbose,
-            ("Swapping History Entries: mActiveEntry=%p, aNewEntry=%p\n"
-             "Is in list: mActiveEntry %d, aNewEntry %d",
-             mActiveEntry.get(), aNewEntry,
-             mActiveEntry ? mActiveEntry->isInList() : false,
-             newEntry ? newEntry->isInList() : false));
-    if (!newEntry) {
-      mActiveEntryList.clear();
-      mActiveEntry = nullptr;
-      return;
-    }
-    if (Navigation::IsAPIEnabled() && mActiveEntry->isInList()) {
-      RefPtr beforeOldEntry = mActiveEntry->removeAndGetPrevious();
+  if (mActiveEntry != aOldEntry) {
+    return;
+  }
+
+  nsCOMPtr<SessionHistoryEntry> newEntry = do_QueryInterface(aNewEntry);
+  MOZ_LOG(gSHLog, LogLevel::Verbose,
+          ("Swapping History Entries: mActiveEntry=%p, aNewEntry=%p. "
+           "Is in list? mActiveEntry %s, aNewEntry %s. "
+           "Is aNewEntry in current mActiveEntryList? %s.",
+           mActiveEntry.get(), aNewEntry,
+           mActiveEntry && mActiveEntry->isInList() ? "yes" : "no",
+           newEntry && newEntry->isInList() ? "yes" : "no",
+           mActiveEntryList.contains(newEntry) ? "yes" : "no"));
+  if (!newEntry) {
+    mActiveEntryList.clear();
+    mActiveEntry = nullptr;
+    return;
+  }
+  if (Navigation::IsAPIEnabled() && mActiveEntry->isInList()) {
+    RefPtr beforeOldEntry = mActiveEntry->removeAndGetPrevious();
+    if (beforeOldEntry != newEntry) {
+      if (newEntry->isInList()) {
+        newEntry->setNext(mActiveEntry);
+        newEntry->remove();
+      }
+
       if (beforeOldEntry) {
         beforeOldEntry->setNext(newEntry);
       } else {
         mActiveEntryList.insertFront(newEntry);
       }
+    } else {
+      newEntry->setPrevious(mActiveEntry);
     }
-    mActiveEntry = newEntry.forget();
   }
+  mActiveEntry = newEntry.forget();
 }
 
 void CanonicalBrowsingContext::AddLoadingSessionHistoryEntry(
@@ -608,6 +621,36 @@ CanonicalBrowsingContext::CreateLoadingSessionHistoryEntryForLoad(
         LoadingSessionHistoryEntry{loadingInfo->mLoadId, entry});
   }
 
+  // When adding a new entry we need to make sure that the navigation object
+  // gets it's entries list initialized to the contiguous entries ending in the
+  // new entry.
+  if (Navigation::IsAPIEnabled()) {
+    if (mActiveEntry && mActiveEntry->isInList()) {
+      nsCOMPtr<nsIURI> uri = mActiveEntry->GetURI();
+      nsCOMPtr<nsIURI> targetURI = entry->GetURI();
+      if (NS_SUCCEEDED(nsContentUtils::GetSecurityManager()->CheckSameOriginURI(
+              targetURI, uri, false, false))) {
+        nsSHistory::WalkContiguousEntriesInOrder(
+            mActiveEntry,
+            [activeEntry = mActiveEntry,
+             entries = &loadingInfo->mContiguousEntries](auto* aEntry) {
+              if (nsCOMPtr<SessionHistoryEntry> entry =
+                      do_QueryObject(aEntry)) {
+                entries->AppendElement(entry->Info());
+                // We only care about entries up to the current entry, since
+                // we'll be dropping the entries after the current when the
+                // load finishes.
+                if (entry == activeEntry) {
+                  return false;
+                }
+              }
+
+              return true;
+            });
+      }
+    }
+  }
+
   MOZ_ASSERT(SessionHistoryEntry::GetByLoadId(loadingInfo->mLoadId)->mEntry ==
              entry);
 
@@ -646,30 +689,6 @@ CanonicalBrowsingContext::ReplaceLoadingSessionHistoryEntryForLoad(
     }
   }
   return nullptr;
-}
-
-mozilla::Span<const SessionHistoryInfo>
-CanonicalBrowsingContext::GetContiguousSessionHistoryInfos() {
-  MOZ_ASSERT(Navigation::IsAPIEnabled());
-
-  mActiveContiguousEntries.ClearAndRetainStorage();
-  MOZ_LOG(gSHLog, LogLevel::Verbose,
-          ("GetContiguousSessionHistoryInfos called with mActiveEntry=%p, "
-           "active entry list does%s contain the active entry.",
-           mActiveEntry.get(),
-           mActiveEntryList.contains(mActiveEntry) ? "" : "n't"));
-  if (mActiveEntry && mActiveEntry->isInList()) {
-    nsSHistory::WalkContiguousEntriesInOrder(mActiveEntry, [&](auto* aEntry) {
-      if (nsCOMPtr<SessionHistoryEntry> entry = do_QueryObject(aEntry)) {
-        mActiveContiguousEntries.AppendElement(entry->Info());
-      }
-    });
-  }
-
-  MOZ_LOG_FMT(gSHLog, LogLevel::Verbose,
-              "mActiveContiguousEntries has {} entries",
-              mActiveContiguousEntries.Length());
-  return mActiveContiguousEntries;
 }
 
 using PrintPromise = CanonicalBrowsingContext::PrintPromise;
@@ -2405,7 +2424,7 @@ CanonicalBrowsingContext::ChangeRemoteness(
                              /* aBrowserId */ BrowserId())
         ->Then(
             GetMainThreadSerialEventTarget(), __func__,
-            [change](UniqueContentParentKeepAlive)
+            [change](UniqueContentParentKeepAlive&&)
                 MOZ_CAN_RUN_SCRIPT_BOUNDARY_LAMBDA {
                   change->ProcessLaunched();
                 },

@@ -538,7 +538,14 @@ class NetworkModule extends RootBiDiModule {
           contextId,
           lazy.pprint`Expected elements of "contexts" to be a string, got ${contextId}`
         );
-        navigables.add(this.#getBrowsingContext(contextId));
+        const context = this.#getBrowsingContext(contextId);
+
+        lazy.assert.topLevel(
+          context,
+          lazy.pprint`Browsing context with id ${contextId} is not top-level`
+        );
+
+        navigables.add(contextId);
       }
     }
 
@@ -563,7 +570,7 @@ class NetworkModule extends RootBiDiModule {
           );
         }
 
-        userContexts.add(internalId);
+        userContexts.add(userContextId);
       }
     }
 
@@ -590,40 +597,6 @@ class NetworkModule extends RootBiDiModule {
     return {
       collector: collectorId,
     };
-  }
-
-  /**
-   * Removes a data collector.
-   *
-   * @param {object=} options
-   * @param {string} options.collector
-   *     The id of the collector to remove.
-   *
-   * @throws {InvalidArgumentError}
-   *     Raised if an argument is of an invalid type or value.
-   * @throws {NoSuchNetworkCollectorError}
-   *     Raised if the collector id could not be found in the internal collectors
-   *     map.
-   */
-  removeDataCollector(options = {}) {
-    const { collector } = options;
-
-    lazy.assert.string(
-      collector,
-      lazy.pprint`Expected "collector" to be a string, got ${collector}`
-    );
-
-    if (!this.#networkCollectors.has(collector)) {
-      throw new lazy.error.NoSuchNetworkCollectorError(
-        `Network data collector with id ${collector} not found`
-      );
-    }
-
-    this.#networkCollectors.delete(collector);
-
-    for (const [, collectedData] of this.#collectedNetworkData) {
-      this.#removeCollectorFromData(collectedData, collector);
-    }
   }
 
   /**
@@ -1102,6 +1075,189 @@ class NetworkModule extends RootBiDiModule {
   }
 
   /**
+   * Releases a collected network data for a given collector and data type.
+   *
+   * @param {object=} options
+   * @param {string} options.collector
+   *     The collector from which the data should be disowned.
+   * @param {string} options.dataType
+   *     The data type of the data to disown.
+   * @param {string} options.request
+   *     The id of the request for which data should be disowned.
+   *
+   * @throws {InvalidArgumentError}
+   *     Raised if an argument is of an invalid type or value.
+   * @throws {NoSuchNetworkCollectorError}
+   *     Raised if the collector id could not be found in the internal collectors
+   *     map.
+   * @throws {NoSuchNetworkDataError}
+   *     If the network data could not be found for the provided parameters.
+   */
+  async disownData(options = {}) {
+    const { collector, dataType, request: requestId } = options;
+
+    lazy.assert.string(
+      requestId,
+      lazy.pprint`Expected "request" to be a string, got ${requestId}`
+    );
+
+    const supportedDataTypes = Object.values(DataType);
+    if (!supportedDataTypes.includes(dataType)) {
+      throw new lazy.error.InvalidArgumentError(
+        `Expected "dataType" to be one of ${supportedDataTypes},` +
+          lazy.pprint` got ${dataType}`
+      );
+    }
+
+    lazy.assert.string(
+      collector,
+      lazy.pprint`Expected "collector" to be a string, got ${collector}`
+    );
+
+    if (!this.#networkCollectors.has(collector)) {
+      throw new lazy.error.NoSuchNetworkCollectorError(
+        `Network data collector with id ${collector} not found`
+      );
+    }
+
+    const collectedData = this.#getCollectedData(requestId, dataType);
+    if (!collectedData) {
+      throw new lazy.error.NoSuchNetworkDataError(
+        `Network data for request id ${requestId} and DataType ${dataType} not found`
+      );
+    }
+
+    if (!collectedData.collectors.has(collector)) {
+      throw new lazy.error.NoSuchNetworkDataError(
+        `Network data for request id ${requestId} and DataType ${dataType} does not match collector ${collector}`
+      );
+    }
+
+    this.#removeCollectorFromData(collectedData, collector);
+  }
+
+  /**
+   * An object that holds information about a network data content.
+   *
+   * @typedef NetworkGetDataResult
+   *
+   * @property {BytesValue} bytes
+   *     The network data content as BytesValue.
+   */
+
+  /**
+   * Retrieve a network data if available.
+   *
+   * @param {object} options
+   * @param {string=} options.collector
+   *     Optional id of a collector. If provided, data will only be returned if
+   *     the collector is in the network data collectors.
+   * @param {DataType} options.dataType
+   *     The type of the data to retrieve.
+   * @param {boolean=} options.disown
+   *     Optional. If set to true, the collector parameter is mandatory and the
+   *     collector will be removed from the network data collectors. Defaults to
+   *     false.
+   * @param {string} options.request
+   *     The id of the request of the data to retrieve.
+   *
+   * @returns {NetworkGetDataResult}
+   *
+   * @throws {InvalidArgumentError}
+   *     Raised if an argument is of an invalid type or value.
+   * @throws {NoSuchNetworkCollectorError}
+   *     Raised if the collector id could not be found in the internal collectors
+   *     map.
+   * @throws {NoSuchNetworkDataError}
+   *     If the network data could not be found for the provided parameters.
+   * @throws {UnavailableNetworkDataError}
+   *     If the network data content is no longer available because it was
+   *     evicted.
+   */
+  async getData(options = {}) {
+    const {
+      collector = null,
+      dataType,
+      disown = null,
+      request: requestId,
+    } = options;
+
+    lazy.assert.string(
+      requestId,
+      lazy.pprint`Expected "request" to be a string, got ${requestId}`
+    );
+
+    const supportedDataTypes = Object.values(DataType);
+    if (!supportedDataTypes.includes(dataType)) {
+      throw new lazy.error.InvalidArgumentError(
+        `Expected "dataType" to be one of ${supportedDataTypes},` +
+          lazy.pprint` got ${dataType}`
+      );
+    }
+
+    if (collector !== null) {
+      lazy.assert.string(
+        collector,
+        lazy.pprint`Expected "collector" to be a string, got ${collector}`
+      );
+
+      if (!this.#networkCollectors.has(collector)) {
+        throw new lazy.error.NoSuchNetworkCollectorError(
+          `Network data collector with id ${collector} not found`
+        );
+      }
+    }
+
+    if (disown !== null) {
+      lazy.assert.boolean(
+        disown,
+        lazy.pprint`Expected "disown" to be a boolean, got ${disown}`
+      );
+
+      if (disown && collector === null) {
+        throw new lazy.error.InvalidArgumentError(
+          `Expected "collector" to be provided when using "disown"=true`
+        );
+      }
+    }
+
+    const collectedData = this.#getCollectedData(requestId, dataType);
+    if (!collectedData) {
+      throw new lazy.error.NoSuchNetworkDataError(
+        `Network data for request id ${requestId} and DataType ${dataType} not found`
+      );
+    }
+
+    if (collectedData.pending) {
+      await collectedData.networkDataCollected.promise;
+    }
+
+    if (collector !== null && !collectedData.collectors.has(collector)) {
+      throw new lazy.error.NoSuchNetworkDataError(
+        `Network data for request id ${requestId} and DataType ${dataType} does not match collector ${collector}`
+      );
+    }
+
+    if (collectedData.bytes === null) {
+      throw new lazy.error.UnavailableNetworkDataError(
+        `Network data content for request id ${requestId} and DataType ${dataType} is unavailable`
+      );
+    }
+
+    const value = await collectedData.bytes.getDecodedResponseBody();
+    const type =
+      collectedData.bytes.encoding === "base64"
+        ? BytesValueType.Base64
+        : BytesValueType.String;
+
+    if (disown) {
+      this.#removeCollectorFromData(collectedData, collector);
+    }
+
+    return { bytes: this.#serializeAsBytesValue(value, type) };
+  }
+
+  /**
    * Fails a request that is blocked by a network intercept.
    *
    * @param {object=} options
@@ -1320,6 +1476,40 @@ class NetworkModule extends RootBiDiModule {
     }
 
     resolveBlockedEvent();
+  }
+
+  /**
+   * Removes a data collector.
+   *
+   * @param {object=} options
+   * @param {string} options.collector
+   *     The id of the collector to remove.
+   *
+   * @throws {InvalidArgumentError}
+   *     Raised if an argument is of an invalid type or value.
+   * @throws {NoSuchNetworkCollectorError}
+   *     Raised if the collector id could not be found in the internal collectors
+   *     map.
+   */
+  removeDataCollector(options = {}) {
+    const { collector } = options;
+
+    lazy.assert.string(
+      collector,
+      lazy.pprint`Expected "collector" to be a string, got ${collector}`
+    );
+
+    if (!this.#networkCollectors.has(collector)) {
+      throw new lazy.error.NoSuchNetworkCollectorError(
+        `Network data collector with id ${collector} not found`
+      );
+    }
+
+    this.#networkCollectors.delete(collector);
+
+    for (const [, collectedData] of this.#collectedNetworkData) {
+      this.#removeCollectorFromData(collectedData, collector);
+    }
   }
 
   /**
@@ -1917,22 +2107,15 @@ class NetworkModule extends RootBiDiModule {
    *     otherwise.
    */
   #matchCollectorForNavigable(collector, navigable) {
-    // If collector’s contexts is not empty:
-    if (collector.contexts.length) {
+    if (collector.contexts.size) {
       const navigableId = lazy.TabManager.getIdForBrowsingContext(navigable);
-      //     If collector’s contexts contains navigable’s navigable id, return true.
-      //     Otherwise, return false.
-      return collector.contexts.includes(navigableId);
+      return collector.contexts.has(navigableId);
     }
 
-    // If collector’s user contexts is not empty:
-    if (collector.userContexts.length) {
-      //     Let user context be navigable’s associated user context.
-      //     If collector’s user contexts contains user context’s user context id, return true.
-      //     Otherwise, return false.
+    if (collector.userContexts.size) {
       const userContext =
         lazy.UserContextManager.getIdByBrowsingContext(navigable);
-      return collector.userContexts.includes(userContext);
+      return collector.userContexts.has(userContext);
     }
 
     // Return true.
@@ -1985,6 +2168,9 @@ class NetworkModule extends RootBiDiModule {
     );
     if (!browsingContext) {
       collectedData.pending = false;
+      this.#collectedNetworkData.delete(
+        `${collectedData.request}-${collectedData.type}`
+      );
       collectedData.networkDataCollected.resolve();
       return;
     }
@@ -2002,6 +2188,9 @@ class NetworkModule extends RootBiDiModule {
 
     if (!collectors.length) {
       collectedData.pending = false;
+      this.#collectedNetworkData.delete(
+        `${collectedData.request}-${collectedData.type}`
+      );
       collectedData.networkDataCollected.resolve();
       return;
     }
@@ -2041,6 +2230,11 @@ class NetworkModule extends RootBiDiModule {
     // `collectedData.pending` is only flipped before returning here - and in
     // early returns above.
     collectedData.pending = false;
+    if (!collectedData.collectors.size) {
+      this.#collectedNetworkData.delete(
+        `${collectedData.request}-${collectedData.type}`
+      );
+    }
     collectedData.networkDataCollected.resolve();
   }
 
@@ -2238,6 +2432,10 @@ class NetworkModule extends RootBiDiModule {
         ? "network.responseStarted"
         : "network.responseCompleted";
 
+    if (protocolEventName === "network.responseStarted") {
+      this.#cloneNetworkResponseBody(request);
+    }
+
     const isListening = this._hasListener(protocolEventName, {
       contextId: browsingContext.id,
     });
@@ -2247,9 +2445,7 @@ class NetworkModule extends RootBiDiModule {
       return;
     }
 
-    if (protocolEventName === "network.responseStarted") {
-      this.#cloneNetworkResponseBody(request);
-    } else {
+    if (protocolEventName === "network.responseCompleted") {
       this.#maybeCollectNetworkResponseBody(request, response);
     }
 
@@ -2353,7 +2549,10 @@ class NetworkModule extends RootBiDiModule {
   #serializeHeader(name, value) {
     return {
       name,
-      value: this.#serializeStringAsBytesValue(value),
+      // TODO: For now, we handle all headers and cookies with the "string" type.
+      // See Bug 1835216 to add support for "base64" type and handle non-utf8
+      // values.
+      value: this.#serializeAsBytesValue(value, BytesValueType.String),
     };
   }
 
@@ -2397,7 +2596,7 @@ class NetworkModule extends RootBiDiModule {
   }
 
   /**
-   * Serialize a string value as BytesValue.
+   * Serialize a value as BytesValue.
    *
    * Note: This does not attempt to fully implement serialize protocol bytes
    * (https://w3c.github.io/webdriver-bidi/#serialize-protocol-bytes) as the
@@ -2407,12 +2606,9 @@ class NetworkModule extends RootBiDiModule {
    * @param {string} value
    *     The value to serialize.
    */
-  #serializeStringAsBytesValue(value) {
-    // TODO: For now, we handle all headers and cookies with the "string" type.
-    // See Bug 1835216 to add support for "base64" type and handle non-utf8
-    // values.
+  #serializeAsBytesValue(value, type) {
     return {
-      type: BytesValueType.String,
+      type,
       value,
     };
   }

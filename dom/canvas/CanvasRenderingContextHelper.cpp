@@ -12,7 +12,6 @@
 #include "MozFramebuffer.h"
 #include "mozilla/GfxMessageUtils.h"
 #include "mozilla/UniquePtr.h"
-#include "mozilla/dom/BlobImpl.h"
 #include "mozilla/dom/CanvasRenderingContext2D.h"
 #include "mozilla/dom/OffscreenCanvasRenderingContext2D.h"
 #include "mozilla/glean/DomCanvasMetrics.h"
@@ -28,57 +27,9 @@ CanvasRenderingContextHelper::CanvasRenderingContextHelper()
     : mCurrentContextType(CanvasContextType::NoContext) {}
 
 void CanvasRenderingContextHelper::ToBlob(
-    JSContext* aCx, nsIGlobalObject* aGlobal, BlobCallback& aCallback,
-    const nsAString& aType, JS::Handle<JS::Value> aParams, bool aUsePlaceholder,
-    ErrorResult& aRv) {
-  // Encoder callback when encoding is complete.
-  class EncodeCallback : public EncodeCompleteCallback {
-   public:
-    EncodeCallback(nsIGlobalObject* aGlobal, BlobCallback* aCallback)
-        : mGlobal(aGlobal), mBlobCallback(aCallback) {}
-
-    // This is called on main thread.
-    MOZ_CAN_RUN_SCRIPT
-    nsresult ReceiveBlobImpl(already_AddRefed<BlobImpl> aBlobImpl) override {
-      MOZ_ASSERT(NS_IsMainThread());
-
-      RefPtr<BlobImpl> blobImpl = aBlobImpl;
-
-      RefPtr<Blob> blob;
-
-      if (blobImpl) {
-        blob = Blob::Create(mGlobal, blobImpl);
-      }
-
-      RefPtr<BlobCallback> callback(std::move(mBlobCallback));
-      ErrorResult rv;
-
-      callback->Call(blob, rv);
-
-      mGlobal = nullptr;
-      MOZ_ASSERT(!mBlobCallback);
-
-      return rv.StealNSResult();
-    }
-
-    bool CanBeDeletedOnAnyThread() override {
-      // EncodeCallback is used from the main thread only.
-      return false;
-    }
-
-    nsCOMPtr<nsIGlobalObject> mGlobal;
-    RefPtr<BlobCallback> mBlobCallback;
-  };
-
-  RefPtr<EncodeCompleteCallback> callback =
-      new EncodeCallback(aGlobal, &aCallback);
-
-  ToBlob(aCx, callback, aType, aParams, aUsePlaceholder, aRv);
-}
-
-void CanvasRenderingContextHelper::ToBlob(
     JSContext* aCx, EncodeCompleteCallback* aCallback, const nsAString& aType,
-    JS::Handle<JS::Value> aParams, bool aUsePlaceholder, ErrorResult& aRv) {
+    JS::Handle<JS::Value> aParams,
+    CanvasUtils::ImageExtraction aExtractionBehavior, ErrorResult& aRv) {
   nsAutoString type;
   nsContentUtils::ASCIIToLower(aType, type);
 
@@ -89,16 +40,14 @@ void CanvasRenderingContextHelper::ToBlob(
     return;
   }
 
-  ToBlob(aCallback, type, params, usingCustomParseOptions, aUsePlaceholder,
+  ToBlob(aCallback, type, params, usingCustomParseOptions, aExtractionBehavior,
          aRv);
 }
 
-void CanvasRenderingContextHelper::ToBlob(EncodeCompleteCallback* aCallback,
-                                          nsAString& aType,
-                                          const nsAString& aEncodeOptions,
-                                          bool aUsingCustomOptions,
-                                          bool aUsePlaceholder,
-                                          ErrorResult& aRv) {
+void CanvasRenderingContextHelper::ToBlob(
+    EncodeCompleteCallback* aCallback, nsAString& aType,
+    const nsAString& aEncodeOptions, bool aUsingCustomOptions,
+    CanvasUtils::ImageExtraction aExtractionBehavior, ErrorResult& aRv) {
   const CSSIntSize elementSize = GetWidthHeight();
   if (mCurrentContext) {
     // We disallow canvases of width or height zero, and set them to 1, so
@@ -115,19 +64,22 @@ void CanvasRenderingContextHelper::ToBlob(EncodeCompleteCallback* aCallback,
 
   int32_t format = 0;
   auto imageSize = gfx::IntSize{elementSize.width, elementSize.height};
-  UniquePtr<uint8_t[]> imageBuffer = GetImageBuffer(&format, &imageSize);
+  UniquePtr<uint8_t[]> imageBuffer =
+      GetImageBuffer(aExtractionBehavior, &format, &imageSize);
   RefPtr<EncodeCompleteCallback> callback = aCallback;
 
   aRv = ImageEncoder::ExtractDataAsync(
       aType, aEncodeOptions, aUsingCustomOptions, std::move(imageBuffer),
-      format, CSSIntSize::FromUnknownSize(imageSize), aUsePlaceholder,
+      format, CSSIntSize::FromUnknownSize(imageSize), aExtractionBehavior,
       callback);
 }
 
 UniquePtr<uint8_t[]> CanvasRenderingContextHelper::GetImageBuffer(
-    int32_t* aOutFormat, gfx::IntSize* aOutImageSize) {
+    CanvasUtils::ImageExtraction aExtractionBehavior, int32_t* aOutFormat,
+    gfx::IntSize* aOutImageSize) {
   if (mCurrentContext) {
-    return mCurrentContext->GetImageBuffer(aOutFormat, aOutImageSize);
+    return mCurrentContext->GetImageBuffer(aExtractionBehavior, aOutFormat,
+                                           aOutImageSize);
   }
   return nullptr;
 }

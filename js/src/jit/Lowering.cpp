@@ -1781,6 +1781,13 @@ void LIRGenerator::lowerShiftOp(JSOp op, MShiftInstruction* ins) {
     return;
   }
 
+  if (ins->type() == MIRType::IntPtr) {
+    MOZ_ASSERT(lhs->type() == MIRType::IntPtr);
+    MOZ_ASSERT(rhs->type() == MIRType::IntPtr);
+    lowerForShift(new (alloc()) LShiftIntPtr(op), ins, lhs, rhs);
+    return;
+  }
+
   MOZ_CRASH("Unhandled integer specialization");
 }
 
@@ -1917,6 +1924,10 @@ void LIRGenerator::visitMinMax(MMinMax* ins) {
     case MIRType::Int32:
       lir = new (alloc())
           LMinMaxI(useRegisterAtStart(first), useRegisterOrConstant(second));
+      break;
+    case MIRType::IntPtr:
+      lir = new (alloc()) LMinMaxIntPtr(useRegisterAtStart(first),
+                                        useRegisterOrConstant(second));
       break;
     case MIRType::Float32:
       lir = new (alloc())
@@ -2218,6 +2229,15 @@ void LIRGenerator::visitAdd(MAdd* ins) {
     return;
   }
 
+  if (ins->type() == MIRType::IntPtr) {
+    MOZ_ASSERT(lhs->type() == MIRType::IntPtr);
+    ReorderCommutative(&lhs, &rhs, ins);
+
+    auto* lir = new (alloc()) LAddIntPtr;
+    lowerForALU(lir, ins, lhs, rhs);
+    return;
+  }
+
   if (ins->type() == MIRType::Double) {
     MOZ_ASSERT(lhs->type() == MIRType::Double);
     ReorderCommutative(&lhs, &rhs, ins);
@@ -2277,6 +2297,14 @@ void LIRGenerator::visitSub(MSub* ins) {
     return;
   }
 
+  if (ins->type() == MIRType::IntPtr) {
+    MOZ_ASSERT(lhs->type() == MIRType::IntPtr);
+
+    auto* lir = new (alloc()) LSubIntPtr;
+    lowerForALU(lir, ins, lhs, rhs);
+    return;
+  }
+
   if (ins->type() == MIRType::Double) {
     MOZ_ASSERT(lhs->type() == MIRType::Double);
     lowerForFPU(new (alloc()) LMathD(JSOp::Sub), ins, lhs, rhs);
@@ -2326,6 +2354,15 @@ void LIRGenerator::visitMul(MMul* ins) {
 
     LMulI64* lir = new (alloc()) LMulI64;
     lowerForMulInt64(lir, ins, lhs, rhs);
+    return;
+  }
+
+  if (ins->type() == MIRType::IntPtr) {
+    MOZ_ASSERT(lhs->type() == MIRType::IntPtr);
+    ReorderCommutative(&lhs, &rhs, ins);
+
+    auto* lir = new (alloc()) LMulIntPtr;
+    lowerForALU(lir, ins, lhs, rhs);
     return;
   }
 
@@ -4408,6 +4445,17 @@ void LIRGenerator::visitArrayBufferViewElements(MArrayBufferViewElements* ins) {
          ins);
 }
 
+void LIRGenerator::visitArrayBufferViewElementsWithOffset(
+    MArrayBufferViewElementsWithOffset* ins) {
+  MOZ_ASSERT(ins->offset()->type() == MIRType::IntPtr);
+  MOZ_ASSERT(ins->type() == MIRType::Elements);
+
+  define(new (alloc()) LArrayBufferViewElementsWithOffset(
+             useRegister(ins->object()),
+             useRegisterOrIndexConstant(ins->offset(), ins->elementType())),
+         ins);
+}
+
 void LIRGenerator::visitTypedArrayElementSize(MTypedArrayElementSize* ins) {
   MOZ_ASSERT(ins->object()->type() == MIRType::Object);
   define(new (alloc())
@@ -4515,12 +4563,34 @@ void LIRGenerator::visitTypedArraySet(MTypedArraySet* ins) {
   }
 }
 
+void LIRGenerator::visitTypedArraySetFromSubarray(
+    MTypedArraySetFromSubarray* ins) {
+  auto* lir = new (alloc()) LTypedArraySetFromSubarray(
+      useRegisterAtStart(ins->target()), useRegisterAtStart(ins->source()),
+      useRegisterAtStart(ins->offset()),
+      useRegisterAtStart(ins->sourceOffset()),
+      useRegisterAtStart(ins->sourceLength()));
+  add(lir, ins);
+  if (!ins->canUseBitwiseCopy()) {
+    assignSafepoint(lir, ins);
+  }
+}
+
 void LIRGenerator::visitTypedArraySubarray(MTypedArraySubarray* ins) {
   auto* lir = new (alloc()) LTypedArraySubarray(
       useRegisterAtStart(ins->object()), useRegisterAtStart(ins->start()),
-      useRegisterAtStart(ins->end()));
+      useRegisterAtStart(ins->length()));
   defineReturn(lir, ins);
   assignSafepoint(lir, ins);
+}
+
+void LIRGenerator::visitToIntegerIndex(MToIntegerIndex* ins) {
+  MOZ_ASSERT(ins->index()->type() == MIRType::IntPtr);
+  MOZ_ASSERT(ins->length()->type() == MIRType::IntPtr);
+
+  auto* lir = new (alloc())
+      LToIntegerIndex(useRegister(ins->index()), useRegister(ins->length()));
+  define(lir, ins);
 }
 
 void LIRGenerator::visitGuardNumberToIntPtrIndex(
@@ -5012,9 +5082,9 @@ void LIRGenerator::visitLoadDataViewElement(MLoadDataViewElement* ins) {
 
   MOZ_ASSERT(IsNumberType(ins->type()));
 
-  const LUse elements = useRegister(ins->elements());
-  const LUse index = useRegister(ins->index());
-  const LAllocation littleEndian = useRegisterOrConstant(ins->littleEndian());
+  LUse elements = useRegister(ins->elements());
+  LAllocation index = useRegisterOrIndexConstant(ins->index(), Scalar::Uint8);
+  LAllocation littleEndian = useRegisterOrConstant(ins->littleEndian());
 
   if (Scalar::isBigIntType(ins->storageType())) {
     auto* lir =
@@ -5224,7 +5294,7 @@ void LIRGenerator::visitStoreDataViewElement(MStoreDataViewElement* ins) {
   }
 
   LUse elements = useRegister(ins->elements());
-  LUse index = useRegister(ins->index());
+  LAllocation index = useRegisterOrIndexConstant(ins->index(), Scalar::Uint8);
   LAllocation littleEndian = useRegisterOrConstant(ins->littleEndian());
 
   if (ins->isBigIntWrite()) {

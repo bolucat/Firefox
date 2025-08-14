@@ -4,7 +4,7 @@
 
 use crate::{
     cow_label, wgpu_string, AdapterInformation, ByteBuf, CommandEncoderAction, DeviceAction,
-    FfiSlice, ImplicitLayout, QueueWriteAction, RawString, TexelCopyBufferLayout, TextureAction,
+    FfiSlice, QueueWriteAction, RawString, TexelCopyBufferLayout, TextureAction,
 };
 
 use crate::{BufferMapResult, Message, QueueWriteDataSource, ServerMessage, SwapChainId};
@@ -220,6 +220,7 @@ pub struct BindGroupEntry {
     size: Option<wgt::BufferSize>,
     sampler: Option<id::SamplerId>,
     texture_view: Option<id::TextureViewId>,
+    external_texture: Option<id::ExternalTextureId>,
 }
 
 #[repr(C)]
@@ -249,18 +250,6 @@ pub struct SamplerDescriptor<'a> {
 }
 
 #[repr(C)]
-pub struct TextureViewDescriptor<'a> {
-    label: Option<&'a nsACString>,
-    format: Option<&'a wgt::TextureFormat>,
-    dimension: Option<&'a wgt::TextureViewDimension>,
-    aspect: wgt::TextureAspect,
-    base_mip_level: u32,
-    mip_level_count: Option<&'a u32>,
-    base_array_layer: u32,
-    array_layer_count: Option<&'a u32>,
-}
-
-#[repr(C)]
 pub struct RenderBundleEncoderDescriptor<'a> {
     label: Option<&'a nsACString>,
     color_formats: FfiSlice<'a, wgt::TextureFormat>,
@@ -276,6 +265,7 @@ struct IdentityHub {
     devices: IdentityManager<markers::Device>,
     queues: IdentityManager<markers::Queue>,
     buffers: IdentityManager<markers::Buffer>,
+    command_encoders: IdentityManager<markers::CommandEncoder>,
     command_buffers: IdentityManager<markers::CommandBuffer>,
     render_bundles: IdentityManager<markers::RenderBundle>,
     bind_group_layouts: IdentityManager<markers::BindGroupLayout>,
@@ -286,6 +276,8 @@ struct IdentityHub {
     render_pipelines: IdentityManager<markers::RenderPipeline>,
     textures: IdentityManager<markers::Texture>,
     texture_views: IdentityManager<markers::TextureView>,
+    external_texture_sources: IdentityManager<crate::ExternalTextureSource>,
+    external_textures: IdentityManager<markers::ExternalTexture>,
     samplers: IdentityManager<markers::Sampler>,
     query_sets: IdentityManager<markers::QuerySet>,
 }
@@ -297,6 +289,7 @@ impl Default for IdentityHub {
             devices: IdentityManager::new(),
             queues: IdentityManager::new(),
             buffers: IdentityManager::new(),
+            command_encoders: IdentityManager::new(),
             command_buffers: IdentityManager::new(),
             render_bundles: IdentityManager::new(),
             bind_group_layouts: IdentityManager::new(),
@@ -307,21 +300,10 @@ impl Default for IdentityHub {
             render_pipelines: IdentityManager::new(),
             textures: IdentityManager::new(),
             texture_views: IdentityManager::new(),
+            external_texture_sources: IdentityManager::new(),
+            external_textures: IdentityManager::new(),
             samplers: IdentityManager::new(),
             query_sets: IdentityManager::new(),
-        }
-    }
-}
-
-impl ImplicitLayout<'_> {
-    fn new(identities: &IdentityHub) -> Self {
-        ImplicitLayout {
-            pipeline: identities.pipeline_layouts.process(),
-            bind_groups: Cow::Owned(
-                (0..8) // hal::MAX_BIND_GROUPS
-                    .map(|_| identities.bind_group_layouts.process())
-                    .collect(),
-            ),
         }
     }
 }
@@ -524,25 +506,29 @@ mod drop {
 
     #[no_mangle] pub extern "C" fn wgpu_client_destroy_buffer(client: &Client, id: id::BufferId) { client.queue_message(&Message::DestroyBuffer(id)); }
     #[no_mangle] pub extern "C" fn wgpu_client_destroy_texture(client: &Client, id: id::TextureId) { client.queue_message(&Message::DestroyTexture(id)); }
+    #[no_mangle] pub extern "C" fn wgpu_client_destroy_external_texture(client: &Client, id: id::ExternalTextureId) { client.queue_message(&Message::DestroyExternalTexture(id)); }
+    #[no_mangle] pub extern "C" fn wgpu_client_destroy_external_texture_source(client: &Client, id: crate::ExternalTextureSourceId) { client.queue_message(&&Message::DestroyExternalTextureSource(id)); }
     #[no_mangle] pub extern "C" fn wgpu_client_destroy_device(client: &Client, id: id::DeviceId) { client.queue_message(&Message::DestroyDevice(id)); }
 
     #[no_mangle] pub extern "C" fn wgpu_client_drop_adapter(client: &Client, id: id::AdapterId) { client.queue_message(&Message::DropAdapter(id)); client.identities.lock().adapters.free(id); }
     #[no_mangle] pub extern "C" fn wgpu_client_drop_device(client: &Client, id: id::DeviceId) { client.queue_message(&Message::DropDevice(id)); client.identities.lock().devices.free(id); }
     #[no_mangle] pub extern "C" fn wgpu_client_drop_queue(client: &Client, id: id::QueueId) { client.queue_message(&Message::DropQueue(id)); client.identities.lock().queues.free(id); }
     #[no_mangle] pub extern "C" fn wgpu_client_drop_buffer(client: &Client, id: id::BufferId) { client.queue_message(&Message::DropBuffer(id)); client.identities.lock().buffers.free(id); }
-    // #[no_mangle] pub extern "C" fn wgpu_client_drop_command_buffer(client: &Client, id: id::CommandBufferId) { client.queue_message(&Message::DropCommandBuffer(id)); }
+    #[no_mangle] pub extern "C" fn wgpu_client_drop_command_encoder(client: &Client, id: id::CommandEncoderId) { client.queue_message(&Message::DropCommandEncoder(id)); client.identities.lock().command_encoders.free(id); }
+    #[no_mangle] pub extern "C" fn wgpu_client_drop_command_buffer(client: &Client, id: id::CommandBufferId) { client.queue_message(&Message::DropCommandBuffer(id)); client.identities.lock().command_buffers.free(id); }
     #[no_mangle] pub extern "C" fn wgpu_client_drop_render_bundle(client: &Client, id: id::RenderBundleId) { client.queue_message(&Message::DropRenderBundle(id)); client.identities.lock().render_bundles.free(id); }
     #[no_mangle] pub extern "C" fn wgpu_client_drop_bind_group_layout(client: &Client, id: id::BindGroupLayoutId) { client.queue_message(&Message::DropBindGroupLayout(id)); client.identities.lock().bind_group_layouts.free(id); }
     #[no_mangle] pub extern "C" fn wgpu_client_drop_pipeline_layout(client: &Client, id: id::PipelineLayoutId) { client.queue_message(&Message::DropPipelineLayout(id)); client.identities.lock().pipeline_layouts.free(id); }
     #[no_mangle] pub extern "C" fn wgpu_client_drop_bind_group(client: &Client, id: id::BindGroupId) { client.queue_message(&Message::DropBindGroup(id)); client.identities.lock().bind_groups.free(id); }
     #[no_mangle] pub extern "C" fn wgpu_client_drop_shader_module(client: &Client, id: id::ShaderModuleId) { client.queue_message(&Message::DropShaderModule(id)); client.identities.lock().shader_modules.free(id); }
-
+    #[no_mangle] pub extern "C" fn wgpu_client_drop_compute_pipeline(client: &Client, id: id::ComputePipelineId) { client.queue_message(&Message::DropComputePipeline(id)); client.identities.lock().compute_pipelines.free(id); }
+    #[no_mangle] pub extern "C" fn wgpu_client_drop_render_pipeline(client: &Client, id: id::RenderPipelineId) { client.queue_message(&Message::DropRenderPipeline(id)); client.identities.lock().render_pipelines.free(id); }
     #[no_mangle] pub extern "C" fn wgpu_client_drop_texture(client: &Client, id: id::TextureId) { client.queue_message(&Message::DropTexture(id)); client.identities.lock().textures.free(id); }
     #[no_mangle] pub extern "C" fn wgpu_client_drop_texture_view(client: &Client, id: id::TextureViewId) { client.queue_message(&Message::DropTextureView(id)); client.identities.lock().texture_views.free(id); }
+    #[no_mangle] pub extern "C" fn wgpu_client_drop_external_texture(client: &Client, id: id::ExternalTextureId) { client.queue_message(&Message::DropExternalTexture(id)); client.identities.lock().external_textures.free(id); }
+    #[no_mangle] pub extern "C" fn wgpu_client_drop_external_texture_source(client: &Client, id: crate::ExternalTextureSourceId) { client.queue_message(&Message::DropExternalTextureSource(id)); client.identities.lock().external_texture_sources.free(id); }
     #[no_mangle] pub extern "C" fn wgpu_client_drop_sampler(client: &Client, id: id::SamplerId) { client.queue_message(&Message::DropSampler(id)); client.identities.lock().samplers.free(id); }
     #[no_mangle] pub extern "C" fn wgpu_client_drop_query_set(client: &Client, id: id::QuerySetId) { client.queue_message(&Message::DropQuerySet(id)); client.identities.lock().query_sets.free(id); }
-
-    #[no_mangle] pub extern "C" fn wgpu_client_drop_command_encoder(client: &Client, id: id::CommandEncoderId) { client.queue_message(&Message::DropCommandEncoder(id)); client.identities.lock().command_buffers.free(id.into_command_buffer_id()) }
 }
 
 #[repr(C)]
@@ -552,35 +538,6 @@ pub struct FfiShaderModuleCompilationMessage {
     pub utf16_offset: u64,
     pub utf16_length: u64,
     pub message: nsString,
-}
-
-#[no_mangle]
-pub extern "C" fn wgpu_client_drop_compute_pipeline(
-    client: &Client,
-    id: id::ComputePipelineId,
-    implicit_pipeline_layout_id: Option<id::PipelineLayoutId>,
-    implicit_bind_group_layout_ids: FfiSlice<'_, id::BindGroupLayoutId>,
-) {
-    let implicit_layout =
-        implicit_pipeline_layout_id.map(|implicit_pipeline_layout_id| ImplicitLayout {
-            pipeline: implicit_pipeline_layout_id,
-            bind_groups: Cow::Borrowed(unsafe { implicit_bind_group_layout_ids.as_slice() }),
-        });
-    client.queue_message(&Message::DropComputePipeline(id, implicit_layout));
-}
-#[no_mangle]
-pub extern "C" fn wgpu_client_drop_render_pipeline(
-    client: &Client,
-    id: id::RenderPipelineId,
-    implicit_pipeline_layout_id: Option<id::PipelineLayoutId>,
-    implicit_bind_group_layout_ids: FfiSlice<'_, id::BindGroupLayoutId>,
-) {
-    let implicit_layout =
-        implicit_pipeline_layout_id.map(|implicit_pipeline_layout_id| ImplicitLayout {
-            pipeline: implicit_pipeline_layout_id,
-            bind_groups: Cow::Borrowed(unsafe { implicit_bind_group_layout_ids.as_slice() }),
-        });
-    client.queue_message(&Message::DropRenderPipeline(id, implicit_layout));
 }
 
 extern "C" {
@@ -709,11 +666,7 @@ pub extern "C" fn wgpu_client_receive_server_message(client: &Client, byte_buf: 
                 wgpu_child_resolve_pop_error_scope_promise(client.owner, device_id, ty, &message);
             }
         }
-        ServerMessage::CreateRenderPipelineResponse {
-            pipeline_id,
-            implicit_ids,
-            error,
-        } => {
+        ServerMessage::CreateRenderPipelineResponse { pipeline_id, error } => {
             let is_render_pipeline = true;
             if let Some(error) = error {
                 let ns_error = nsCString::from(error.error);
@@ -726,15 +679,7 @@ pub extern "C" fn wgpu_client_receive_server_message(client: &Client, byte_buf: 
                         Some(&ns_error),
                     );
                 }
-
-                let identities = client.identities.lock();
-                identities.render_pipelines.free(pipeline_id);
-                if let Some(implicit_ids) = implicit_ids {
-                    identities.pipeline_layouts.free(implicit_ids.pipeline);
-                    for bgl_id in implicit_ids.bind_groups.as_ref() {
-                        identities.bind_group_layouts.free(*bgl_id);
-                    }
-                }
+                client.identities.lock().render_pipelines.free(pipeline_id);
             } else {
                 unsafe {
                     wgpu_child_resolve_create_pipeline_promise(
@@ -747,11 +692,7 @@ pub extern "C" fn wgpu_client_receive_server_message(client: &Client, byte_buf: 
                 }
             }
         }
-        ServerMessage::CreateComputePipelineResponse {
-            pipeline_id,
-            implicit_ids,
-            error,
-        } => {
+        ServerMessage::CreateComputePipelineResponse { pipeline_id, error } => {
             let is_render_pipeline = false;
             if let Some(error) = error {
                 let ns_error = nsCString::from(error.error);
@@ -764,15 +705,7 @@ pub extern "C" fn wgpu_client_receive_server_message(client: &Client, byte_buf: 
                         Some(&ns_error),
                     );
                 }
-
-                let identities = client.identities.lock();
-                identities.compute_pipelines.free(pipeline_id);
-                if let Some(implicit_ids) = implicit_ids {
-                    identities.pipeline_layouts.free(implicit_ids.pipeline);
-                    for bgl_id in implicit_ids.bind_groups.as_ref() {
-                        identities.bind_group_layouts.free(*bgl_id);
-                    }
-                }
+                client.identities.lock().compute_pipelines.free(pipeline_id);
             } else {
                 unsafe {
                     wgpu_child_resolve_create_pipeline_promise(
@@ -916,12 +849,14 @@ pub extern "C" fn wgpu_client_swap_chain_present(
     client: &Client,
     texture_id: id::TextureId,
     command_encoder_id: id::CommandEncoderId,
+    command_buffer_id: id::CommandBufferId,
     remote_texture_id: crate::RemoteTextureId,
     remote_texture_owner_id: crate::RemoteTextureOwnerId,
 ) {
     let message = Message::SwapChainPresent {
         texture_id,
         command_encoder_id,
+        command_buffer_id,
         remote_texture_id,
         remote_texture_owner_id,
     };
@@ -1046,11 +981,21 @@ pub extern "C" fn wgpu_client_create_texture(
 }
 
 #[no_mangle]
+pub extern "C" fn wgpu_client_make_texture_id(client: &Client) -> id::TextureId {
+    client.identities.lock().textures.process()
+}
+
+#[no_mangle]
+pub extern "C" fn wgpu_client_free_texture_id(client: &Client, id: id::TextureId) {
+    client.identities.lock().textures.free(id)
+}
+
+#[no_mangle]
 pub extern "C" fn wgpu_client_create_texture_view(
     client: &Client,
     device_id: id::DeviceId,
     texture_id: id::TextureId,
-    desc: &TextureViewDescriptor,
+    desc: &crate::TextureViewDescriptor,
 ) -> id::TextureViewId {
     let label = wgpu_string(desc.label);
 
@@ -1072,6 +1017,38 @@ pub extern "C" fn wgpu_client_create_texture_view(
 
     let action = TextureAction::CreateView(id, wgpu_desc);
     let message = Message::Texture(device_id, texture_id, action);
+    client.queue_message(&message);
+    id
+}
+
+#[no_mangle]
+pub extern "C" fn wgpu_client_make_texture_view_id(client: &Client) -> id::TextureViewId {
+    client.identities.lock().texture_views.process()
+}
+
+#[no_mangle]
+pub extern "C" fn wgpu_client_free_texture_view_id(client: &Client, id: id::TextureViewId) {
+    client.identities.lock().texture_views.free(id)
+}
+
+#[no_mangle]
+pub extern "C" fn wgpu_client_make_external_texture_source_id(
+    client: &Client,
+) -> crate::ExternalTextureSourceId {
+    client.identities.lock().external_texture_sources.process()
+}
+
+#[no_mangle]
+pub extern "C" fn wgpu_client_create_external_texture(
+    client: &Client,
+    device_id: id::DeviceId,
+    desc: &crate::ExternalTextureDescriptor<Option<&nsACString>>,
+) -> id::ExternalTextureId {
+    let desc = desc.map_label(|l| wgpu_string(*l));
+    let id = client.identities.lock().external_textures.process();
+
+    let action = DeviceAction::CreateExternalTexture(id, desc);
+    let message = Message::Device(device_id, action);
     client.queue_message(&message);
     id
 }
@@ -1105,22 +1082,23 @@ pub extern "C" fn wgpu_client_create_sampler(
 }
 
 #[no_mangle]
-pub extern "C" fn wgpu_client_make_encoder_id(client: &Client) -> id::CommandEncoderId {
-    client
-        .identities
-        .lock()
-        .command_buffers
-        .process()
-        .into_command_encoder_id()
+pub extern "C" fn wgpu_client_make_command_encoder_id(client: &Client) -> id::CommandEncoderId {
+    client.identities.lock().command_encoders.process()
 }
 
 #[no_mangle]
 pub extern "C" fn wgpu_client_free_command_encoder_id(client: &Client, id: id::CommandEncoderId) {
-    client
-        .identities
-        .lock()
-        .command_buffers
-        .free(id.into_command_buffer_id())
+    client.identities.lock().command_encoders.free(id)
+}
+
+#[no_mangle]
+pub extern "C" fn wgpu_client_make_command_buffer_id(client: &Client) -> id::CommandBufferId {
+    client.identities.lock().command_buffers.process()
+}
+
+#[no_mangle]
+pub extern "C" fn wgpu_client_free_command_buffer_id(client: &Client, id: id::CommandBufferId) {
+    client.identities.lock().command_buffers.free(id)
 }
 
 #[no_mangle]
@@ -1131,12 +1109,7 @@ pub extern "C" fn wgpu_client_create_command_encoder(
 ) -> id::CommandEncoderId {
     let label = wgpu_string(desc.label);
 
-    let id = client
-        .identities
-        .lock()
-        .command_buffers
-        .process()
-        .into_command_encoder_id();
+    let id = client.identities.lock().command_encoders.process();
 
     let action = DeviceAction::CreateCommandEncoder(id, desc.map_label(|_| label));
     let message = Message::Device(device_id, action);
@@ -1494,14 +1467,6 @@ pub unsafe extern "C" fn wgpu_client_create_bind_group_layout(
 }
 
 #[no_mangle]
-pub extern "C" fn wgpu_client_free_bind_group_layout_id(
-    client: &Client,
-    id: id::BindGroupLayoutId,
-) {
-    client.identities.lock().bind_group_layouts.free(id)
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn wgpu_client_render_pipeline_get_bind_group_layout(
     client: &Client,
     device_id: id::DeviceId,
@@ -1556,11 +1521,6 @@ pub unsafe extern "C" fn wgpu_client_create_pipeline_layout(
 }
 
 #[no_mangle]
-pub extern "C" fn wgpu_client_free_pipeline_layout_id(client: &Client, id: id::PipelineLayoutId) {
-    client.identities.lock().pipeline_layouts.free(id)
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn wgpu_client_create_bind_group(
     client: &Client,
     device_id: id::DeviceId,
@@ -1586,6 +1546,8 @@ pub unsafe extern "C" fn wgpu_client_create_bind_group(
                 wgc::binding_model::BindingResource::Sampler(id)
             } else if let Some(id) = entry.texture_view {
                 wgc::binding_model::BindingResource::TextureView(id)
+            } else if let Some(id) = entry.external_texture {
+                wgc::binding_model::BindingResource::ExternalTexture(id)
             } else {
                 panic!("Unexpected binding entry {:?}", entry);
             },
@@ -1608,8 +1570,6 @@ pub unsafe extern "C" fn wgpu_client_create_compute_pipeline(
     client: &Client,
     device_id: id::DeviceId,
     desc: &ComputePipelineDescriptor,
-    implicit_pipeline_layout_id: *mut Option<id::PipelineLayoutId>,
-    implicit_bind_group_layout_ids: *mut Option<id::BindGroupLayoutId>,
     is_async: bool,
 ) -> id::ComputePipelineId {
     let label = wgpu_string(desc.label);
@@ -1624,19 +1584,7 @@ pub unsafe extern "C" fn wgpu_client_create_compute_pipeline(
         cache: None,
     };
 
-    let implicit = match desc.layout {
-        Some(_) => None,
-        None => {
-            let implicit = ImplicitLayout::new(&identities);
-            ptr::write(implicit_pipeline_layout_id, Some(implicit.pipeline));
-            for (i, bgl_id) in implicit.bind_groups.iter().enumerate() {
-                *implicit_bind_group_layout_ids.add(i) = Some(*bgl_id);
-            }
-            Some(implicit)
-        }
-    };
-
-    let action = DeviceAction::CreateComputePipeline(id, wgpu_desc, implicit, is_async);
+    let action = DeviceAction::CreateComputePipeline(id, wgpu_desc, is_async);
     let message = Message::Device(device_id, action);
     client.queue_message(&message);
     id
@@ -1647,8 +1595,6 @@ pub unsafe extern "C" fn wgpu_client_create_render_pipeline(
     client: &Client,
     device_id: id::DeviceId,
     desc: &RenderPipelineDescriptor,
-    implicit_pipeline_layout_id: *mut Option<id::PipelineLayoutId>,
-    implicit_bind_group_layout_ids: *mut Option<id::BindGroupLayoutId>,
     is_async: bool,
 ) -> id::RenderPipelineId {
     let label = wgpu_string(desc.label);
@@ -1668,19 +1614,7 @@ pub unsafe extern "C" fn wgpu_client_create_render_pipeline(
         cache: None,
     };
 
-    let implicit = match desc.layout {
-        Some(_) => None,
-        None => {
-            let implicit = ImplicitLayout::new(&identities);
-            ptr::write(implicit_pipeline_layout_id, Some(implicit.pipeline));
-            for (i, bgl_id) in implicit.bind_groups.iter().enumerate() {
-                *implicit_bind_group_layout_ids.add(i) = Some(*bgl_id);
-            }
-            Some(implicit)
-        }
-    };
-
-    let action = DeviceAction::CreateRenderPipeline(id, wgpu_desc, implicit, is_async);
+    let action = DeviceAction::CreateRenderPipeline(id, wgpu_desc, is_async);
     let message = Message::Device(device_id, action);
     client.queue_message(&message);
     id
@@ -1852,6 +1786,23 @@ pub unsafe extern "C" fn wgpu_command_encoder_resolve_query_set(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn wgpu_report_internal_error(
+    client: &Client,
+    device_id: id::DeviceId,
+    message: *const core::ffi::c_char,
+) {
+    let action = DeviceAction::Error {
+        message: core::ffi::CStr::from_ptr(message)
+            .to_str()
+            .unwrap()
+            .to_string(),
+        r#type: wgt::error::ErrorType::Internal,
+    };
+    let message = Message::Device(device_id, action);
+    client.queue_message(&message);
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn wgpu_report_validation_error(
     client: &Client,
     device_id: id::DeviceId,
@@ -1874,11 +1825,17 @@ pub unsafe extern "C" fn wgpu_command_encoder_finish(
     device_id: id::DeviceId,
     command_encoder_id: id::CommandEncoderId,
     desc: &wgt::CommandBufferDescriptor<Option<&nsACString>>,
-) {
+) -> id::CommandBufferId {
+    let command_buffer_id = client.identities.lock().command_buffers.process();
     let label = wgpu_string(desc.label);
-    let message =
-        Message::CommandEncoderFinish(device_id, command_encoder_id, desc.map_label(|_| label));
+    let message = Message::CommandEncoderFinish(
+        device_id,
+        command_encoder_id,
+        command_buffer_id,
+        desc.map_label(|_| label),
+    );
     client.queue_message(&message);
+    command_buffer_id
 }
 
 #[no_mangle]

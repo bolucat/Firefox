@@ -178,11 +178,118 @@ class BitSetSuite {
     }
   }
 
+  void testCount() {
+    testCountForSize<1>();
+    testCountForSize<kBitsPerWord>();
+    testCountForSize<kBitsPerWord + 1>();
+  }
+
+  template <size_t N>
+  void testCountForSize() {
+    TestBitSet<N> bits;
+    MOZ_RELEASE_ASSERT(bits.Count() == 0);
+    bits.SetAll();
+    MOZ_RELEASE_ASSERT(bits.Count() == N);
+    bits.ResetAll();
+    bits[0] = true;
+    MOZ_RELEASE_ASSERT(bits.Count() == 1);
+    bits[0] = false;
+    bits[N - 1] = true;
+    MOZ_RELEASE_ASSERT(bits.Count() == 1);
+  }
+
+  void testComparison() {
+    testComparisonForSize<1>();
+    testComparisonForSize<kBitsPerWord>();
+    testComparisonForSize<kBitsPerWord + 1>();
+  }
+
+  template <size_t N>
+  void testComparisonForSize() {
+    TestBitSet<N> a;
+    TestBitSet<N> b;
+    MOZ_RELEASE_ASSERT(a == b);
+    MOZ_RELEASE_ASSERT(!(a != b));
+    a[0] = true;
+    MOZ_RELEASE_ASSERT(a != b);
+    MOZ_RELEASE_ASSERT(!(a == b));
+    b[0] = true;
+    MOZ_RELEASE_ASSERT(a == b);
+    MOZ_RELEASE_ASSERT(!(a != b));
+    a.SetAll();
+    b.SetAll();
+    MOZ_RELEASE_ASSERT(a == b);
+    MOZ_RELEASE_ASSERT(!(a != b));
+    a[N - 1] = false;
+    MOZ_RELEASE_ASSERT(a != b);
+    MOZ_RELEASE_ASSERT(!(a == b));
+    b[N - 1] = false;
+    MOZ_RELEASE_ASSERT(a == b);
+    MOZ_RELEASE_ASSERT(!(a != b));
+  }
+
+  void testLogical() {
+    testLogicalForSize<2>();
+    testLogicalForSize<kBitsPerWord>();
+    testLogicalForSize<kBitsPerWord + 1>();
+  }
+
+  template <size_t N>
+  void testLogicalForSize() {
+    TestBitSet<N> none;
+    TestBitSet<N> all;
+    all.SetAll();
+    TestBitSet<N> some;
+    for (size_t i = 0; i < N; i += 2) {
+      some[i] = true;
+    }
+
+    // operator& is implemented in terms of operator&= (and likewise for
+    // operator|) so this tests both.
+
+    MOZ_RELEASE_ASSERT(none.Count() == 0);
+    MOZ_RELEASE_ASSERT(all.Count() == N);
+    MOZ_RELEASE_ASSERT(some.Count() == (N + 1) / 2);
+
+    MOZ_RELEASE_ASSERT((none & none) == none);
+    MOZ_RELEASE_ASSERT((none & all) == none);
+    MOZ_RELEASE_ASSERT((none & some) == none);
+
+    MOZ_RELEASE_ASSERT((all & none) == none);
+    MOZ_RELEASE_ASSERT((all & all) == all);
+    MOZ_RELEASE_ASSERT((all & some) == some);
+
+    MOZ_RELEASE_ASSERT((some & none) == none);
+    MOZ_RELEASE_ASSERT((some & all) == some);
+    MOZ_RELEASE_ASSERT((some & some) == some);
+
+    MOZ_RELEASE_ASSERT((none | none) == none);
+    MOZ_RELEASE_ASSERT((none | all) == all);
+    MOZ_RELEASE_ASSERT((none | some) == some);
+
+    MOZ_RELEASE_ASSERT((all | none) == all);
+    MOZ_RELEASE_ASSERT((all | all) == all);
+    MOZ_RELEASE_ASSERT((all | some) == all);
+
+    MOZ_RELEASE_ASSERT((some | none) == some);
+    MOZ_RELEASE_ASSERT((some | all) == all);
+    MOZ_RELEASE_ASSERT((some | some) == some);
+
+    MOZ_RELEASE_ASSERT(~none == all);
+    MOZ_RELEASE_ASSERT(~all == none);
+    MOZ_RELEASE_ASSERT(~some != some);
+    MOZ_RELEASE_ASSERT(~some != all);
+    MOZ_RELEASE_ASSERT(~some != none);
+  }
+
   void runTests() {
     testLength();
     testConstructAndAssign();
     testSetBit();
     testFindBits();
+    testCount();
+    testComparison();
+    testLogical();
   }
 };
 

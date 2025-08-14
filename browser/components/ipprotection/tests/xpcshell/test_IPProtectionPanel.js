@@ -34,14 +34,6 @@ class FakeIPProtectionPanelElement {
   }
 }
 
-add_setup(() => {
-  IPProtectionService.init();
-
-  registerCleanupFunction(() => {
-    IPProtectionService.uninit();
-  });
-});
-
 /**
  * Tests that we can set a state and pass it to a fake element.
  */
@@ -257,5 +249,29 @@ add_task(async function test_IPProtectionPanel_started_stopped() {
     fakeElement.state.isProtectionEnabled,
     false,
     "isProtectionEnabled should be false in the fake elements state"
+  );
+});
+
+/**
+ * Tests that the variant argument is set in the state.
+ */
+add_task(async function test_IPProtectionPanel_variant() {
+  let ipProtectionPanel = new IPProtectionPanel(null, "alpha");
+  let fakeElement = new FakeIPProtectionPanelElement();
+  ipProtectionPanel.panel = fakeElement;
+
+  Assert.equal(
+    ipProtectionPanel.state.variant,
+    "alpha",
+    "variant should be set in the IPProtectionPanel state"
+  );
+
+  fakeElement.isConnected = true;
+  ipProtectionPanel.updateState();
+
+  Assert.equal(
+    fakeElement.state.variant,
+    "alpha",
+    "variant should be set in the fake elements state"
   );
 });

@@ -435,7 +435,7 @@ class EditorDOMPointBase final {
   MOZ_NEVER_INLINE_DEBUG char16_t Char() const {
     MOZ_ASSERT(IsSetAndValid());
     MOZ_ASSERT(!IsEndOfContainer());
-    return ContainerAs<dom::Text>()->TextFragment().CharAt(mOffset.value());
+    return ContainerAs<dom::Text>()->DataBuffer().CharAt(mOffset.value());
   }
   MOZ_NEVER_INLINE_DEBUG bool IsCharASCIISpace() const {
     return nsCRT::IsAsciiSpace(Char());
@@ -472,21 +472,21 @@ class EditorDOMPointBase final {
     MOZ_ASSERT(IsSetAndValid());
     MOZ_ASSERT(!IsEndOfContainer());
     return ContainerAs<dom::Text>()
-        ->TextFragment()
+        ->DataBuffer()
         .IsHighSurrogateFollowedByLowSurrogateAt(mOffset.value());
   }
   MOZ_NEVER_INLINE_DEBUG bool IsCharLowSurrogateFollowingHighSurrogate() const {
     MOZ_ASSERT(IsSetAndValid());
     MOZ_ASSERT(!IsEndOfContainer());
     return ContainerAs<dom::Text>()
-        ->TextFragment()
+        ->DataBuffer()
         .IsLowSurrogateFollowingHighSurrogateAt(mOffset.value());
   }
 
   MOZ_NEVER_INLINE_DEBUG char16_t PreviousChar() const {
     MOZ_ASSERT(IsSetAndValid());
     MOZ_ASSERT(!IsStartOfContainer());
-    return ContainerAs<dom::Text>()->TextFragment().CharAt(mOffset.value() - 1);
+    return ContainerAs<dom::Text>()->DataBuffer().CharAt(mOffset.value() - 1);
   }
   MOZ_NEVER_INLINE_DEBUG bool IsPreviousCharASCIISpace() const {
     return nsCRT::IsAsciiSpace(PreviousChar());
@@ -525,7 +525,7 @@ class EditorDOMPointBase final {
   MOZ_NEVER_INLINE_DEBUG char16_t NextChar() const {
     MOZ_ASSERT(IsSetAndValid());
     MOZ_ASSERT(!IsAtLastContent() && !IsEndOfContainer());
-    return ContainerAs<dom::Text>()->TextFragment().CharAt(mOffset.value() + 1);
+    return ContainerAs<dom::Text>()->DataBuffer().CharAt(mOffset.value() + 1);
   }
   MOZ_NEVER_INLINE_DEBUG bool IsNextCharASCIISpace() const {
     return nsCRT::IsAsciiSpace(NextChar());
@@ -1468,10 +1468,27 @@ class EditorDOMRangeBase final {
     MOZ_ASSERT_IF(mStart.IsSet() && mEnd.IsSet(),
                   mStart.EqualsOrIsBefore(mEnd));
   }
-  explicit EditorDOMRangeBase(EditorDOMPointType&& aStart,
-                              EditorDOMPointType&& aEnd)
-      : mStart(std::forward<EditorDOMPointType>(aStart)),
-        mEnd(std::forward<EditorDOMPointType>(aEnd)) {
+  template <typename EndPointType>
+  explicit EditorDOMRangeBase(PointType&& aStart, EndPointType& aEnd)
+      : mStart(std::forward<PointType>(aStart)),
+        mEnd(aEnd.template RefOrTo<PointType>()) {
+    MOZ_ASSERT_IF(mStart.IsSet(), mStart.IsSetAndValid());
+    MOZ_ASSERT_IF(mEnd.IsSet(), mEnd.IsSetAndValid());
+    MOZ_ASSERT_IF(mStart.IsSet() && mEnd.IsSet(),
+                  mStart.EqualsOrIsBefore(mEnd));
+  }
+  template <typename StartPointType>
+  explicit EditorDOMRangeBase(StartPointType& aStart, PointType&& aEnd)
+      : mStart(aStart.template RefOrTo<PointType>()),
+        mEnd(std::forward<PointType>(aEnd)) {
+    MOZ_ASSERT_IF(mStart.IsSet(), mStart.IsSetAndValid());
+    MOZ_ASSERT_IF(mEnd.IsSet(), mEnd.IsSetAndValid());
+    MOZ_ASSERT_IF(mStart.IsSet() && mEnd.IsSet(),
+                  mStart.EqualsOrIsBefore(mEnd));
+  }
+  explicit EditorDOMRangeBase(PointType&& aStart, PointType&& aEnd)
+      : mStart(std::forward<PointType>(aStart)),
+        mEnd(std::forward<PointType>(aEnd)) {
     MOZ_ASSERT_IF(mStart.IsSet(), mStart.IsSetAndValid());
     MOZ_ASSERT_IF(mEnd.IsSet(), mEnd.IsSetAndValid());
     MOZ_ASSERT_IF(mStart.IsSet() && mEnd.IsSet(),

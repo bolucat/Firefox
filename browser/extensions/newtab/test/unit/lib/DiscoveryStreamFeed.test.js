@@ -2181,8 +2181,6 @@ describe("DiscoveryStreamFeed", () => {
               titleLines: "1",
               descLines: "1",
               readTime: true,
-              saveToPocketCard: false,
-              saveToPocketCardRegions: "US,CA,GB",
             },
           },
         },
@@ -2196,7 +2194,6 @@ describe("DiscoveryStreamFeed", () => {
       assert.deepEqual(feed.store.dispatch.secondCall.args[0].data, {
         recentSavesEnabled: true,
         pocketButtonEnabled: true,
-        saveToPocketCard: true,
         hideDescriptions: true,
         compactImages: true,
         imageGradient: true,
@@ -2645,16 +2642,6 @@ describe("DiscoveryStreamFeed", () => {
 
       assert.calledOnce(feed.onPrefChange);
     });
-    it("should fire onCollectionsChanged when collections pref changes", async () => {
-      sandbox.stub(feed, "onCollectionsChanged").returns(Promise.resolve());
-
-      await feed.onAction({
-        type: at.PREF_CHANGED,
-        data: { name: "discoverystream.sponsored-collections.enabled" },
-      });
-
-      assert.calledOnce(feed.onCollectionsChanged);
-    });
     it("should re enable stories when top stories is turned on", async () => {
       sandbox.stub(feed, "refreshAll").returns(Promise.resolve());
       feed.loaded = true;
@@ -2728,16 +2715,6 @@ describe("DiscoveryStreamFeed", () => {
 
       await feed.onAction({ type: at.SYSTEM_TICK });
       assert.calledWith(feed.refreshAll, { updateOpenTabs: false });
-    });
-  });
-
-  describe("#onCollectionsChanged", () => {
-    it("should call loadLayout when Pocket config changes", async () => {
-      sandbox.stub(feed, "loadLayout").callsFake(dispatch => dispatch("foo"));
-      sandbox.stub(feed.store, "dispatch");
-      await feed.onCollectionsChanged();
-      assert.calledOnce(feed.loadLayout);
-      assert.calledWith(feed.store.dispatch, ac.AlsoToPreloaded("foo"));
     });
   });
 

@@ -28,10 +28,9 @@ class ModuleLoaderBase;
 
 class ModuleLoadRequest final : public ScriptLoadRequest {
   ~ModuleLoadRequest() {
-    MOZ_ASSERT(!mReferrerObj);
+    MOZ_ASSERT(!mReferrerScript);
     MOZ_ASSERT(!mModuleRequestObj);
-    MOZ_ASSERT(mReferencingPrivate.isUndefined());
-    MOZ_ASSERT(mStatePrivate.isUndefined());
+    MOZ_ASSERT(mPayload.isUndefined());
   }
 
   ModuleLoadRequest(const ModuleLoadRequest& aOther) = delete;
@@ -56,7 +55,7 @@ class ModuleLoadRequest final : public ScriptLoadRequest {
     DynamicImport,
   };
 
-  ModuleLoadRequest(nsIURI* aURI, JS::ModuleType aModuleType,
+  ModuleLoadRequest(nsIURI* aURI, ModuleType aModuleType,
                     mozilla::dom::ReferrerPolicy aReferrerPolicy,
                     ScriptFetchOptions* aFetchOptions,
                     const SRIMetadata& aIntegrity, nsIURI* aReferrer,
@@ -75,8 +74,8 @@ class ModuleLoadRequest final : public ScriptLoadRequest {
   void Cancel() override;
 
   void SetDynamicImport(LoadedScript* aReferencingScript,
-                        JS::Handle<JSObject*> aModuleRequestObj,
-                        JS::Handle<JSObject*> aPromise);
+                        Handle<JSObject*> aModuleRequestObj,
+                        Handle<JSObject*> aPromise);
   void ClearDynamicImport();
 
   void ModuleLoaded();
@@ -125,7 +124,7 @@ class ModuleLoadRequest final : public ScriptLoadRequest {
   const bool mIsTopLevel;
 
   // Type of module (JavaScript, JSON)
-  const JS::ModuleType mModuleType;
+  const ModuleType mModuleType;
 
   // Is this the top level request for a dynamic module import?
   const bool mIsDynamicImport;
@@ -142,15 +141,9 @@ class ModuleLoadRequest final : public ScriptLoadRequest {
   // failure.
   RefPtr<ModuleScript> mModuleScript;
 
-  // For dynamic imports, the details to pass to FinishDynamicImport.
-  RefPtr<LoadedScript> mDynamicReferencingScript;
-  JS::Heap<JSString*> mDynamicSpecifier;
-  JS::Heap<JSObject*> mDynamicPromise;
-
-  JS::Heap<JSObject*> mReferrerObj;
-  JS::Heap<JSObject*> mModuleRequestObj;
-  JS::Heap<Value> mReferencingPrivate;
-  JS::Heap<Value> mStatePrivate;
+  Heap<JSScript*> mReferrerScript;
+  Heap<JSObject*> mModuleRequestObj;
+  Heap<Value> mPayload;
 };
 
 }  // namespace JS::loader

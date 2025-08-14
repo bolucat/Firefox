@@ -338,7 +338,7 @@ void RestyleManager::CharacterDataChanged(
     return;
   }
 
-  const nsTextFragment* text = &aContent->AsText()->TextFragment();
+  const CharacterDataBuffer* text = &aContent->AsText()->DataBuffer();
 
   const size_t oldLength = aInfo.mChangeStart;
   const size_t newLength = text->GetLength();
@@ -895,9 +895,7 @@ static bool RecomputePosition(nsIFrame* aFrame) {
           nsLayoutUtils::FirstContinuationOrIBSplitSibling(aFrame);
 
       StickyScrollContainer::ComputeStickyOffsets(firstContinuation);
-      StickyScrollContainer* ssc =
-          StickyScrollContainer::GetStickyScrollContainerForFrame(
-              firstContinuation);
+      auto* ssc = StickyScrollContainer::GetOrCreateForFrame(firstContinuation);
       if (ssc) {
         ssc->PositionContinuations(firstContinuation);
       }
@@ -3340,6 +3338,9 @@ void RestyleManager::DoProcessPendingRestyles(ServoTraversalFlags aFlags) {
       // case.
       IncrementRestyleGeneration();
     }
+
+    // See https://bugzilla.mozilla.org/show_bug.cgi?id=1980206
+    presContext->PresShell()->MergeAnchorPosAnchorChanges();
 
     mInStyleRefresh = false;
     presContext->UpdateContainerQueryStyles();

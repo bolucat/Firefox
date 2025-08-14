@@ -396,7 +396,6 @@ var gBrowserInit = {
     Services.obs.addObserver(gLocaleChangeObserver, "intl:app-locales-changed");
 
     BrowserOffline.init();
-    CanvasPermissionPromptHelper.init();
     WebAuthnPromptHelper.init();
 
     BrowserUtils.callModulesFromCategory(
@@ -908,7 +907,7 @@ var gBrowserInit = {
         try {
           DownloadsCommon.initializeAllDataLinks();
           ChromeUtils.importESModule(
-            "resource:///modules/DownloadsTaskbar.sys.mjs"
+            "moz-src:///browser/components/downloads/DownloadsTaskbar.sys.mjs"
           )
             .DownloadsTaskbar.registerIndicator(window)
             .catch(ex => {
@@ -916,7 +915,7 @@ var gBrowserInit = {
             });
           if (AppConstants.platform == "macosx") {
             ChromeUtils.importESModule(
-              "resource:///modules/DownloadsMacFinderProgress.sys.mjs"
+              "moz-src:///browser/components/downloads/DownloadsMacFinderProgress.sys.mjs"
             ).DownloadsMacFinderProgress.register();
           }
         } catch (ex) {
@@ -1127,7 +1126,6 @@ var gBrowserInit = {
       );
 
       BrowserOffline.uninit();
-      CanvasPermissionPromptHelper.uninit();
       WebAuthnPromptHelper.uninit();
       PanelUI.uninit();
     }

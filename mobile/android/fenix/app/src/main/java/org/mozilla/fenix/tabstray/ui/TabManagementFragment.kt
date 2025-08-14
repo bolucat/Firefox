@@ -14,6 +14,7 @@ import androidx.annotation.UiThread
 import androidx.annotation.VisibleForTesting
 import androidx.biometric.BiometricManager
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.setFragmentResultListener
 import androidx.lifecycle.lifecycleScope
@@ -29,6 +30,7 @@ import mozilla.components.concept.base.crash.Breadcrumb
 import mozilla.components.feature.accounts.push.CloseTabsUseCases
 import mozilla.components.feature.downloads.ui.DownloadCancelDialogFragment
 import mozilla.components.feature.tabs.tabstray.TabsFeature
+import mozilla.components.lib.state.ext.observeAsState
 import mozilla.components.support.base.feature.ViewBoundFeatureWrapper
 import mozilla.telemetry.glean.private.NoExtras
 import org.mozilla.fenix.Config
@@ -37,7 +39,6 @@ import org.mozilla.fenix.GleanMetrics.TabsTray
 import org.mozilla.fenix.HomeActivity
 import org.mozilla.fenix.NavGraphDirections
 import org.mozilla.fenix.R
-import org.mozilla.fenix.biometricauthentication.NavigationOrigin
 import org.mozilla.fenix.components.StoreProvider
 import org.mozilla.fenix.compose.ComposeFragment
 import org.mozilla.fenix.compose.core.Action
@@ -52,11 +53,12 @@ import org.mozilla.fenix.ext.requireComponents
 import org.mozilla.fenix.ext.runIfFragmentIsAttached
 import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.home.HomeScreenViewModel
-import org.mozilla.fenix.lifecycle.observePrivateModeLock
-import org.mozilla.fenix.lifecycle.registerForVerification
-import org.mozilla.fenix.lifecycle.verifyUser
 import org.mozilla.fenix.navigation.DefaultNavControllerProvider
 import org.mozilla.fenix.navigation.NavControllerProvider
+import org.mozilla.fenix.pbmlock.NavigationOrigin
+import org.mozilla.fenix.pbmlock.observePrivateModeLock
+import org.mozilla.fenix.pbmlock.registerForVerification
+import org.mozilla.fenix.pbmlock.verifyUser
 import org.mozilla.fenix.settings.biometric.BiometricUtils
 import org.mozilla.fenix.settings.biometric.DefaultBiometricUtils
 import org.mozilla.fenix.settings.biometric.ext.isAuthenticatorAvailable
@@ -79,8 +81,8 @@ import org.mozilla.fenix.tabstray.controller.TabManagerController
 import org.mozilla.fenix.tabstray.controller.TabManagerInteractor
 import org.mozilla.fenix.tabstray.syncedtabs.SyncedTabsIntegration
 import org.mozilla.fenix.tabstray.ui.tabstray.TabsTray
+import org.mozilla.fenix.tabstray.ui.theme.getTabManagerTheme
 import org.mozilla.fenix.theme.FirefoxTheme
-import org.mozilla.fenix.theme.Theme
 import org.mozilla.fenix.theme.ThemeManager
 import org.mozilla.fenix.utils.Settings
 import org.mozilla.fenix.utils.allowUndo
@@ -151,7 +153,7 @@ class TabManagementFragment : ComposeFragment() {
                     selectedTabId = requireComponents.core.store.state.selectedTabId,
                 ),
                 middlewares = listOf(
-                    TabsTrayTelemetryMiddleware(),
+                    TabsTrayTelemetryMiddleware(requireComponents.nimbus.events),
                 ),
             )
         }
@@ -198,11 +200,17 @@ class TabManagementFragment : ComposeFragment() {
     @Suppress("LongMethod")
     @Composable
     override fun UI() {
+        val page by tabsTrayStore.observeAsState(tabsTrayStore.state.selectedPage) { it.selectedPage }
+
         BackHandler {
-            onTabsTrayDismissed()
+            if (tabsTrayStore.state.mode is TabsTrayState.Mode.Select) {
+                tabsTrayStore.dispatch(TabsTrayAction.ExitSelectMode)
+            } else {
+                onTabsTrayDismissed()
+            }
         }
 
-        FirefoxTheme(theme = Theme.getTheme()) {
+        FirefoxTheme(theme = getTabManagerTheme(page = page)) {
             TabsTray(
                 tabsTrayStore = tabsTrayStore,
                 displayTabsInGrid = requireContext().settings().gridTabView,
@@ -340,8 +348,8 @@ class TabManagementFragment : ComposeFragment() {
                         System.currentTimeMillis()
                     TabsTray.inactiveTabsCfrDismissed.record(NoExtras())
                 },
-                onNormalTabsFabClicked = tabManagerInteractor::onNormalTabsFabClicked,
-                onPrivateTabsFabClicked = tabManagerInteractor::onPrivateTabsFabClicked,
+                onOpenNewNormalTabClicked = tabManagerInteractor::onNormalTabsFabClicked,
+                onOpenNewPrivateTabClicked = tabManagerInteractor::onPrivateTabsFabClicked,
                 onSyncedTabsFabClicked = tabManagerInteractor::onSyncedTabsFabClicked,
             )
         }

@@ -70,6 +70,7 @@ import org.mozilla.fenix.perf.StartupStateProvider
 import org.mozilla.fenix.perf.StrictModeManager
 import org.mozilla.fenix.perf.lazyMonitored
 import org.mozilla.fenix.reviewprompt.ReviewPromptMiddleware
+import org.mozilla.fenix.termsofuse.TermsOfUseManager
 import org.mozilla.fenix.utils.Settings
 import org.mozilla.fenix.utils.isLargeScreenSize
 import org.mozilla.fenix.wifi.WifiConnectionMonitor
@@ -268,7 +269,10 @@ class Components(private val context: Context) {
                     controller = nimbus.messaging,
                     settings = settings,
                 ),
-                MetricsMiddleware(metrics = analytics.metrics),
+                MetricsMiddleware(
+                    metrics = analytics.metrics,
+                    nimbusEventStore = nimbus.events,
+                ),
                 CrashReportingAppMiddleware(
                     CrashMiddleware(
                         cache = SettingsCrashReportCache(settings),
@@ -328,6 +332,10 @@ class Components(private val context: Context) {
             legacyDistributionProviderChecker = LegacyDistributionProviderChecker(context),
             distributionSettings = DefaultDistributionSettings(settings),
         )
+    }
+
+    val termsOfUseManager by lazyMonitored {
+        TermsOfUseManager(settings)
     }
 }
 

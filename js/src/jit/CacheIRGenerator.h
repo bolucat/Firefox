@@ -37,9 +37,11 @@ namespace js {
 
 class BoundFunctionObject;
 class NativeObject;
+class ObjectFuse;
 class PropertyResult;
 class ProxyObject;
 enum class UnaryMathFunction : uint8_t;
+enum class SetSlotOptimizable;
 
 namespace jit {
 
@@ -116,6 +118,24 @@ class MOZ_RAII IRGenerator {
                                     ValOperandId receiverId);
   void emitCallDOMGetterResultNoGuards(NativeObject* holder, PropertyInfo prop,
                                        ObjOperandId objId);
+
+  void emitCallAccessorGuards(NativeObject* obj, NativeObject* holder,
+                              HandleId id, PropertyInfo prop,
+                              ObjOperandId objId, AccessorKind accessorKind);
+
+  bool canOptimizeConstantDataProperty(NativeObject* holder, PropertyInfo prop,
+                                       ObjectFuse** objFuse);
+  void emitConstantDataPropertyResult(NativeObject* holder,
+                                      ObjOperandId holderId, PropertyKey key,
+                                      PropertyInfo prop, ObjectFuse* objFuse);
+
+  bool canOptimizeConstantAccessorProperty(NativeObject* holder,
+                                           PropertyInfo prop,
+                                           ObjectFuse** objFuse);
+  void emitGuardConstantAccessorProperty(NativeObject* holder,
+                                         ObjOperandId holderId, PropertyKey key,
+                                         PropertyInfo prop,
+                                         ObjectFuse* objFuse);
 
   gc::AllocSite* maybeCreateAllocSite();
 
@@ -337,6 +357,9 @@ class MOZ_RAII SetPropIRGenerator : public IRGenerator {
   // If this is a SetElem cache, emit instructions to guard the incoming Value
   // matches |id|.
   void maybeEmitIdGuard(jsid id);
+
+  SetSlotOptimizable canAttachNativeSetSlot(JSObject* obj, PropertyKey id,
+                                            mozilla::Maybe<PropertyInfo>* prop);
 
   AttachDecision tryAttachNativeSetSlot(HandleObject obj, ObjOperandId objId,
                                         HandleId id, ValOperandId rhsId);

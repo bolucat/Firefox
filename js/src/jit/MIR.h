@@ -1280,6 +1280,22 @@ class MQuaternaryInstruction : public MAryInstruction<4> {
   HashNumber valueHash() const override;
 };
 
+class MQuinaryInstruction : public MAryInstruction<5> {
+ protected:
+  MQuinaryInstruction(Opcode op, MDefinition* first, MDefinition* second,
+                      MDefinition* third, MDefinition* fourth,
+                      MDefinition* fifth)
+      : MAryInstruction(op) {
+    initOperand(0, first);
+    initOperand(1, second);
+    initOperand(2, third);
+    initOperand(3, fourth);
+    initOperand(4, fifth);
+  }
+
+  HashNumber valueHash() const override;
+};
+
 template <class T>
 class MVariadicT : public T {
   FixedList<MUse> operands_;
@@ -4220,8 +4236,7 @@ class MBinaryBitwiseInstruction : public MBinaryInstruction,
       : MBinaryInstruction(op, left, right),
         maskMatchesLeftRange(false),
         maskMatchesRightRange(false) {
-    MOZ_ASSERT(type == MIRType::Int32 || type == MIRType::Int64 ||
-               (isUrsh() && type == MIRType::Double));
+    MOZ_ASSERT(IsIntType(type) || (isUrsh() && type == MIRType::Double));
     setResultType(type);
     setMovable();
   }
@@ -4361,7 +4376,9 @@ class MLsh : public MShiftInstruction {
   void computeRange(TempAllocator& alloc) override;
   [[nodiscard]] bool writeRecoverData(
       CompactBufferWriter& writer) const override;
-  bool canRecoverOnBailout() const override { return type() != MIRType::Int64; }
+  bool canRecoverOnBailout() const override {
+    return IsTypeRepresentableAsDouble(type());
+  }
 
   ALLOW_CLONE(MLsh)
 };
@@ -4383,7 +4400,9 @@ class MRsh : public MShiftInstruction {
 
   [[nodiscard]] bool writeRecoverData(
       CompactBufferWriter& writer) const override;
-  bool canRecoverOnBailout() const override { return type() != MIRType::Int64; }
+  bool canRecoverOnBailout() const override {
+    return IsTypeRepresentableAsDouble(type());
+  }
 
   MDefinition* foldsTo(TempAllocator& alloc) override;
 
@@ -4422,7 +4441,9 @@ class MUrsh : public MShiftInstruction {
 
   [[nodiscard]] bool writeRecoverData(
       CompactBufferWriter& writer) const override;
-  bool canRecoverOnBailout() const override { return type() != MIRType::Int64; }
+  bool canRecoverOnBailout() const override {
+    return IsTypeRepresentableAsDouble(type());
+  }
 
   ALLOW_CLONE(MUrsh)
 };
@@ -4564,7 +4585,7 @@ class MBinaryArithInstruction : public MBinaryInstruction,
   void printOpcode(GenericPrinter& out) const override;
 #endif
 
-  virtual double getIdentity() = 0;
+  virtual double getIdentity() const = 0;
 
   void setSpecialization(MIRType type) {
     MOZ_ASSERT(IsNumberType(type));
@@ -4636,7 +4657,9 @@ class MMinMax : public MBinaryInstruction, public ArithPolicy::Data {
   void computeRange(TempAllocator& alloc) override;
   [[nodiscard]] bool writeRecoverData(
       CompactBufferWriter& writer) const override;
-  bool canRecoverOnBailout() const override { return true; }
+  bool canRecoverOnBailout() const override {
+    return IsTypeRepresentableAsDouble(type());
+  }
 
   bool isFloat32Commutative() const override { return true; }
   void trySpecializeFloat32(TempAllocator& alloc) override;
@@ -5096,7 +5119,7 @@ class MAdd : public MBinaryArithInstruction {
 
   bool isFloat32Commutative() const override { return true; }
 
-  double getIdentity() override { return 0; }
+  double getIdentity() const override { return 0; }
 
   bool fallible() const;
   void computeRange(TempAllocator& alloc) override;
@@ -5106,7 +5129,9 @@ class MAdd : public MBinaryArithInstruction {
 
   [[nodiscard]] bool writeRecoverData(
       CompactBufferWriter& writer) const override;
-  bool canRecoverOnBailout() const override { return type() != MIRType::Int64; }
+  bool canRecoverOnBailout() const override {
+    return IsTypeRepresentableAsDouble(type());
+  }
 
   ALLOW_CLONE(MAdd)
 };
@@ -5131,7 +5156,7 @@ class MSub : public MBinaryArithInstruction {
 
   MDefinition* foldsTo(TempAllocator& alloc) override;
 
-  double getIdentity() override { return 0; }
+  double getIdentity() const override { return 0; }
 
   bool isFloat32Commutative() const override { return true; }
 
@@ -5143,7 +5168,9 @@ class MSub : public MBinaryArithInstruction {
 
   [[nodiscard]] bool writeRecoverData(
       CompactBufferWriter& writer) const override;
-  bool canRecoverOnBailout() const override { return type() != MIRType::Int64; }
+  bool canRecoverOnBailout() const override {
+    return IsTypeRepresentableAsDouble(type());
+  }
 
   ALLOW_CLONE(MSub)
 };
@@ -5193,7 +5220,7 @@ class MMul : public MBinaryArithInstruction {
   void analyzeEdgeCasesBackward() override;
   void collectRangeInfoPreTrunc() override;
 
-  double getIdentity() override { return 1; }
+  double getIdentity() const override { return 1; }
 
   bool congruentTo(const MDefinition* ins) const override {
     if (!ins->isMul()) {
@@ -5236,7 +5263,9 @@ class MMul : public MBinaryArithInstruction {
 
   [[nodiscard]] bool writeRecoverData(
       CompactBufferWriter& writer) const override;
-  bool canRecoverOnBailout() const override { return type() != MIRType::Int64; }
+  bool canRecoverOnBailout() const override {
+    return IsTypeRepresentableAsDouble(type());
+  }
 
   ALLOW_CLONE(MMul)
 };
@@ -5289,7 +5318,7 @@ class MDiv : public MBinaryArithInstruction {
   void analyzeEdgeCasesForward() override;
   void analyzeEdgeCasesBackward() override;
 
-  double getIdentity() override { MOZ_CRASH("not used"); }
+  double getIdentity() const override { MOZ_CRASH("not used"); }
 
   bool canBeNegativeZero() const {
     // This flag is only valid for integer division.
@@ -5406,7 +5435,7 @@ class MMod : public MBinaryArithInstruction {
 
   MDefinition* foldsTo(TempAllocator& alloc) override;
 
-  double getIdentity() override { MOZ_CRASH("not used"); }
+  double getIdentity() const override { MOZ_CRASH("not used"); }
 
   bool canBeNegativeDividend() const {
     MOZ_ASSERT(type() == MIRType::Int32 || type() == MIRType::Int64);

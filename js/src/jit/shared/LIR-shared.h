@@ -1094,6 +1094,10 @@ const char* LMinMaxI::extraName() const {
   return mir()->isMax() ? "Max" : "Min";
 }
 
+const char* LMinMaxIntPtr::extraName() const {
+  return mir()->isMax() ? "Max" : "Min";
+}
+
 const char* LMinMaxD::extraName() const {
   return mir()->isMax() ? "Max" : "Min";
 }
@@ -1139,6 +1143,8 @@ const char* LBitOpI::extraName() const {
 const char* LBitOpI64::extraName() const { return CodeName(bitop_); }
 
 const char* LShiftI::extraName() const { return CodeName(bitop_); }
+
+const char* LShiftIntPtr::extraName() const { return CodeName(bitop_); }
 
 const char* LShiftI64::extraName() const { return CodeName(bitop_); }
 

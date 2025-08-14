@@ -63,6 +63,13 @@ XPCOMUtils.defineLazyPreferenceGetter(
   false
 );
 
+XPCOMUtils.defineLazyPreferenceGetter(
+  lazy,
+  "PDFJS_ENABLE_COMMENT",
+  "pdfjs.enableComment",
+  false
+);
+
 XPCOMUtils.defineLazyServiceGetter(
   lazy,
   "QueryStringStripper",
@@ -75,6 +82,20 @@ XPCOMUtils.defineLazyServiceGetter(
   "clipboard",
   "@mozilla.org/widget/clipboardhelper;1",
   "nsIClipboardHelper"
+);
+
+XPCOMUtils.defineLazyPreferenceGetter(
+  lazy,
+  "TEXT_FRAGMENTS_ENABLED",
+  "dom.text_fragments.enabled",
+  false
+);
+
+XPCOMUtils.defineLazyPreferenceGetter(
+  lazy,
+  "TEXT_FRAGMENTS_SHOW_CONTEXT_MENU",
+  "dom.text_fragments.create_text_fragment.enabled",
+  false
 );
 
 const PASSWORD_FIELDNAME_HINTS = ["current-password", "new-password"];
@@ -316,6 +337,7 @@ export class nsContextMenu {
     }
 
     this.hasTextFragments = context.hasTextFragments;
+    this.textDirectiveTarget = context.textDirectiveTarget;
     this.textFragmentURL = null;
   } // setContext
 
@@ -389,10 +411,12 @@ export class nsContextMenu {
       this.showItem(id, this.inPDFEditor);
     }
 
+    const hasSelectedText = this.pdfEditorStates?.hasSelectedText ?? false;
     this.showItem(
-      "context-pdfjs-highlight-selection",
-      this.pdfEditorStates?.hasSelectedText
+      "context-pdfjs-comment-selection",
+      lazy.PDFJS_ENABLE_COMMENT && hasSelectedText
     );
+    this.showItem("context-pdfjs-highlight-selection", hasSelectedText);
 
     if (!this.inPDFEditor) {
       return;
@@ -439,13 +463,16 @@ export class nsContextMenu {
 
   initTextFragmentItems() {
     const shouldShow =
-      Services.prefs.getBoolPref(
-        "dom.text_fragments.create_text_fragment.enabled",
-        false
-      ) &&
+      lazy.TEXT_FRAGMENTS_SHOW_CONTEXT_MENU &&
+      lazy.TEXT_FRAGMENTS_ENABLED &&
       lazy.STRIP_ON_SHARE_ENABLED &&
-      !(this.inPDFViewer || this.inFrame || this.onEditable) &&
-      this.isContentSelected;
+      !(
+        this.inPDFViewer ||
+        this.inFrame ||
+        this.onEditable ||
+        this.browser.currentURI.schemeIs("view-source")
+      ) &&
+      this.textDirectiveTarget;
     this.showItem("context-copy-link-to-highlight", shouldShow);
     this.showItem("context-copy-clean-link-to-highlight", shouldShow);
 
@@ -2903,6 +2930,11 @@ export class nsContextMenu {
       isContextRelevant:
         this.onImage &&
         this.imageInfo?.currentSrc &&
+        // Google Lens seems not to support images encoded as data URIs on its
+        // GET endpoint, so we hide the visual search item for them. If we ever
+        // add support for its POST endpoint or another visual engine that does
+        // support data URIs, we should revisit this.
+        !this.imageInfo.currentSrc.startsWith("data:") &&
         Services.prefs.getBoolPref("browser.search.visualSearch.featureGate"),
       searchTerms: this.imageInfo?.currentSrc,
       searchUrlType: lazy.SearchUtils.URL_TYPE.VISUAL_SEARCH,

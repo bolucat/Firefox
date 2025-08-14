@@ -167,11 +167,14 @@ class BitSet {
   bool operator==(const BitSet<N, StorageType>& aOther) const {
     return mStorage == aOther.mStorage;
   }
+  bool operator!=(const BitSet<N, StorageType>& aOther) const {
+    return !(*this == aOther);
+  }
 
   size_t Count() const {
     size_t count = 0;
 
-    for (const StorageType& word : mStorage) {
+    for (const Word word : mStorage) {
       if constexpr (kBitsPerWord > 32) {
         count += CountPopulation64(word);
       } else {

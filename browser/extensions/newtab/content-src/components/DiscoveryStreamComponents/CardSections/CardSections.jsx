@@ -11,7 +11,6 @@ import { useIntersectionObserver } from "../../../lib/utils";
 import { SectionContextMenu } from "../SectionContextMenu/SectionContextMenu";
 import { InterestPicker } from "../InterestPicker/InterestPicker";
 import { AdBanner } from "../AdBanner/AdBanner.jsx";
-import { PromoCard } from "../PromoCard/PromoCard.jsx";
 import { PersonalizedCard } from "../PersonalizedCard/PersonalizedCard";
 import { FollowSectionButtonHighlight } from "../FeatureHighlight/FollowSectionButtonHighlight";
 import { MessageWrapper } from "content-src/components/MessageWrapper/MessageWrapper";
@@ -33,7 +32,6 @@ const PREF_VISIBLE_SECTIONS =
   "discoverystream.sections.interestPicker.visibleSections";
 const PREF_BILLBOARD_ENABLED = "newtabAdSize.billboard";
 const PREF_BILLBOARD_POSITION = "newtabAdSize.billboard.position";
-const PREF_PROMOCARD_ENABLED = "discoverystream.promoCard.enabled";
 const PREF_LEADERBOARD_ENABLED = "newtabAdSize.leaderboard";
 const PREF_LEADERBOARD_POSITION = "newtabAdSize.leaderboard.position";
 const PREF_REFINED_CARDS_ENABLED = "discoverystream.refinedCardsLayout.enabled";
@@ -171,7 +169,6 @@ function CardSection({
 
   const shouldShowTrendingSearch = trendingEnabled && trendingVariant === "b";
 
-  const { saveToPocketCard } = useSelector(state => state.DiscoveryStream);
   const mayHaveSectionsPersonalization =
     prefs[PREF_SECTIONS_PERSONALIZATION_ENABLED];
 
@@ -398,7 +395,6 @@ function CardSection({
               selectedTopics={selectedTopics}
               availableTopics={availableTopics}
               is_collection={is_collection}
-              saveToPocketCard={saveToPocketCard}
               ctaButtonSponsors={ctaButtonSponsors}
               ctaButtonVariant={ctaButtonVariant}
               spocMessageVariant={spocMessageVariant}
@@ -488,7 +484,6 @@ function CardSections({
   // Add a billboard/leaderboard IAB ad to the sectionsToRender array (if enabled/possible).
   const billboardEnabled = prefs[PREF_BILLBOARD_ENABLED];
   const leaderboardEnabled = prefs[PREF_LEADERBOARD_ENABLED];
-  const promoCardEnabled = prefs[PREF_PROMOCARD_ENABLED];
 
   if (
     (billboardEnabled || leaderboardEnabled) &&
@@ -522,14 +517,6 @@ function CardSections({
           prefs={prefs}
         />
       );
-
-      if (promoCardEnabled) {
-        sectionsToRender.splice(
-          Math.min(sectionsToRender.length + 1, row),
-          0,
-          <PromoCard />
-        );
-      }
     }
   }
 

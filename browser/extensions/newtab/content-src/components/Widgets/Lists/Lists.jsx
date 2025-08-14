@@ -2,29 +2,133 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-import React, { useRef, useState, useEffect } from "react";
+import React, {
+  useRef,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import { useSelector, batch } from "react-redux";
 import { actionCreators as ac, actionTypes as at } from "common/Actions.mjs";
+import { useIntersectionObserver, useConfetti } from "../../../lib/utils";
 
-const taskType = {
+const TASK_TYPE = {
   IN_PROGRESS: "tasks",
   COMPLETED: "completed",
 };
 
+const USER_ACTION_TYPES = {
+  LIST_COPY: "list_copy",
+  LIST_CREATE: "list_create",
+  LIST_EDIT: "list_edit",
+  LIST_DELETE: "list_delete",
+  TASK_CREATE: "task_create",
+  TASK_EDIT: "task_edit",
+  TASK_DELETE: "task_delete",
+  TASK_COMPLETE: "task_complete",
+};
+
 function Lists({ dispatch }) {
-  const listsData = useSelector(state => state.ListsWidget);
-  const { selected, lists } = listsData;
+  const { selected, lists } = useSelector(state => state.ListsWidget);
   const [newTask, setNewTask] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [pendingNewList, setPendingNewList] = useState(null);
+  const selectedList = useMemo(() => lists[selected], [lists, selected]);
+
+  const prevCompletedCount = useRef(selectedList?.completed?.length || 0);
   const inputRef = useRef(null);
   const selectRef = useRef(null);
+  const reorderListRef = useRef(null);
+  const [canvasRef, fireConfetti] = useConfetti();
+
+  // store selectedList with useMemo so it isnt re-calculated on every re-render
+  const isValidUrl = useCallback(str => URL.canParse(str), []);
+
+  const handleIntersection = useCallback(() => {
+    dispatch(
+      ac.AlsoToMain({
+        type: at.WIDGETS_LISTS_USER_IMPRESSION,
+      })
+    );
+  }, [dispatch]);
+
+  const listsRef = useIntersectionObserver(handleIntersection);
+
+  const reorderLists = useCallback(
+    (draggedElement, targetElement, before = false) => {
+      const draggedIndex = selectedList.tasks.findIndex(
+        ({ id }) => id === draggedElement.id
+      );
+      const targetIndex = selectedList.tasks.findIndex(
+        ({ id }) => id === targetElement.id
+      );
+
+      // return early is index is not found
+      if (
+        draggedIndex === -1 ||
+        targetIndex === -1 ||
+        draggedIndex === targetIndex
+      ) {
+        return;
+      }
+
+      const reordered = [...selectedList.tasks];
+      const [removed] = reordered.splice(draggedIndex, 1);
+      const insertIndex = before ? targetIndex : targetIndex + 1;
+
+      reordered.splice(
+        insertIndex > draggedIndex ? insertIndex - 1 : insertIndex,
+        0,
+        removed
+      );
+
+      const updatedLists = {
+        ...lists,
+        [selected]: {
+          ...selectedList,
+          tasks: reordered,
+        },
+      };
+
+      dispatch(
+        ac.AlsoToMain({
+          type: at.WIDGETS_LISTS_UPDATE,
+          data: { lists: updatedLists },
+        })
+      );
+    },
+    [lists, selected, selectedList, dispatch]
+  );
+
+  const moveTask = useCallback(
+    (task, direction) => {
+      const index = selectedList.tasks.findIndex(({ id }) => id === task.id);
+
+      // guardrail a falsey index
+      if (index === -1) {
+        return;
+      }
+
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      const before = direction === "up";
+      const targetTask = selectedList.tasks[targetIndex];
+
+      if (targetTask) {
+        reorderLists(task, targetTask, before);
+      }
+    },
+    [selectedList, reorderLists]
+  );
 
   useEffect(() => {
-    const node = selectRef.current;
-    if (!node) {
+    const selectNode = selectRef.current;
+    const reorderNode = reorderListRef.current;
+
+    if (!selectNode || !reorderNode) {
       return undefined;
     }
+
     function handleSelectChange(e) {
       dispatch(
         ac.AlsoToMain({
@@ -33,13 +137,22 @@ function Lists({ dispatch }) {
         })
       );
     }
-    node.addEventListener("change", handleSelectChange);
+
+    function handleReorder(e) {
+      const { draggedElement, targetElement, position } = e.detail;
+      reorderLists(draggedElement, targetElement, position === -1);
+    }
+
+    reorderNode.addEventListener("reorder", handleReorder);
+    selectNode.addEventListener("change", handleSelectChange);
 
     return () => {
-      node.removeEventListener("change", handleSelectChange);
+      selectNode.removeEventListener("change", handleSelectChange);
+      reorderNode.removeEventListener("reorder", handleReorder);
     };
-  }, [dispatch, isEditing]);
+  }, [dispatch, isEditing, reorderLists]);
 
+  // effect that enables editing new list name only after store has been hydrated
   useEffect(() => {
     if (selected === pendingNewList) {
       setIsEditing(true);
@@ -47,15 +160,11 @@ function Lists({ dispatch }) {
     }
   }, [selected, pendingNewList]);
 
-  function isValidUrl(string) {
-    return URL.canParse(string);
-  }
-
   function saveTask() {
     const trimmedTask = newTask.trimEnd();
     // only add new task if it has a length, to avoid creating empty tasks
     if (trimmedTask) {
-      const taskObject = {
+      const formattedTask = {
         value: trimmedTask,
         completed: false,
         created: Date.now(),
@@ -65,34 +174,41 @@ function Lists({ dispatch }) {
       const updatedLists = {
         ...lists,
         [selected]: {
-          ...lists[selected],
-          tasks: [...lists[selected].tasks, taskObject],
+          ...selectedList,
+          tasks: [formattedTask, ...lists[selected].tasks],
         },
       };
-      dispatch(
-        ac.AlsoToMain({
-          type: at.WIDGETS_LISTS_UPDATE,
-          data: { lists: updatedLists },
-        })
-      );
+      batch(() => {
+        dispatch(
+          ac.AlsoToMain({
+            type: at.WIDGETS_LISTS_UPDATE,
+            data: { lists: updatedLists },
+          })
+        );
+        dispatch(
+          ac.OnlyToMain({
+            type: at.WIDGETS_LISTS_USER_EVENT,
+            data: { userAction: USER_ACTION_TYPES.TASK_CREATE },
+          })
+        );
+      });
       setNewTask("");
     }
   }
 
   function updateTask(updatedTask, type) {
-    let localUpdatedTasks;
-    const selectedList = lists[selected];
-    const isCompletedType = type === taskType.COMPLETED;
+    const isCompletedType = type === TASK_TYPE.COMPLETED;
     const isNowCompleted = updatedTask.completed;
-
-    // If the task is in the completed array and is now unchecked
-    const shouldMoveToTasks = isCompletedType && !updatedTask.completed;
-
-    // If we're moving the task from tasks → completed (user checked it)
-    const shouldMoveToCompleted = !isCompletedType && isNowCompleted;
 
     let newTasks = selectedList.tasks;
     let newCompleted = selectedList.completed;
+    let userAction;
+
+    // If the task is in the completed array and is now unchecked
+    const shouldMoveToTasks = isCompletedType && !isNowCompleted;
+
+    // If we're moving the task from tasks → completed (user checked it)
+    const shouldMoveToCompleted = !isCompletedType && isNowCompleted;
 
     //  Move task from completed -> task
     if (shouldMoveToTasks) {
@@ -105,10 +221,7 @@ function Lists({ dispatch }) {
       newTasks = selectedList.tasks.filter(task => task.id !== updatedTask.id);
       newCompleted = [...selectedList.completed, updatedTask];
 
-      // Keep a local version of tasks that still includes this item (to preserve UI in this tab)
-      localUpdatedTasks = selectedList.tasks.map(existingTask =>
-        existingTask.id === updatedTask.id ? updatedTask : existingTask
-      );
+      userAction = USER_ACTION_TYPES.TASK_COMPLETE;
     } else {
       const targetKey = isCompletedType ? "completed" : "tasks";
       const updatedArray = selectedList[targetKey].map(task =>
@@ -120,6 +233,7 @@ function Lists({ dispatch }) {
       } else {
         newCompleted = updatedArray;
       }
+      userAction = USER_ACTION_TYPES.TASK_EDIT;
     }
 
     const updatedLists = {
@@ -131,24 +245,22 @@ function Lists({ dispatch }) {
       },
     };
 
-    // local override: keep completed item out of the "completed" array
-    const localLists = {
-      ...lists,
-      [selected]: {
-        ...selectedList,
-        tasks: localUpdatedTasks || newTasks,
-        completed: newCompleted.filter(task => task.id !== updatedTask.id),
-      },
-    };
-
-    // Dispatch the update to main - will sync across tabs
-    // and apply local override to this tab only
-    dispatch(
-      ac.AlsoToMain({
-        type: at.WIDGETS_LISTS_UPDATE,
-        data: { lists: updatedLists, localLists },
-      })
-    );
+    batch(() => {
+      dispatch(
+        ac.AlsoToMain({
+          type: at.WIDGETS_LISTS_UPDATE,
+          data: { lists: updatedLists },
+        })
+      );
+      if (userAction) {
+        dispatch(
+          ac.AlsoToMain({
+            type: at.WIDGETS_LISTS_USER_EVENT,
+            data: { userAction },
+          })
+        );
+      }
+    });
   }
 
   function deleteTask(task, type) {
@@ -158,16 +270,24 @@ function Lists({ dispatch }) {
     const updatedLists = {
       ...lists,
       [selected]: {
-        ...lists[selected],
+        ...selectedList,
         [type]: updatedTasks,
       },
     };
-    dispatch(
-      ac.AlsoToMain({
-        type: at.WIDGETS_LISTS_UPDATE,
-        data: { lists: updatedLists },
-      })
-    );
+    batch(() => {
+      dispatch(
+        ac.AlsoToMain({
+          type: at.WIDGETS_LISTS_UPDATE,
+          data: { lists: updatedLists },
+        })
+      );
+      dispatch(
+        ac.OnlyToMain({
+          type: at.WIDGETS_LISTS_USER_EVENT,
+          data: { userAction: USER_ACTION_TYPES.TASK_DELETE },
+        })
+      );
+    });
   }
 
   function handleKeyDown(e) {
@@ -183,31 +303,38 @@ function Lists({ dispatch }) {
   }
 
   function handleListNameSave(newLabel) {
-    const selectedList = lists[selected];
     const trimmedLabel = newLabel.trimEnd();
     if (trimmedLabel && trimmedLabel !== selectedList?.label) {
       const updatedLists = {
         ...lists,
         [selected]: {
-          ...lists[selected],
+          ...selectedList,
           label: trimmedLabel,
         },
       };
-      dispatch(
-        ac.AlsoToMain({
-          type: at.WIDGETS_LISTS_UPDATE,
-          data: { lists: updatedLists },
-        })
-      );
+      batch(() => {
+        dispatch(
+          ac.AlsoToMain({
+            type: at.WIDGETS_LISTS_UPDATE,
+            data: { lists: updatedLists },
+          })
+        );
+        dispatch(
+          ac.OnlyToMain({
+            type: at.WIDGETS_LISTS_USER_EVENT,
+            data: { userAction: USER_ACTION_TYPES.LIST_EDIT },
+          })
+        );
+      });
       setIsEditing(false);
     }
   }
 
   function handleCreateNewList() {
-    const listUuid = crypto.randomUUID();
+    const id = crypto.randomUUID();
     const newLists = {
       ...lists,
-      [listUuid]: {
+      [id]: {
         label: "New list",
         tasks: [],
         completed: [],
@@ -224,11 +351,17 @@ function Lists({ dispatch }) {
       dispatch(
         ac.AlsoToMain({
           type: at.WIDGETS_LISTS_CHANGE_SELECTED,
-          data: listUuid,
+          data: id,
+        })
+      );
+      dispatch(
+        ac.OnlyToMain({
+          type: at.WIDGETS_LISTS_USER_EVENT,
+          data: { userAction: USER_ACTION_TYPES.LIST_CREATE },
         })
       );
     });
-    setPendingNewList(listUuid);
+    setPendingNewList(id);
   }
 
   function handleDeleteList() {
@@ -261,12 +394,98 @@ function Lists({ dispatch }) {
             data: key,
           })
         );
+        dispatch(
+          ac.OnlyToMain({
+            type: at.WIDGETS_LISTS_USER_EVENT,
+            data: { userAction: USER_ACTION_TYPES.LIST_DELETE },
+          })
+        );
       });
     }
   }
 
-  return lists ? (
-    <article className="lists">
+  function handleHideLists() {
+    dispatch(
+      ac.OnlyToMain({
+        type: at.SET_PREF,
+        data: {
+          name: "widgets.lists.enabled",
+          value: false,
+        },
+      })
+    );
+  }
+
+  function handleCopyListToClipboard() {
+    const currentList = lists[selected];
+
+    if (!currentList) {
+      return;
+    }
+
+    const { label, tasks = [], completed = [] } = currentList;
+
+    const uncompleted = tasks.filter(task => !task.completed);
+    const currentCompleted = tasks.filter(task => task.completed);
+
+    // In order in include all items, we need to iterate through both current and completed tasks list and mark format all completed tasks accordingly.
+    const formatted = [
+      `List: ${label}`,
+      `---`,
+      ...uncompleted.map(task => `- [ ] ${task.value}`),
+      ...currentCompleted.map(task => `- [x] ${task.value}`),
+      ...completed.map(task => `- [x] ${task.value}`),
+    ].join("\n");
+
+    try {
+      navigator.clipboard.writeText(formatted);
+    } catch (err) {
+      console.error("Copy failed", err);
+    }
+
+    dispatch(
+      ac.OnlyToMain({
+        type: at.WIDGETS_LISTS_USER_EVENT,
+        data: { userAction: USER_ACTION_TYPES.LIST_COPY },
+      })
+    );
+  }
+
+  function handleLearnMore() {
+    dispatch(
+      ac.OnlyToMain({
+        type: at.OPEN_LINK,
+        data: {
+          url: "https://support.mozilla.org/kb/firefox-new-tab-widgets",
+        },
+      })
+    );
+  }
+
+  useEffect(() => {
+    if (selectedList) {
+      const doneCount = selectedList.completed?.length || 0;
+      const previous = Math.floor(prevCompletedCount.current / 5);
+      const current = Math.floor(doneCount / 5);
+
+      if (current > previous) {
+        fireConfetti();
+      }
+      prevCompletedCount.current = doneCount;
+    }
+  }, [selectedList, fireConfetti]);
+
+  if (!lists) {
+    return null;
+  }
+
+  return (
+    <article
+      className="lists"
+      ref={el => {
+        listsRef.current = [el];
+      }}
+    >
       <div className="select-wrapper">
         <EditableText
           value={lists[selected]?.label || ""}
@@ -282,6 +501,7 @@ function Lists({ dispatch }) {
             ))}
           </moz-select>
         </EditableText>
+        <moz-badge data-l10n-id="newtab-widget-lists-label-beta"></moz-badge>
         <moz-button
           className="lists-panel-button"
           iconSrc="chrome://global/skin/icons/more.svg"
@@ -289,16 +509,32 @@ function Lists({ dispatch }) {
           type="ghost"
         />
         <panel-list id="lists-panel">
-          <panel-item onClick={() => setIsEditing(true)}>Edit name</panel-item>
-          <panel-item onClick={() => handleCreateNewList()}>
-            Create a new list
-          </panel-item>
-          <panel-item onClick={() => handleDeleteList()}>
-            Delete this list
-          </panel-item>
-          <panel-item>Hide To Do list</panel-item>
-          <panel-item>Learn more</panel-item>
-          <panel-item>Copy to clipboard</panel-item>
+          <panel-item
+            data-l10n-id="newtab-widget-lists-menu-edit"
+            onClick={() => setIsEditing(true)}
+          ></panel-item>
+          <panel-item
+            data-l10n-id="newtab-widget-lists-menu-create"
+            onClick={() => handleCreateNewList()}
+          ></panel-item>
+          <panel-item
+            data-l10n-id="newtab-widget-lists-menu-delete"
+            onClick={() => handleDeleteList()}
+          ></panel-item>
+          <hr />
+          <panel-item
+            data-l10n-id="newtab-widget-lists-menu-copy"
+            onClick={() => handleCopyListToClipboard()}
+          ></panel-item>
+          <panel-item
+            data-l10n-id="newtab-widget-lists-menu-hide"
+            onClick={() => handleHideLists()}
+          ></panel-item>
+          <panel-item
+            className="learn-more"
+            data-l10n-id="newtab-widget-lists-menu-learn-more"
+            onClick={handleLearnMore}
+          ></panel-item>
         </panel-list>
       </div>
       <div className="add-task-container">
@@ -316,31 +552,47 @@ function Lists({ dispatch }) {
         />
       </div>
       <div className="task-list-wrapper">
-        <moz-reorderable-list itemSelector="fieldset .task-item">
+        <moz-reorderable-list
+          ref={reorderListRef}
+          itemSelector="fieldset .task-type-tasks"
+          dragSelector=".checkbox-wrapper"
+        >
           <fieldset>
-            {lists[selected]?.tasks.length >= 1 ? (
-              lists[selected].tasks.map(task => (
+            {selectedList?.tasks.length >= 1 ? (
+              selectedList.tasks.map((task, index) => (
                 <ListItem
-                  type={taskType.IN_PROGRESS}
+                  type={TASK_TYPE.IN_PROGRESS}
                   task={task}
                   key={task.id}
                   updateTask={updateTask}
                   deleteTask={deleteTask}
+                  moveTask={moveTask}
                   isValidUrl={isValidUrl}
+                  isFirst={index === 0}
+                  isLast={index === selectedList.tasks.length - 1}
                 />
               ))
             ) : (
-              <p className="empty-list-text">The list is empty. For now 🦊</p>
+              <p
+                className="empty-list-text"
+                data-l10n-id="newtab-widget-lists-empty-cta"
+              ></p>
             )}
-            {lists[selected]?.completed.length >= 1 && (
+            {selectedList?.completed.length >= 1 && (
               <details className="completed-task-wrapper">
                 <summary>
-                  <span className="completed-title">{`Completed (${lists[selected]?.completed.length})`}</span>
+                  <span
+                    data-l10n-id="newtab-widget-lists-completed-list"
+                    data-l10n-args={JSON.stringify({
+                      number: lists[selected]?.completed.length,
+                    })}
+                    className="completed-title"
+                  ></span>
                 </summary>
-                {lists[selected]?.completed.map(completedTask => (
+                {selectedList?.completed.map(completedTask => (
                   <ListItem
                     key={completedTask.id}
-                    type={taskType.COMPLETED}
+                    type={TASK_TYPE.COMPLETED}
                     task={completedTask}
                     deleteTask={deleteTask}
                     updateTask={updateTask}
@@ -351,18 +603,47 @@ function Lists({ dispatch }) {
           </fieldset>
         </moz-reorderable-list>
       </div>
+      <canvas className="confetti-canvas" ref={canvasRef} />
     </article>
-  ) : null;
+  );
 }
 
-function ListItem({ task, updateTask, deleteTask, isValidUrl, type }) {
+function ListItem({
+  task,
+  updateTask,
+  deleteTask,
+  moveTask,
+  isValidUrl,
+  type,
+  isFirst = false,
+  isLast = false,
+}) {
   const [isEditing, setIsEditing] = useState(false);
+  const [exiting, setExiting] = useState(false);
+  const isCompleted = type === TASK_TYPE.COMPLETED;
 
-  const isCompleted = type === taskType.COMPLETED;
+  const prefersReducedMotion =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   function handleCheckboxChange(e) {
-    const updatedTask = { ...task, completed: e.target.checked };
-    updateTask(updatedTask, type);
+    const { checked } = e.target;
+    const updatedTask = { ...task, completed: checked };
+    if (checked && !prefersReducedMotion) {
+      setExiting(true);
+    } else {
+      updateTask(updatedTask, type);
+    }
+  }
+
+  // When the CSS transition finishes, dispatch the real “completed = true”
+  function handleTransitionEnd(e) {
+    // only fire once for the exit:
+    if (e.propertyName === "opacity" && exiting) {
+      updateTask({ ...task, completed: true }, type);
+      setExiting(false);
+    }
   }
 
   function handleSave(newValue) {
@@ -401,12 +682,17 @@ function ListItem({ task, updateTask, deleteTask, isValidUrl, type }) {
   );
 
   return (
-    <div className="task-item">
+    <div
+      className={`task-item task-type-${type} ${exiting ? " exiting" : ""}`}
+      id={task.id}
+      key={task.id}
+      onTransitionEnd={handleTransitionEnd}
+    >
       <div className="checkbox-wrapper">
         <input
           type="checkbox"
           onChange={handleCheckboxChange}
-          checked={task.completed}
+          checked={task.completed || exiting}
         />
         {isCompleted ? (
           taskLabel
@@ -432,24 +718,32 @@ function ListItem({ task, updateTask, deleteTask, isValidUrl, type }) {
           <>
             {task.isUrl && (
               <panel-item
+                data-l10n-id="newtab-widget-lists-input-menu-open-link"
                 onClick={() => window.open(task.value, "_blank", "noopener")}
-              >
-                Open link
-              </panel-item>
+              ></panel-item>
             )}
-            <panel-item>Move up</panel-item>
-            <panel-item>Move down</panel-item>
             <panel-item
+              {...(isFirst ? { disabled: true } : {})}
+              onClick={() => moveTask(task, "up")}
+              data-l10n-id="newtab-widget-lists-input-menu-move-up"
+            ></panel-item>
+            <panel-item
+              {...(isLast ? { disabled: true } : {})}
+              onClick={() => moveTask(task, "down")}
+              data-l10n-id="newtab-widget-lists-input-menu-move-down"
+            ></panel-item>
+            <panel-item
+              data-l10n-id="newtab-widget-lists-input-menu-edit"
               className="edit-item"
               onClick={() => setIsEditing(true)}
-            >
-              Edit
-            </panel-item>
+            ></panel-item>
           </>
         )}
-        <panel-item className="delete-item" onClick={handleDelete}>
-          Delete item
-        </panel-item>
+        <panel-item
+          data-l10n-id="newtab-widget-lists-input-menu-delete"
+          className="delete-item"
+          onClick={handleDelete}
+        ></panel-item>
       </panel-list>
     </div>
   );

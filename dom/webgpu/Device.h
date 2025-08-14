@@ -6,6 +6,7 @@
 #ifndef GPU_DEVICE_H_
 #define GPU_DEVICE_H_
 
+#include "ExternalTexture.h"
 #include "ObjectModel.h"
 #include "mozilla/DOMEventTargetHelper.h"
 #include "mozilla/MozPromise.h"
@@ -25,6 +26,7 @@ struct GPUExtent3DDict;
 
 struct GPUBufferDescriptor;
 struct GPUTextureDescriptor;
+struct GPUExternalTextureDescriptor;
 struct GPUSamplerDescriptor;
 struct GPUBindGroupLayoutDescriptor;
 struct GPUPipelineLayoutDescriptor;
@@ -121,6 +123,10 @@ class Device final : public DOMEventTargetHelper {
  private:
   ~Device();
   void Cleanup();
+  // Expires external textures in mExternalTexturesToExpire. Scheduled to run
+  // as a stable state task when an external texture is imported from an
+  // HTMLVideoElement.
+  void ExpireExternalTextures();
 
   RefPtr<WebGPUChild> mBridge;
   bool mValid = true;
@@ -129,6 +135,10 @@ class Device final : public DOMEventTargetHelper {
   RefPtr<Queue> mQueue;
   nsTHashSet<nsCString> mKnownWarnings;
   nsTHashSet<Buffer*> mTrackedBuffers;
+  ExternalTextureCache mExternalTextureCache;
+  // List of external textures due to be expired in the next automatic expiry
+  // task.
+  nsTArray<WeakPtr<ExternalTexture>> mExternalTexturesToExpire;
 
  public:
   void GetLabel(nsAString& aValue) const;
@@ -155,6 +165,8 @@ class Device final : public DOMEventTargetHelper {
   already_AddRefed<Texture> CreateTexture(
       const dom::GPUTextureDescriptor& aDesc,
       Maybe<layers::RemoteTextureOwnerId> aOwnerId);
+  already_AddRefed<ExternalTexture> ImportExternalTexture(
+      const dom::GPUExternalTextureDescriptor& aDesc, ErrorResult& aRv);
   already_AddRefed<Sampler> CreateSampler(
       const dom::GPUSamplerDescriptor& aDesc);
 

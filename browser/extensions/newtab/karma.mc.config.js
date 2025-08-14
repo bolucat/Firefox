@@ -319,12 +319,6 @@ module.exports = function (config) {
               functions: 0,
               branches: 0,
             },
-            "content-src/components/Widgets/FocusTimer/FocusTimer.jsx": {
-              statements: 66.88,
-              lines: 67.06,
-              functions: 61.78,
-              branches: 59.13,
-            },
             "content-src/components/DiscoveryStreamAdmin/*.jsx": {
               statements: 0,
               lines: 0,
@@ -351,6 +345,9 @@ module.exports = function (config) {
             },
             "content-src/lib/utils.jsx": {
               branches: 60,
+              statements: 95.56,
+              lines: 95.4,
+              functions: 92.86,
             },
             "content-src/components/MessageWrapper/MessageWrapper.jsx": {
               lines: 50,

@@ -479,7 +479,7 @@ browser_ml_semantic_history_search_perf.js
  --verbose
  --manifest perftest.toml
  --manifest-flavor browser-chrome
- --try-platform linux, mac, win
+ --try-platform mac, win
 
 **Test for latency for ML Semantic Search History Feature**
 
@@ -547,7 +547,7 @@ browser_ml_engine_multi_perf.js
 ::
 
  --perfherder
- --perfherder-metrics name:latency,unit:ms,shouldAlert:False, name:memory,unit:MiB,shouldAlert:False
+ --perfherder-metrics name:latency,unit:ms,shouldAlert:False, name:memory,unit:MiB,shouldAlert:False, name:intent-PIPELINE_READY_LATENCY,unit:MiB,shouldAlert:False, name:intent-INITIALIZATION_LATENCY,unit:MiB,shouldAlert:False, name:intent-MODEL_RUN_LATENCY,unit:MiB,shouldAlert:False, name:suggest-PIPELINE_READY_LATENCY,unit:MiB,shouldAlert:False, name:suggest-INITIALIZATION_LATENCY,unit:MiB,shouldAlert:False, name:suggest-MODEL_RUN_LATENCY,unit:MiB,shouldAlert:False, name:engine3-PIPELINE_READY_LATENCY,unit:MiB,shouldAlert:False, name:engine3-INITIALIZATION_LATENCY,unit:MiB,shouldAlert:False, name:engine3-MODEL_RUN_LATENCY,unit:MiB,shouldAlert:False, name:engine4-PIPELINE_READY_LATENCY,unit:MiB,shouldAlert:False, name:engine4-INITIALIZATION_LATENCY,unit:MiB,shouldAlert:False, name:engine4-MODEL_RUN_LATENCY,unit:MiB,shouldAlert:False, name:TOTAL_MEMORY_USAGE,unit:MiB,shouldAlert:False
  --verbose
  --manifest perftest.toml
  --manifest-flavor browser-chrome

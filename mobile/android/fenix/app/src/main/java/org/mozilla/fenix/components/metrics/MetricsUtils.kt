@@ -87,19 +87,43 @@ object MetricsUtils {
     }
 
     /**
+     * Records appropriate metrics for adding a bookmark.
+     *
+     * Note: this was split off from [recordBookmarkMetrics], because [nimbusEventStore] was needed only
+     * for the case of adding a bookmark. There was no good way to do it in [recordBookmarkMetrics] without
+     * either unnecessarily requiring [nimbusEventStore] from callers that only do edits/deletes/opens
+     * or making [nimbusEventStore] nullable which makes it possible to accidentally skip recording the event in Nimbus.
+     *
+     * @param source Describes where the action was called from.
+     * @param nimbusEventStore [NimbusEventStore] used to record the event for use in behavioral targeting.
+     * @param count Number of times to record the metric.
+     */
+    fun recordBookmarkAddMetric(
+        source: BookmarkAction.Source,
+        nimbusEventStore: NimbusEventStore,
+        count: Int = 1,
+    ) {
+        Metrics.bookmarksAdd[source.label()].add(count)
+
+        nimbusEventStore.recordEvent(
+            count = count.toLong(),
+            eventId = "bookmark_added",
+        )
+    }
+
+    /**
      * Records the appropriate metric for performed Bookmark action.
      * @param action The [BookmarkAction] being counted.
      * @param source Describes where the action was called from.
      */
     fun recordBookmarkMetrics(
         action: BookmarkAction,
-        source: String,
+        source: BookmarkAction.Source,
     ) {
         when (action) {
-            BookmarkAction.ADD -> Metrics.bookmarksAdd[source].add()
-            BookmarkAction.EDIT -> Metrics.bookmarksEdit[source].add()
-            BookmarkAction.DELETE -> Metrics.bookmarksDelete[source].add()
-            BookmarkAction.OPEN -> Metrics.bookmarksOpen[source].add()
+            BookmarkAction.EDIT -> Metrics.bookmarksEdit[source.label()].add()
+            BookmarkAction.DELETE -> Metrics.bookmarksDelete[source.label()].add()
+            BookmarkAction.OPEN -> Metrics.bookmarksOpen[source.label()].add()
         }
     }
 
@@ -107,8 +131,25 @@ object MetricsUtils {
      * Describes which bookmark action is being recorded.
      */
     enum class BookmarkAction {
-        ADD, EDIT, DELETE, OPEN
+        EDIT, DELETE, OPEN;
+
+        /**
+         * Possible sources for a bookmark action.
+         */
+        enum class Source {
+            ADD_BOOKMARK_TOAST,
+            BOOKMARK_EDIT_PAGE,
+            BOOKMARK_PANEL,
+            BROWSER_NAVBAR,
+            BROWSER_TOOLBAR,
+            MENU_DIALOG,
+            PAGE_ACTION_MENU,
+            TABS_TRAY,
+            TEST,
+        }
     }
+
+    private fun BookmarkAction.Source.label() = name.lowercase()
 
     /**
      * Get the default salt to use for hashing. This is a convenience

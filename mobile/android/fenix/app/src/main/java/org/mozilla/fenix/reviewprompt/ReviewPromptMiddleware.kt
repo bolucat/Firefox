@@ -37,7 +37,7 @@ class ReviewPromptMiddleware(
     private val buildTriggerMainCriteria: (NimbusMessagingHelperInterface) -> Sequence<Boolean> =
         TiggerBuilder.mainCriteria(settings, timeNowInMillis),
     private val buildTriggerSubCriteria: (NimbusMessagingHelperInterface) -> Sequence<Boolean> =
-        TiggerBuilder.subCriteria(settings),
+        TiggerBuilder::subCriteria,
 ) : Middleware<AppState, AppAction> {
 
     private object TiggerBuilder {
@@ -47,13 +47,14 @@ class ReviewPromptMiddleware(
         ): (NimbusMessagingHelperInterface) -> Sequence<Boolean> = {
             sequence {
                 yield(hasNotBeenPromptedLastFourMonths(settings, timeNowInMillis))
+                yield(usedAppOnAtLeastFourOfLastSevenDaysTrigger(it))
             }
         }
 
-        fun subCriteria(settings: Settings): (NimbusMessagingHelperInterface) -> Sequence<Boolean> = {
-            sequence {
-                yield(legacyReviewPromptTrigger(settings))
-                yield(isDefaultBrowserTrigger(it))
+        fun subCriteria(jexlHelper: NimbusMessagingHelperInterface): Sequence<Boolean> {
+            return sequence {
+                yield(createdAtLeastOneBookmark(jexlHelper))
+                yield(isDefaultBrowserTrigger(jexlHelper))
             }
         }
     }
@@ -106,7 +107,6 @@ class ReviewPromptMiddleware(
     }
 }
 
-private const val NUMBER_OF_LAUNCHES_REQUIRED = 5
 private const val APPRX_MONTH_IN_MILLIS: Long = 1000L * 60L * 60L * 24L * 30L
 private const val NUMBER_OF_MONTHS_TO_PASS = 4
 
@@ -126,14 +126,13 @@ fun hasNotBeenPromptedLastFourMonths(settings: Settings, timeNowInMillis: () -> 
 }
 
 /**
- * Matches logic from ReviewPromptController.shouldShowPrompt, which has been deleted.
- * Kept for parity. To be replaced by a set of new triggers.
+ * Evaluates whether the user has created at least one bookmark.
+ *
+ * Note: Because Nimbus limits data to 4 calendar years, this will ignore bookmarks created before then.
  */
 @VisibleForTesting
-internal fun legacyReviewPromptTrigger(settings: Settings): Boolean {
-    val hasOpenedAtLeastFiveTimes =
-        settings.numberOfAppLaunches >= NUMBER_OF_LAUNCHES_REQUIRED
-    return settings.isDefaultBrowser && hasOpenedAtLeastFiveTimes
+internal fun createdAtLeastOneBookmark(jexlHelper: NimbusMessagingHelperInterface): Boolean {
+    return jexlHelper.evalJexlSafe("'bookmark_added'|eventSum('Years', 4) >= 1")
 }
 
 /**
@@ -143,3 +142,16 @@ internal fun legacyReviewPromptTrigger(settings: Settings): Boolean {
 @VisibleForTesting
 internal fun isDefaultBrowserTrigger(jexlHelper: NimbusMessagingHelperInterface) =
     jexlHelper.evalJexlSafe("is_default_browser")
+
+/**
+ * Evaluates whether the user has used the app on at least 4 distinct days
+ * within the last 7 days. This does not require consecutive days.
+ *
+ * @return true if the user has opened the app on 4 or more days in the last 7, false otherwise
+ */
+@VisibleForTesting
+internal fun usedAppOnAtLeastFourOfLastSevenDaysTrigger(
+    jexlHelper: NimbusMessagingHelperInterface,
+): Boolean {
+    return jexlHelper.evalJexlSafe("'app_opened'|eventCountNonZero('Days', 7) >= 4")
+}

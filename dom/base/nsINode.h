@@ -477,6 +477,13 @@ class nsINode : public mozilla::dom::EventTarget {
   bool IsInclusiveDescendantOf(const nsINode* aNode) const;
 
   /**
+   * https://dom.spec.whatwg.org/#concept-shadow-including-descendant
+   *
+   * @param aNode must not be nullptr.
+   */
+  bool IsShadowIncludingDescendantOf(const nsINode* aNode) const;
+
+  /**
    * https://dom.spec.whatwg.org/#concept-shadow-including-inclusive-descendant
    *
    * @param aNode must not be nullptr.
@@ -2478,10 +2485,7 @@ class nsINode : public mozilla::dom::EventTarget {
     return HasSlots() ? GetExistingSlots()->mWeakReference : nullptr;
   }
 
-  MOZ_CAN_RUN_SCRIPT
-  void RevealAncestorHiddenUntilFoundAndFireBeforematchEvent(ErrorResult& aRv);
-
-  void RevealAncestorClosedDetails();
+  MOZ_CAN_RUN_SCRIPT void AncestorRevealingAlgorithm(ErrorResult& aRv);
 
  protected:
   // Override this function to create a custom slots class.

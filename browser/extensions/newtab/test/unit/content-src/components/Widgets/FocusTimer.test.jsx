@@ -6,8 +6,18 @@ import { INITIAL_STATE, reducers } from "common/Reducers.sys.mjs";
 import { actionTypes as at } from "common/Actions.mjs";
 import { FocusTimer } from "content-src/components/Widgets/FocusTimer/FocusTimer";
 
+const PREF_WIDGETS_SYSTEM_NOTIFICATIONS_ENABLED =
+  "widgets.focusTimer.showSystemNotifications";
+
 const mockState = {
   ...INITIAL_STATE,
+  Prefs: {
+    ...INITIAL_STATE.Prefs,
+    values: {
+      ...INITIAL_STATE.Prefs.values,
+      [PREF_WIDGETS_SYSTEM_NOTIFICATIONS_ENABLED]: true,
+    },
+  },
   TimerWidget: {
     timerType: "focus",
     focus: {
@@ -89,7 +99,10 @@ describe("<FocusTimer>", () => {
   });
 
   it("should start timer and show progress bar when pressing play", () => {
-    wrapper.find("moz-button[title='Play']").props().onClick();
+    wrapper
+      .find("moz-button[data-l10n-id='newtab-widget-timer-play']")
+      .props()
+      .onClick();
     wrapper.update();
     assert.ok(wrapper.find(".progress-circle-wrapper.visible").exists());
     assert.equal(dispatch.getCall(0).args[0].type, at.WIDGETS_TIMER_PLAY);
@@ -115,25 +128,31 @@ describe("<FocusTimer>", () => {
       </WrapWithProvider>
     );
 
-    const pauseBtn = wrapper.find("moz-button[title='Pause']");
+    const pauseBtn = wrapper.find(
+      "moz-button[data-l10n-id='newtab-widget-timer-pause']"
+    );
     assert.ok(pauseBtn.exists(), "Pause button should be rendered");
     pauseBtn.props().onClick();
     assert.equal(dispatch.getCall(0).args[0].type, at.WIDGETS_TIMER_PAUSE);
   });
 
   it("should reset timer and hide progress bar when pressing reset", () => {
-    const resetBtn = wrapper.find("moz-button[title='Reset']");
+    const resetBtn = wrapper.find(
+      "moz-button[data-l10n-id='newtab-widget-timer-reset']"
+    );
     assert.ok(resetBtn.exists(), "Reset buttons should be rendered");
     resetBtn.props().onClick();
     assert.equal(dispatch.getCall(0).args[0].type, at.WIDGETS_TIMER_RESET);
+
+    const initialUserDuration = 12 * 60;
 
     const resetState = {
       ...mockState,
       TimerWidget: {
         ...mockState.TimerWidget,
         focus: {
-          duration: 0,
-          initialDuration: 0,
+          duration: initialUserDuration,
+          initialDuration: initialUserDuration,
           startTime: null,
           isRunning: false,
         },
@@ -150,12 +169,14 @@ describe("<FocusTimer>", () => {
 
     const minutes = wrapper.find(".timer-set-minutes").text();
     const seconds = wrapper.find(".timer-set-seconds").text();
-    assert.equal(minutes, "00");
+    assert.equal(minutes, "12");
     assert.equal(seconds, "00");
   });
 
   it("should dispatch pause and set type and when clicking the break timer", () => {
-    const breakBtn = wrapper.find("moz-button[label='Break']");
+    const breakBtn = wrapper.find(
+      "moz-button[data-l10n-id='newtab-widget-timer-mode-break']"
+    );
     assert.ok(breakBtn.exists(), "break button should be rendered");
     breakBtn.props().onClick();
 
@@ -180,7 +201,9 @@ describe("<FocusTimer>", () => {
   });
 
   it("should dispatch set type when clicking the focus timer", () => {
-    const focusBtn = wrapper.find("moz-button[label='Focus']");
+    const focusBtn = wrapper.find(
+      "moz-button[data-l10n-id='newtab-widget-timer-mode-focus']"
+    );
     assert.ok(focusBtn.exists(), "focus button should be rendered");
     focusBtn.props().onClick();
 
@@ -377,5 +400,110 @@ describe("<FocusTimer>", () => {
       initialUserDuration,
       "initialDuration should also be restored to user's initial input"
     );
+  });
+
+  describe("context menu", () => {
+    it("should render default context menu", () => {
+      assert.ok(wrapper.find(".focus-timer-context-menu-button").exists());
+      assert.ok(wrapper.find("#focus-timer-context-menu").exists());
+
+      // "Turn notifications off" option
+      assert.ok(
+        wrapper
+          .find(
+            "panel-item[data-l10n-id='newtab-widget-timer-menu-notifications']"
+          )
+          .exists()
+      );
+
+      assert.ok(
+        wrapper
+          .find("panel-item[data-l10n-id='newtab-widget-timer-menu-hide']")
+          .exists()
+      );
+
+      assert.ok(
+        wrapper
+          .find(
+            "panel-item[data-l10n-id='newtab-widget-timer-menu-learn-more']"
+          )
+          .exists()
+      );
+
+      // Make sure "Turn notifications on" is not there
+      assert.isFalse(
+        wrapper.contains(
+          "panel-item[data-l10n-id='newtab-widget-timer-menu-notifications-on']"
+        )
+      );
+    });
+
+    it("should render context menu with 'turn notifications on' if notifications are disabled", () => {
+      const noNotificationsState = {
+        ...mockState,
+        Prefs: {
+          ...INITIAL_STATE.Prefs,
+          values: {
+            ...INITIAL_STATE.Prefs.values,
+            [PREF_WIDGETS_SYSTEM_NOTIFICATIONS_ENABLED]: false,
+          },
+        },
+      };
+
+      wrapper = mount(
+        <WrapWithProvider state={noNotificationsState}>
+          <FocusTimer dispatch={dispatch} />
+        </WrapWithProvider>
+      );
+
+      // "Turn notifications on" option
+      assert.ok(
+        wrapper
+          .find(
+            "panel-item[data-l10n-id='newtab-widget-timer-menu-notifications-on']"
+          )
+          .exists()
+      );
+
+      // Make sure "Turn notifications off" is not there
+      assert.isFalse(
+        wrapper.contains(
+          "panel-item[data-l10n-id='newtab-widget-timer-menu-notifications']"
+        )
+      );
+    });
+
+    it("should turn off notifications when the 'Turn off notifications' option is clicked", () => {
+      const menuItem = wrapper.find(
+        "panel-item[data-l10n-id='newtab-widget-timer-menu-notifications']"
+      );
+      menuItem.props().onClick();
+
+      assert.ok(dispatch.calledOnce);
+      const [action] = dispatch.getCall(0).args;
+      assert.equal(action.type, at.SET_PREF);
+    });
+
+    it("should hide Focus Timer when 'Hide timer' option is clicked", () => {
+      const menuItem = wrapper.find(
+        "panel-item[data-l10n-id='newtab-widget-timer-menu-hide']"
+      );
+      menuItem.props().onClick();
+
+      assert.ok(dispatch.calledOnce);
+      const [action] = dispatch.getCall(0).args;
+      assert.equal(action.type, at.SET_PREF);
+    });
+
+    it("should dispatch OPEN_LINK when the Learn More option is clicked", () => {
+      const menuItem = wrapper.find(
+        "panel-item[data-l10n-id='newtab-widget-timer-menu-learn-more']"
+      );
+      menuItem.props().onClick();
+
+      assert.ok(dispatch.calledOnce);
+      const [action] = dispatch.getCall(0).args;
+      assert.equal(action.type, at.OPEN_LINK);
+    });
   });
 });

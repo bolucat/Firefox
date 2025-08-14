@@ -6,6 +6,9 @@
 
 :host {
   --status-card-connected-background-color: var(--color-violet-90);
+  --connection-shield-color: var(--panel-background);
+  --connection-shield-off-background-color: var(--icon-color-critical);
+  --connection-shield-on-background-color: var(--color-accent-primary);
 }
 
 hr {
@@ -21,89 +24,66 @@ hr {
   padding-block: var(--panel-subview-body-padding-block);
 }
 
+.vpn-top-content {
+  margin-inline: var(--space-large);
+  margin-block-start: var(--space-small);
+}
+
+.vpn-status-group {
+  position: relative;
+  margin: var(--space-large);
+  overflow: hidden;
+}
+
+.is-enabled {
+  color: #fff;
+  background-color: var(--status-card-connected-background-color);
+}
+
 #status-card {
-  margin: var(--space-large);
-  background-color: initial;
-  color: initial;
-  border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-medium);
+  --shield-bgcolor: var(--connection-shield-off-background-color);
+  --box-icon-fill: var(--connection-shield-color);
+  --box-icon-stroke: var(--shield-bgcolor);
+  -moz-context-properties: fill, stroke;
+  fill: var(--connection-shield-color);
+  stroke: var(--shield-bgcolor);
 
   &.is-enabled {
-    background-color: var(--status-card-connected-background-color);
-    color: #fff;
+    --shield-bgcolor: var(--connection-shield-on-background-color);
   }
 }
 
-.status-card-section {
-  margin: var(--space-large);
+#status-card-animation {
+  display: block;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
 }
 
-.status-card-section-item {
-  display: flex;
-  gap: var(--space-small);
-}
-
-.status-card-section-title {
-  margin: 0;
-  margin-bottom: var(--space-small);
-}
-
-.status-card-icon {
+#animation-rings {
+  display: block;
+  width: 100%;
+  height: 100%;
+  contain: strict;
+  background-position-x: -66px;
+  background-position-y: -70px;
+  background-image: url("chrome://browser/content/ipprotection/assets/rings.svg");
   background-repeat: no-repeat;
-  background-size: cover;
-  -moz-context-properties: fill;
-  fill: currentColor;
-}
 
-.status-card-divider {
-  margin-block: var(--space-large);
-  border-block-start: 1px solid var(--border-color);
-}
+  &:dir(rtl) {
+    background-position-x: calc(100% + 66px);
+    background-position-y: calc(100% + 11px);
+  }
 
-#connection-wrapper {
-  display: flex;
-  align-items: center;
-  gap: var(--space-large);
-}
-
-/* TODO: add animations for the icon (Bug 1976388) */
-#connection-icon {
-  width: 48px;
-  height: 48px;
-  background-image: url("chrome://browser/content/ipprotection/assets/ipprotection-connection-off.svg");
-
-  &.is-enabled {
-    background-image: url("chrome://browser/content/ipprotection/assets/ipprotection-connection-on.svg");
+  @media (prefers-reduced-motion: reduce) {
+    display: none;
   }
 }
 
-#connection-details-and-toggle {
-  display: flex;
-  align-items: center;
-  flex-grow: 1;
-  justify-content: space-between;
-}
-
-#connection-details {
-  display: flex;
-  flex-direction: column;
-}
-
-#connection-time {
-  margin: 0;
-}
-
-#location-title-icon {
-  display: flex;
-  width: var(--icon-size-small);
-  height: var(--icon-size-small);
-  background-image: url("chrome://global/skin/icons/info.svg");
-}
-
-/* TODO: add icon (Bug 1976769) */
-#location-flag {
-  width: var(--icon-size-small);
-  height: var(--icon-size-small);
+#location-wrapper {
+  --box-icon-fill: currentColor;
 }
 
 .vpn-bottom-content {

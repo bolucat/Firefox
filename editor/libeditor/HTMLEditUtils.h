@@ -26,6 +26,7 @@
 #include "mozilla/Result.h"
 #include "mozilla/dom/AbstractRange.h"
 #include "mozilla/dom/AncestorIterator.h"
+#include "mozilla/dom/CharacterDataBuffer.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/HTMLBRElement.h"
 #include "mozilla/dom/Selection.h"
@@ -36,7 +37,6 @@
 #include "nsGkAtoms.h"
 #include "nsHTMLTags.h"
 #include "nsTArray.h"
-#include "nsTextFragment.h"
 
 class nsAtom;
 class nsPresContext;
@@ -59,8 +59,8 @@ class HTMLEditUtils final {
   using Element = dom::Element;
   using Selection = dom::Selection;
   using Text = dom::Text;
-  using WhitespaceOption = nsTextFragment::WhitespaceOption;
-  using WhitespaceOptions = nsTextFragment::WhitespaceOptions;
+  using WhitespaceOption = dom::CharacterDataBuffer::WhitespaceOption;
+  using WhitespaceOptions = dom::CharacterDataBuffer::WhitespaceOptions;
 
  public:
   static constexpr char16_t kNewLine = '\n';
@@ -329,7 +329,7 @@ class HTMLEditUtils final {
   static bool IsTable(const nsINode* aNode);
   static bool IsTableRow(nsINode* aNode);
   static bool IsAnyTableElement(const nsINode* aNode);
-  static bool IsAnyTableElementButNotTable(nsINode* aNode);
+  static bool IsAnyTableElementButNotTable(const nsINode* aNode);
   static bool IsTableCell(const nsINode* aNode);
   static bool IsTableCellOrCaption(nsINode& aNode);
   static bool IsAnyListElement(const nsINode* aNode);
@@ -337,7 +337,7 @@ class HTMLEditUtils final {
   static bool IsImage(nsINode* aNode);
   static bool IsLink(const nsINode* aNode);
   static bool IsNamedAnchor(const nsINode* aNode);
-  static bool IsMozDiv(nsINode* aNode);
+  static bool IsMozDiv(const nsINode* aNode);
   static bool IsMailCite(const Element& aElement);
   static bool IsFormWidget(const nsINode* aNode);
   static bool SupportsAlignAttr(nsINode& aNode);
@@ -504,7 +504,7 @@ class HTMLEditUtils final {
   [[nodiscard]] static bool TextHasOnlyOnePreformattedLinefeed(
       const Text& aText) {
     return aText.TextDataLength() == 1u &&
-           aText.TextFragment().CharAt(0u) == kNewLine &&
+           aText.DataBuffer().CharAt(0u) == kNewLine &&
            EditorUtils::IsNewLinePreformatted(aText);
   }
 
@@ -618,16 +618,17 @@ class HTMLEditUtils final {
               *aPoint.template ContainerAs<Text>())) {
         return true;
       }
-      const nsTextFragment& textFragment =
-          aPoint.template ContainerAs<Text>()->TextFragment();
-      const uint32_t nextVisibleCharOffset = textFragment.FindNonWhitespaceChar(
-          EditorUtils::IsNewLinePreformatted(
-              *aPoint.template ContainerAs<Text>())
-              ? WhitespaceOptions{WhitespaceOption::FormFeedIsSignificant,
-                                  WhitespaceOption::NewLineIsSignificant}
-              : WhitespaceOptions{WhitespaceOption::FormFeedIsSignificant},
-          aPoint.Offset() + 1);
-      if (nextVisibleCharOffset != nsTextFragment::kNotFound) {
+      const dom::CharacterDataBuffer& characterDataBuffer =
+          aPoint.template ContainerAs<Text>()->DataBuffer();
+      const uint32_t nextVisibleCharOffset =
+          characterDataBuffer.FindNonWhitespaceChar(
+              EditorUtils::IsNewLinePreformatted(
+                  *aPoint.template ContainerAs<Text>())
+                  ? WhitespaceOptions{WhitespaceOption::FormFeedIsSignificant,
+                                      WhitespaceOption::NewLineIsSignificant}
+                  : WhitespaceOptions{WhitespaceOption::FormFeedIsSignificant},
+              aPoint.Offset() + 1);
+      if (nextVisibleCharOffset != dom::CharacterDataBuffer::kNotFound) {
         return true;  // There is a visible character after the point.
       }
     }
@@ -1804,11 +1805,10 @@ class HTMLEditUtils final {
       const nsIContent& aContent);
 
   /**
-   * GetClosestAncestorListItemElement() returns a list item element if
-   * aContent or its ancestor in editing host is one.  However, this won't
-   * cross table related element.
+   * Return a list item element if aContent or its ancestor in editing host is
+   * one.  However, this won't cross table related element.
    */
-  static Element* GetClosestAncestorListItemElement(
+  static Element* GetClosestInclusiveAncestorListItemElement(
       const nsIContent& aContent, const Element* aAncestorLimit = nullptr) {
     MOZ_ASSERT_IF(aAncestorLimit,
                   aContent.IsInclusiveDescendantOf(aAncestorLimit));
@@ -2155,8 +2155,8 @@ class HTMLEditUtils final {
       }
       if (auto* textNode = Text::FromNode(*content)) {
         if (EditorUtils::IsNewLinePreformatted(*textNode)) {
-          uint32_t offset = textNode->TextFragment().FindChar(kNewLine);
-          if (offset != nsTextFragment::kNotFound) {
+          uint32_t offset = textNode->DataBuffer().FindChar(kNewLine);
+          if (offset != dom::CharacterDataBuffer::kNotFound) {
             return Some(EditorLineBreakType(*textNode, offset));
           }
         }
@@ -2242,9 +2242,9 @@ class HTMLEditUtils final {
       whitespaceOptions += WhitespaceOption::TreatNBSPAsCollapsible;
     }
     const uint32_t prevVisibleCharOffset =
-        aTextNode.TextFragment().RFindNonWhitespaceChar(whitespaceOptions,
-                                                        aOffset - 1);
-    return prevVisibleCharOffset != nsTextFragment::kNotFound
+        aTextNode.DataBuffer().RFindNonWhitespaceChar(whitespaceOptions,
+                                                      aOffset - 1);
+    return prevVisibleCharOffset != dom::CharacterDataBuffer::kNotFound
                ? Some(prevVisibleCharOffset)
                : Nothing();
   }
@@ -2301,9 +2301,9 @@ class HTMLEditUtils final {
       whitespaceOptions += WhitespaceOption::TreatNBSPAsCollapsible;
     }
     const uint32_t inclusiveNextVisibleCharOffset =
-        aTextNode.TextFragment().FindNonWhitespaceChar(whitespaceOptions,
-                                                       aOffset);
-    if (inclusiveNextVisibleCharOffset != nsTextFragment::kNotFound) {
+        aTextNode.DataBuffer().FindNonWhitespaceChar(whitespaceOptions,
+                                                     aOffset);
+    if (inclusiveNextVisibleCharOffset != dom::CharacterDataBuffer::kNotFound) {
       return Some(inclusiveNextVisibleCharOffset);
     }
     return Nothing();
@@ -2370,10 +2370,10 @@ class HTMLEditUtils final {
       return EditorDOMPointType();
     }
     const Text& textNode = *aPoint.template ContainerAs<Text>();
-    MOZ_ASSERT(aPoint.Offset() <= textNode.TextFragment().GetLength());
+    MOZ_ASSERT(aPoint.Offset() <= textNode.DataBuffer().GetLength());
     const uint32_t previousLineBreakOffset =
-        textNode.TextFragment().RFindChar('\n', aPoint.Offset() - 1u);
-    return previousLineBreakOffset != nsTextFragment::kNotFound
+        textNode.DataBuffer().RFindChar('\n', aPoint.Offset() - 1u);
+    return previousLineBreakOffset != dom::CharacterDataBuffer::kNotFound
                ? EditorDOMPointType(&textNode, previousLineBreakOffset)
                : EditorDOMPointType();
   }
@@ -2393,10 +2393,10 @@ class HTMLEditUtils final {
       return EditorDOMPointType();
     }
     const Text& textNode = *aPoint.template ContainerAs<Text>();
-    MOZ_ASSERT(aPoint.Offset() <= textNode.TextFragment().GetLength());
+    MOZ_ASSERT(aPoint.Offset() <= textNode.DataBuffer().GetLength());
     const uint32_t inclusiveNextVisibleCharOffset =
-        textNode.TextFragment().FindChar('\n', aPoint.Offset());
-    return inclusiveNextVisibleCharOffset != nsTextFragment::kNotFound
+        textNode.DataBuffer().FindChar('\n', aPoint.Offset());
+    return inclusiveNextVisibleCharOffset != dom::CharacterDataBuffer::kNotFound
                ? EditorDOMPointType(&textNode, inclusiveNextVisibleCharOffset)
                : EditorDOMPointType();
   }

@@ -108,13 +108,15 @@ bool BoxInputsPolicy::staticAdjustInputs(TempAllocator& alloc,
 bool ArithPolicy::adjustInputs(TempAllocator& alloc, MInstruction* ins) const {
   MOZ_ASSERT(IsNumberType(ins->type()));
   MOZ_ASSERT(ins->type() == MIRType::Double || ins->type() == MIRType::Int32 ||
-             ins->type() == MIRType::Float32);
+             ins->type() == MIRType::Float32 || ins->type() == MIRType::IntPtr);
 
   for (size_t i = 0, e = ins->numOperands(); i < e; i++) {
     MDefinition* in = ins->getOperand(i);
     if (in->type() == ins->type()) {
       continue;
     }
+    MOZ_ASSERT(ins->type() != MIRType::IntPtr,
+               "conversion to IntPtr not supported");
 
     MInstruction* replace;
 
@@ -314,7 +316,18 @@ bool TestPolicy::adjustInputs(TempAllocator& alloc, MInstruction* ins) const {
 
 bool BitwisePolicy::adjustInputs(TempAllocator& alloc,
                                  MInstruction* ins) const {
-  MOZ_ASSERT(ins->type() == MIRType::Int32 || ins->type() == MIRType::Double);
+  MOZ_ASSERT(ins->type() == MIRType::Int32 || ins->type() == MIRType::Double ||
+             ins->type() == MIRType::IntPtr);
+
+  // No type conversion needed when using IntPtr.
+  if (ins->type() == MIRType::IntPtr) {
+#ifdef DEBUG
+    for (size_t i = 0, e = ins->numOperands(); i < e; i++) {
+      MOZ_ASSERT(ins->getOperand(i)->type() == MIRType::IntPtr);
+    }
+#endif
+    return true;
+  }
 
   // This policy works for both unary and binary bitwise operations.
   for (size_t i = 0, e = ins->numOperands(); i < e; i++) {
@@ -1052,6 +1065,7 @@ bool ClampPolicy::adjustInputs(TempAllocator& alloc, MInstruction* ins) const {
   _(MixPolicy<ObjectPolicy<0>, BoxPolicy<1>, UnboxedInt32Policy<2>>)          \
   _(MixPolicy<ObjectPolicy<0>, UnboxedInt32Policy<1>, BoxPolicy<2>>)          \
   _(MixPolicy<ObjectPolicy<0>, UnboxedInt32Policy<1>, UnboxedInt32Policy<2>>) \
+  _(MixPolicy<ObjectPolicy<0>, IntPtrPolicy<1>>)                              \
   _(MixPolicy<ObjectPolicy<0>, IntPtrPolicy<1>, IntPtrPolicy<2>>)             \
   _(MixPolicy<ObjectPolicy<0>, BoxPolicy<2>>)                                 \
   _(MixPolicy<ObjectPolicy<0>, ObjectPolicy<1>, UnboxedInt32Policy<2>>)       \
@@ -1071,12 +1085,15 @@ bool ClampPolicy::adjustInputs(TempAllocator& alloc, MInstruction* ins) const {
   _(MixPolicy<ObjectPolicy<0>, CacheIdPolicy<1>, NoFloatPolicy<2>>)           \
   _(MixPolicy<ObjectPolicy<0>, BoxExceptPolicy<1, MIRType::Object>,           \
               CacheIdPolicy<2>>)                                              \
+  _(MixPolicy<ObjectPolicy<0>, ObjectPolicy<1>, IntPtrPolicy<2>,              \
+              IntPtrPolicy<3>, IntPtrPolicy<4>>)                              \
   _(MixPolicy<BoxPolicy<0>, ObjectPolicy<1>>)                                 \
   _(MixPolicy<ConvertToStringPolicy<0>, ConvertToStringPolicy<1>>)            \
   _(MixPolicy<ConvertToStringPolicy<0>, ObjectPolicy<1>>)                     \
   _(MixPolicy<DoublePolicy<0>, DoublePolicy<1>>)                              \
   _(MixPolicy<UnboxedInt32Policy<0>, UnboxedInt32Policy<1>>)                  \
   _(MixPolicy<Int32OrIntPtrPolicy<0>, Int32OrIntPtrPolicy<1>>)                \
+  _(MixPolicy<IntPtrPolicy<0>, IntPtrPolicy<1>>)                              \
   _(MixPolicy<ObjectPolicy<0>, BoxPolicy<1>>)                                 \
   _(MixPolicy<BoxExceptPolicy<0, MIRType::Object>, CacheIdPolicy<1>>)         \
   _(MixPolicy<CacheIdPolicy<0>, ObjectPolicy<1>>)                             \

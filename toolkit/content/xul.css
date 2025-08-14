@@ -225,7 +225,6 @@ html|label.toolbarbutton-badge:empty {
 .toolbarbutton-icon,
 .toolbarbutton-text,
 .toolbarbutton-badge-stack,
-.toolbarbutton-menu-dropmarker,
 .treecol-text,
 .treecol-sortdirection,
 .button-box {
@@ -332,6 +331,12 @@ toolbarspring {
 }
 
 /********* menu ***********/
+
+/* Note that this attribute is added dynamically if needed to menubars by the
+ * native menubar code */
+menubar[native] {
+  display: none !important;
+}
 
 menubar > menu:empty {
   visibility: collapse;

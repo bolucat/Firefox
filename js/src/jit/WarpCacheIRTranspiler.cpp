@@ -26,6 +26,7 @@
 #include "jit/WarpSnapshot.h"
 #include "js/ScalarType.h"  // js::Scalar::Type
 #include "vm/BytecodeLocation.h"
+#include "vm/ObjectFuse.h"
 #include "vm/TypeofEqOperand.h"  // TypeofEqOperand
 #include "wasm/WasmCode.h"
 
@@ -168,6 +169,9 @@ class MOZ_RAII WarpCacheIRTranspiler : public WarpBuilderShared {
   }
   size_t* fuseStubField(uint32_t offset) {
     return reinterpret_cast<size_t*>(readStubWord(offset));
+  }
+  ObjectFuse* objectFuseStubField(uint32_t offset) {
+    return reinterpret_cast<ObjectFuse*>(readStubWord(offset));
   }
   gc::Heap allocSiteInitialHeapField(uint32_t offset) {
     uintptr_t word = readStubWord(offset);
@@ -485,6 +489,14 @@ bool WarpCacheIRTranspiler::emitGuardFuse(RealmFuses::FuseIndex fuseIndex) {
       add(ins);
       return true;
   }
+}
+
+bool WarpCacheIRTranspiler::emitGuardObjectFuseProperty(
+    ObjOperandId objId, uint32_t objFuseOwnerOffset, uint32_t objFuseOffset,
+    uint32_t expectedGenerationOffset, uint32_t propIndexOffset,
+    uint32_t propMaskOffset, bool canUseFastPath) {
+  // A compilation dependency was added by WarpOracle.
+  return true;
 }
 
 bool WarpCacheIRTranspiler::emitGuardMultipleShapes(ObjOperandId objId,
@@ -1681,6 +1693,14 @@ bool WarpCacheIRTranspiler::emitLoadBooleanResult(bool val) {
   return true;
 }
 
+bool WarpCacheIRTranspiler::emitLoadValueResult(uint32_t valOffset) {
+  // This op is currently not used for nursery-allocated values.
+  ValueOrNurseryValueIndex val = valueStubField(valOffset);
+  MOZ_RELEASE_ASSERT(val.isValue(), "Unexpected nursery Value");
+  pushResult(constant(val.toValue()));
+  return true;
+}
+
 bool WarpCacheIRTranspiler::emitLoadInt32Constant(uint32_t valOffset,
                                                   Int32OperandId resultId) {
   int32_t val = int32StubField(valOffset);
@@ -2470,16 +2490,38 @@ bool WarpCacheIRTranspiler::emitTypedArraySetResult(ObjOperandId targetId,
 }
 
 bool WarpCacheIRTranspiler::emitTypedArraySubarrayResult(
-    ObjOperandId objId, IntPtrOperandId startId, IntPtrOperandId endId) {
+    uint32_t templateObjectOffset, ObjOperandId objId, IntPtrOperandId startId,
+    IntPtrOperandId endId) {
+  JSObject* templateObj = tenuredObjectStubField(templateObjectOffset);
   MDefinition* obj = getOperand(objId);
   MDefinition* start = getOperand(startId);
   MDefinition* end = getOperand(endId);
 
-  auto* ins = MTypedArraySubarray::New(alloc(), obj, start, end);
-  addEffectful(ins);
+  auto* srcLength = MArrayBufferViewLength::New(alloc(), obj);
+  add(srcLength);
+
+  auto* actualStart = MToIntegerIndex::New(alloc(), start, srcLength);
+  add(actualStart);
+
+  auto* actualEnd = MToIntegerIndex::New(alloc(), end, srcLength);
+  add(actualEnd);
+
+  auto* minStart =
+      MMinMax::NewMin(alloc(), actualStart, actualEnd, MIRType::IntPtr);
+  add(minStart);
+
+  auto* length = MSub::New(alloc(), actualEnd, minStart, MIRType::IntPtr);
+  add(length);
+
+  // TODO: support pre-tenuring.
+  gc::Heap heap = gc::Heap::Default;
+
+  auto* ins = MTypedArraySubarray::New(alloc(), obj, actualStart, length,
+                                       templateObj, heap);
+  add(ins);
 
   pushResult(ins);
-  return resumeAfter(ins);
+  return true;
 }
 
 bool WarpCacheIRTranspiler::emitLinearizeForCharAccess(

@@ -1044,11 +1044,10 @@ void IRGenerator::emitGuardGetterSetterSlot(NativeObject* holder,
   }
 }
 
-void GetPropIRGenerator::emitCallGetterResultGuards(NativeObject* obj,
-                                                    NativeObject* holder,
-                                                    HandleId id,
-                                                    PropertyInfo prop,
-                                                    ObjOperandId objId) {
+void IRGenerator::emitCallAccessorGuards(NativeObject* obj,
+                                         NativeObject* holder, HandleId id,
+                                         PropertyInfo prop, ObjOperandId objId,
+                                         AccessorKind accessorKind) {
   // Use the megamorphic guard if we're in megamorphic mode, except if |obj|
   // is a Window as GuardHasGetterSetter doesn't support this yet (Window may
   // require outerizing).
@@ -1056,6 +1055,24 @@ void GetPropIRGenerator::emitCallGetterResultGuards(NativeObject* obj,
   MOZ_ASSERT(holder->containsPure(id, prop));
 
   if (mode_ == ICState::Mode::Specialized || IsWindow(obj)) {
+    // Fast path for constant properties of objects with an ObjectFuse.
+    ObjectFuse* objFuse = nullptr;
+    if (canOptimizeConstantAccessorProperty(holder, prop, &objFuse)) {
+      ObjOperandId holderId;
+      if (obj == holder) {
+        writer.guardSpecificObject(objId, obj);
+        holderId = objId;
+      } else {
+        // Note: we don't need to call GeneratePrototypeGuards here because the
+        // ObjectFuse's generation will be updated when the proto chain is
+        // mutated.
+        TestMatchingNativeReceiver(writer, obj, objId);
+        holderId = writer.loadObject(holder);
+      }
+      emitGuardConstantAccessorProperty(holder, holderId, id, prop, objFuse);
+      return;
+    }
+
     TestMatchingNativeReceiver(writer, obj, objId);
 
     if (obj != holder) {
@@ -1065,10 +1082,10 @@ void GetPropIRGenerator::emitCallGetterResultGuards(NativeObject* obj,
       ObjOperandId holderId = writer.loadObject(holder);
       TestMatchingHolder(writer, holder, holderId);
 
-      emitGuardGetterSetterSlot(holder, prop, holderId, AccessorKind::Getter,
+      emitGuardGetterSetterSlot(holder, prop, holderId, accessorKind,
                                 /* holderIsConstant = */ true);
     } else {
-      emitGuardGetterSetterSlot(holder, prop, objId, AccessorKind::Getter);
+      emitGuardGetterSetterSlot(holder, prop, objId, accessorKind);
     }
   } else {
     Value val = holder->getSlot(prop.slot());
@@ -1076,6 +1093,14 @@ void GetPropIRGenerator::emitCallGetterResultGuards(NativeObject* obj,
     MOZ_ASSERT(val.toGCThing()->is<GetterSetter>());
     writer.guardHasGetterSetter(objId, id, val);
   }
+}
+
+void GetPropIRGenerator::emitCallGetterResultGuards(NativeObject* obj,
+                                                    NativeObject* holder,
+                                                    HandleId id,
+                                                    PropertyInfo prop,
+                                                    ObjOperandId objId) {
+  emitCallAccessorGuards(obj, holder, id, prop, objId, AccessorKind::Getter);
 }
 
 void GetPropIRGenerator::emitCallGetterResult(NativeGetPropKind kind,
@@ -1362,7 +1387,13 @@ AttachDecision GetPropIRGenerator::tryAttachWindowProxy(HandleObject obj,
       maybeEmitIdGuard(id);
       ObjOperandId windowObjId =
           GuardAndLoadWindowProxyWindow(writer, objId, windowObj);
-      EmitReadSlotResult(writer, windowObj, holder, *prop, windowObjId);
+      ObjectFuse* objFuse = nullptr;
+      if (holder == windowObj &&
+          canOptimizeConstantDataProperty(holder, *prop, &objFuse)) {
+        emitConstantDataPropertyResult(holder, windowObjId, id, *prop, objFuse);
+      } else {
+        EmitReadSlotResult(writer, windowObj, holder, *prop, windowObjId);
+      }
       writer.returnFromIC();
 
       trackAttached("GetProp.WindowProxySlot");
@@ -2187,6 +2218,95 @@ void IRGenerator::emitOptimisticClassGuard(ObjOperandId objId, JSObject* obj,
   } else {
     writer.guardClass(objId, kind);
   }
+}
+
+bool IRGenerator::canOptimizeConstantDataProperty(NativeObject* holder,
+                                                  PropertyInfo prop,
+                                                  ObjectFuse** objFuse) {
+  MOZ_ASSERT(prop.isDataProperty());
+
+  if (mode_ != ICState::Mode::Specialized || !holder->hasObjectFuse()) {
+    return false;
+  }
+
+  *objFuse = cx_->zone()->objectFuses.getOrCreate(cx_, holder);
+  if (!*objFuse) {
+    cx_->recoverFromOutOfMemory();
+    return false;
+  }
+
+  // Warp supports nursery objects and nursery strings (all strings are
+  // atomized) but not nursery BigInts. This is very uncommon so we currently
+  // don't optimize such properties.
+  Value result = holder->getSlot(prop.slot());
+  if (result.isGCThing() && !result.toGCThing()->isTenured() &&
+      !result.isObject() && !result.isString()) {
+    MOZ_ASSERT(result.isBigInt());
+    return false;
+  }
+
+  return (*objFuse)->tryOptimizeConstantProperty(prop);
+}
+
+void IRGenerator::emitConstantDataPropertyResult(NativeObject* holder,
+                                                 ObjOperandId holderId,
+                                                 PropertyKey key,
+                                                 PropertyInfo prop,
+                                                 ObjectFuse* objFuse) {
+  MOZ_ASSERT(prop.isDataProperty());
+
+  auto data = objFuse->getConstantPropertyGuardData(prop);
+  bool canUseFastPath = !objFuse->hasInvalidatedConstantProperty();
+  writer.guardObjectFuseProperty(holderId, holder, objFuse, data.generation,
+                                 data.propIndex, data.propMask, canUseFastPath);
+#ifdef DEBUG
+  writer.assertPropertyLookup(holderId, key, prop.slot());
+#endif
+
+  // Use LoadObjectResult if the value is an object to support nursery objects
+  // in Warp.
+  Value result = holder->getSlot(prop.slot());
+  if (result.isObject()) {
+    ObjOperandId resObjId = writer.loadObject(&result.toObject());
+    writer.loadObjectResult(resObjId);
+  } else {
+    writer.loadValueResult(result);
+  }
+}
+
+bool IRGenerator::canOptimizeConstantAccessorProperty(NativeObject* holder,
+                                                      PropertyInfo prop,
+                                                      ObjectFuse** objFuse) {
+  MOZ_ASSERT(prop.isAccessorProperty());
+  MOZ_ASSERT(holder->getSlot(prop.slot()).toGCThing()->is<GetterSetter>());
+
+  if (mode_ != ICState::Mode::Specialized || !holder->hasObjectFuse()) {
+    return false;
+  }
+
+  *objFuse = cx_->zone()->objectFuses.getOrCreate(cx_, holder);
+  if (!*objFuse) {
+    cx_->recoverFromOutOfMemory();
+    return false;
+  }
+
+  return (*objFuse)->tryOptimizeConstantProperty(prop);
+}
+
+void IRGenerator::emitGuardConstantAccessorProperty(NativeObject* holder,
+                                                    ObjOperandId holderId,
+                                                    PropertyKey key,
+                                                    PropertyInfo prop,
+                                                    ObjectFuse* objFuse) {
+  MOZ_ASSERT(prop.isAccessorProperty());
+
+  auto data = objFuse->getConstantPropertyGuardData(prop);
+  bool canUseFastPath = !objFuse->hasInvalidatedConstantProperty();
+  writer.guardObjectFuseProperty(holderId, holder, objFuse, data.generation,
+                                 data.propIndex, data.propMask, canUseFastPath);
+#ifdef DEBUG
+  writer.assertPropertyLookup(holderId, key, prop.slot());
+#endif
 }
 
 static void AssertArgumentsCustomDataProp(ArgumentsObject* obj,
@@ -3596,14 +3716,20 @@ AttachDecision GetNameIRGenerator::tryAttachGlobalNameValue(ObjOperandId objId,
     writer.loadDynamicSlotResult(objId, dynamicSlotOffset);
   } else if (holder == &globalLexical->global()) {
     MOZ_ASSERT(globalLexical->global().isGenerationCountedGlobal());
-    writer.guardGlobalGeneration(
-        globalLexical->global().generationCount(),
-        globalLexical->global().addressOfGenerationCount());
-    ObjOperandId holderId = writer.loadObject(holder);
+    ObjectFuse* objFuse = nullptr;
+    if (canOptimizeConstantDataProperty(holder, *prop, &objFuse)) {
+      ObjOperandId holderId = writer.loadObject(holder);
+      emitConstantDataPropertyResult(holder, holderId, id, *prop, objFuse);
+    } else {
+      writer.guardGlobalGeneration(
+          globalLexical->global().generationCount(),
+          globalLexical->global().addressOfGenerationCount());
+      ObjOperandId holderId = writer.loadObject(holder);
 #ifdef DEBUG
-    writer.assertPropertyLookup(holderId, id, prop->slot());
+      writer.assertPropertyLookup(holderId, id, prop->slot());
 #endif
-    EmitLoadSlotResult(writer, holderId, holder, *prop);
+      EmitLoadSlotResult(writer, holderId, holder, *prop);
+    }
   } else {
     // Check the prototype chain from the global to the holder
     // prototype. Ignore the global lexical scope as it doesn't figure
@@ -3665,24 +3791,32 @@ AttachDecision GetNameIRGenerator::tryAttachGlobalNameGetter(ObjOperandId objId,
   bool needsWindowProxy =
       IsWindow(global) && GetterNeedsWindowProxyThis(holder, *prop);
 
-  // Shape guard for global lexical.
-  writer.guardShape(objId, globalLexical->shape());
-
-  // Guard on the shape of the GlobalObject.
-  ObjOperandId globalId = writer.loadEnclosingEnvironment(objId);
-  writer.guardShape(globalId, global->shape());
-
-  if (holder != global) {
-    // Shape guard holder.
-    ObjOperandId holderId = writer.loadObject(holder);
-    writer.guardShape(holderId, holder->shape());
-    emitGuardGetterSetterSlot(holder, *prop, holderId, AccessorKind::Getter,
-                              /* holderIsConstant = */ true);
+  ObjOperandId globalId;
+  ObjectFuse* objFuse = nullptr;
+  if (holder == global &&
+      canOptimizeConstantAccessorProperty(global, *prop, &objFuse)) {
+    globalId = writer.loadObject(global);
+    emitGuardConstantAccessorProperty(global, globalId, id, *prop, objFuse);
   } else {
-    // Note: pass true for |holderIsConstant| because the holder must be the
-    // current global object.
-    emitGuardGetterSetterSlot(holder, *prop, globalId, AccessorKind::Getter,
-                              /* holderIsConstant = */ true);
+    // Shape guard for global lexical.
+    writer.guardShape(objId, globalLexical->shape());
+
+    // Guard on the shape of the GlobalObject.
+    globalId = writer.loadEnclosingEnvironment(objId);
+    writer.guardShape(globalId, global->shape());
+
+    if (holder != global) {
+      // Shape guard holder.
+      ObjOperandId holderId = writer.loadObject(holder);
+      writer.guardShape(holderId, holder->shape());
+      emitGuardGetterSetterSlot(holder, *prop, holderId, AccessorKind::Getter,
+                                /* holderIsConstant = */ true);
+    } else {
+      // Note: pass true for |holderIsConstant| because the holder must be the
+      // current global object.
+      emitGuardGetterSetterSlot(holder, *prop, globalId, AccessorKind::Getter,
+                                /* holderIsConstant = */ true);
+    }
   }
 
   if (CanAttachDOMGetterSetter(cx_, JSJitInfo::Getter, global, holder, *prop,
@@ -4631,18 +4765,18 @@ static Maybe<PropertyInfo> LookupShapeForSetSlot(JSOp op, NativeObject* obj,
   return prop;
 }
 
-static bool CanAttachNativeSetSlot(JSOp op, JSObject* obj, PropertyKey id,
-                                   Maybe<PropertyInfo>* prop) {
+SetSlotOptimizable SetPropIRGenerator::canAttachNativeSetSlot(
+    JSObject* obj, PropertyKey id, Maybe<PropertyInfo>* prop) {
   if (!obj->is<NativeObject>()) {
-    return false;
+    return SetSlotOptimizable::No;
   }
 
-  if (Watchtower::watchesPropertyValueChange(&obj->as<NativeObject>())) {
-    return false;
+  *prop = LookupShapeForSetSlot(JSOp(*pc_), &obj->as<NativeObject>(), id);
+  if (!prop->isSome()) {
+    return SetSlotOptimizable::No;
   }
 
-  *prop = LookupShapeForSetSlot(op, &obj->as<NativeObject>(), id);
-  return prop->isSome();
+  return Watchtower::canOptimizeSetSlot(cx_, &obj->as<NativeObject>(), **prop);
 }
 
 // There is no need to guard on the shape. Global lexical bindings are
@@ -4670,8 +4804,14 @@ AttachDecision SetPropIRGenerator::tryAttachNativeSetSlot(HandleObject obj,
                                                           HandleId id,
                                                           ValOperandId rhsId) {
   Maybe<PropertyInfo> prop;
-  if (!CanAttachNativeSetSlot(JSOp(*pc_), obj, id, &prop)) {
-    return AttachDecision::NoAction;
+  SetSlotOptimizable optimizable = canAttachNativeSetSlot(obj, id, &prop);
+  switch (optimizable) {
+    case SetSlotOptimizable::No:
+      return AttachDecision::NoAction;
+    case SetSlotOptimizable::NotYet:
+      return AttachDecision::TemporarilyUnoptimizable;
+    case SetSlotOptimizable::Yes:
+      break;
   }
 
   if (mode_ == ICState::Mode::Megamorphic && cacheKind_ == CacheKind::SetProp &&
@@ -4683,6 +4823,12 @@ AttachDecision SetPropIRGenerator::tryAttachNativeSetSlot(HandleObject obj,
 
   NativeObject* nobj = &obj->as<NativeObject>();
   if (!IsGlobalLexicalSetGName(JSOp(*pc_), nobj, *prop)) {
+    // If the object has an ObjectFuse, we can only optimize for this specific
+    // object so we have to emit GuardSpecificObject. We don't need to do this
+    // for the global object because there's only one object with that shape.
+    if (nobj->hasObjectFuse() && !nobj->is<GlobalObject>()) {
+      writer.guardSpecificObject(objId, nobj);
+    }
     TestMatchingNativeReceiver(writer, nobj, objId);
   }
   EmitStoreSlotAndReturn(writer, objId, nobj, *prop, rhsId);
@@ -4914,30 +5060,7 @@ AttachDecision SetPropIRGenerator::tryAttachSetter(HandleObject obj,
 
   maybeEmitIdGuard(id);
 
-  // Use the megamorphic guard if we're in megamorphic mode, except if |obj|
-  // is a Window as GuardHasGetterSetter doesn't support this yet (Window may
-  // require outerizing).
-  if (mode_ == ICState::Mode::Specialized || IsWindow(nobj)) {
-    TestMatchingNativeReceiver(writer, nobj, objId);
-
-    if (nobj != holder) {
-      GeneratePrototypeGuards(writer, nobj, holder, objId);
-
-      // Guard on the holder's shape.
-      ObjOperandId holderId = writer.loadObject(holder);
-      TestMatchingHolder(writer, holder, holderId);
-
-      emitGuardGetterSetterSlot(holder, *prop, holderId, AccessorKind::Setter,
-                                /* holderIsConstant = */ true);
-    } else {
-      emitGuardGetterSetterSlot(holder, *prop, objId, AccessorKind::Setter);
-    }
-  } else {
-    Value val = holder->getSlot(prop->slot());
-    MOZ_ASSERT(val.isPrivateGCThing());
-    MOZ_ASSERT(val.toGCThing()->is<GetterSetter>());
-    writer.guardHasGetterSetter(objId, id, val);
-  }
+  emitCallAccessorGuards(nobj, holder, id, *prop, objId, AccessorKind::Setter);
 
   if (CanAttachDOMGetterSetter(cx_, JSJitInfo::Setter, nobj, holder, *prop,
                                mode_)) {
@@ -5038,7 +5161,8 @@ static bool CanAttachAddElement(NativeObject* obj, bool isInit,
     const JSClass* clasp = obj->getClass();
     if (clasp != &ArrayObject::class_ &&
         (clasp->getAddProperty() || clasp->getResolve() ||
-         clasp->getOpsLookupProperty() || clasp->getOpsSetProperty())) {
+         clasp->getOpsLookupProperty() || clasp->getOpsSetProperty() ||
+         obj->hasUnpreservedWrapper())) {
       return false;
     }
 
@@ -5428,8 +5552,11 @@ AttachDecision SetPropIRGenerator::tryAttachDOMProxyExpando(
   }
 
   Maybe<PropertyInfo> prop;
-  if (CanAttachNativeSetSlot(JSOp(*pc_), expandoObj, id, &prop)) {
+  SetSlotOptimizable optimizable =
+      canAttachNativeSetSlot(expandoObj, id, &prop);
+  if (optimizable == SetSlotOptimizable::Yes) {
     auto* nativeExpandoObj = &expandoObj->as<NativeObject>();
+    MOZ_ASSERT(!nativeExpandoObj->hasObjectFuse());
 
     maybeEmitIdGuard(id);
     ObjOperandId expandoObjId = guardDOMProxyExpandoObjectAndShape(
@@ -5440,6 +5567,7 @@ AttachDecision SetPropIRGenerator::tryAttachDOMProxyExpando(
     trackAttached("SetProp.DOMProxyExpandoSlot");
     return AttachDecision::Attach;
   }
+  MOZ_ASSERT(optimizable == SetSlotOptimizable::No);
 
   NativeObject* holder = nullptr;
   if (CanAttachSetter(cx_, pc_, expandoObj, id, &holder, &prop)) {
@@ -5580,12 +5708,20 @@ AttachDecision SetPropIRGenerator::tryAttachWindowProxy(HandleObject obj,
   GlobalObject* windowObj = cx_->global();
 
   Maybe<PropertyInfo> prop;
-  if (!CanAttachNativeSetSlot(JSOp(*pc_), windowObj, id, &prop)) {
-    return AttachDecision::NoAction;
+  SetSlotOptimizable optimizable = canAttachNativeSetSlot(windowObj, id, &prop);
+  switch (optimizable) {
+    case SetSlotOptimizable::No:
+      return AttachDecision::NoAction;
+    case SetSlotOptimizable::NotYet:
+      return AttachDecision::TemporarilyUnoptimizable;
+    case SetSlotOptimizable::Yes:
+      break;
   }
 
   maybeEmitIdGuard(id);
 
+  // Note: we don't need to GuardSpecificObject here for the ObjectFuse,
+  // because this GlobalObject is the only object with this shape.
   ObjOperandId windowObjId =
       GuardAndLoadWindowProxyWindow(writer, objId, windowObj);
   writer.guardShape(windowObjId, windowObj->shape());
@@ -5816,7 +5952,10 @@ AttachDecision SetPropIRGenerator::tryAttachAddSlotStub(
   DebugOnly<uint32_t> index;
   MOZ_ASSERT_IF(obj->is<ArrayObject>(), !IdIsIndex(id, &index));
   bool mustCallAddPropertyHook =
-      obj->getClass()->getAddProperty() && !obj->is<ArrayObject>();
+      !obj->is<ArrayObject>() &&
+      (obj->getClass()->getAddProperty() ||
+       (obj->getClass()->preservesWrapper() &&
+        !oldShape->hasObjectFlag(ObjectFlag::HasPreservedWrapper)));
 
   if (mustCallAddPropertyHook) {
     writer.addSlotAndCallAddPropHook(objId, rhsValId, newShape);
@@ -11394,7 +11533,8 @@ AttachDecision InlinableNativeIRGenerator::tryAttachTypedArraySubarray() {
     return AttachDecision::NoAction;
   }
 
-  auto* tarr = &thisval_.toObject().as<TypedArrayObject>();
+  Rooted<TypedArrayObject*> tarr(cx_,
+                                 &thisval_.toObject().as<TypedArrayObject>());
 
   // Detached buffer throws.
   if (tarr->hasDetachedBuffer()) {
@@ -11420,6 +11560,13 @@ AttachDecision InlinableNativeIRGenerator::tryAttachTypedArraySubarray() {
 
   // Ensure no own "constructor" property.
   if (tarr->containsPure(cx_->names().constructor)) {
+    return AttachDecision::NoAction;
+  }
+
+  Rooted<TypedArrayObject*> templateObj(
+      cx_, TypedArrayObject::GetTemplateObjectForBufferView(cx_, tarr));
+  if (!templateObj) {
+    cx_->recoverFromOutOfMemory();
     return AttachDecision::NoAction;
   }
 
@@ -11467,7 +11614,8 @@ AttachDecision InlinableNativeIRGenerator::tryAttachTypedArraySubarray() {
     intPtrEndId = writer.loadArrayBufferViewLength(objId);
   }
 
-  writer.typedArraySubarrayResult(objId, intPtrStartId, intPtrEndId);
+  writer.typedArraySubarrayResult(templateObj, objId, intPtrStartId,
+                                  intPtrEndId);
   writer.returnFromIC();
 
   trackAttached("TypedArraySubarray");

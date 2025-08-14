@@ -36,6 +36,9 @@ export class PrefsFeed {
     this.onSmartShortcutsExperimentUpdated =
       this.onSmartShortcutsExperimentUpdated.bind(this);
     this.onWidgetsUpdated = this.onWidgetsUpdated.bind(this);
+    this.onOhttpImagesUpdated = this.onOhttpImagesUpdated.bind(this);
+    this.onInferredPersonalizationExperimentUpdated =
+      this.onInferredPersonalizationExperimentUpdated.bind(this);
   }
 
   onPrefChanged(name, value) {
@@ -135,6 +138,23 @@ export class PrefsFeed {
   }
 
   /**
+   * Handler for when inferred personalization experiment config values update.
+   */
+  onInferredPersonalizationExperimentUpdated() {
+    const value =
+      lazy.NimbusFeatures.newtabInferredPersonalization.getAllVariables() || {};
+    this.store.dispatch(
+      ac.BroadcastToContent({
+        type: at.PREF_CHANGED,
+        data: {
+          name: "inferredPersonalizationConfig",
+          value,
+        },
+      })
+    );
+  }
+
+  /**
    * Handler for when widget experiment data updates.
    */
   onWidgetsUpdated() {
@@ -150,6 +170,22 @@ export class PrefsFeed {
     );
   }
 
+  /**
+   * Handler for when OHTTP images experiment data updates.
+   */
+  onOhttpImagesUpdated() {
+    const value = lazy.NimbusFeatures.newtabOhttpImages.getAllVariables() || {};
+    this.store.dispatch(
+      ac.BroadcastToContent({
+        type: at.PREF_CHANGED,
+        data: {
+          name: "ohttpImagesConfig",
+          value,
+        },
+      })
+    );
+  }
+
   init() {
     this._prefs.observeBranch(this);
     lazy.NimbusFeatures.newtab.onUpdate(this.onExperimentUpdated);
@@ -157,7 +193,11 @@ export class PrefsFeed {
     lazy.NimbusFeatures.newtabSmartShortcuts.onUpdate(
       this.onSmartShortcutsExperimentUpdated
     );
+    lazy.NimbusFeatures.newtabInferredPersonalization.onUpdate(
+      this.onInferredPersonalizationExperimentUpdated
+    );
     lazy.NimbusFeatures.newtabWidgets.onUpdate(this.onWidgetsUpdated);
+    lazy.NimbusFeatures.newtabOhttpImages.onUpdate(this.onOhttpImagesUpdated);
 
     // Get the initial value of each activity stream pref
     const values = {};
@@ -228,12 +268,6 @@ export class PrefsFeed {
     this._setBoolPref(values, "logowordmark.alwaysVisible", false);
     this._setBoolPref(values, "feeds.section.topstories", false);
     this._setBoolPref(values, "discoverystream.enabled", false);
-    this._setBoolPref(
-      values,
-      "discoverystream.sponsored-collections.enabled",
-      false
-    );
-    this._setBoolPref(values, "discoverystream.isCollectionDismissible", false);
     this._setBoolPref(values, "discoverystream.hardcoded-basic-layout", false);
     this._setBoolPref(values, "discoverystream.personalization.enabled", false);
     this._setBoolPref(
@@ -274,6 +308,7 @@ export class PrefsFeed {
       this.onSmartShortcutsExperimentUpdated
     );
     lazy.NimbusFeatures.newtabWidgets.offUpdate(this.onWidgetsUpdated);
+    lazy.NimbusFeatures.newtabOhttpImages.offUpdate(this.onOhttpImagesUpdated);
     if (this.geo === "") {
       Services.obs.removeObserver(this, lazy.Region.REGION_TOPIC);
     }

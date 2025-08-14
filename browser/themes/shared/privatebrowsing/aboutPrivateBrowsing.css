@@ -6,9 +6,8 @@
 
 @media not (prefers-contrast) {
   html.private {
-    --in-content-page-color: white;
-    --in-content-text-color: white;
-    --in-content-page-background: #25003e;
+    --text-color: white;
+    --background-color-canvas: #25003e;
     --link-color: white;
     --link-color-hover: white;
     --link-color-active: white;

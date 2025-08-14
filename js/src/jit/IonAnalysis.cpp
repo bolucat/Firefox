@@ -4477,6 +4477,10 @@ bool jit::AddKeepAliveInstructions(MIRGraph& graph) {
           MOZ_ASSERT(ins->numOperands() == 1);
           ownerObject = ins->getOperand(0);
           break;
+        case MDefinition::Opcode::ArrayBufferViewElementsWithOffset:
+          MOZ_ASSERT(ins->numOperands() == 2);
+          ownerObject = ins->getOperand(0);
+          break;
         case MDefinition::Opcode::Slots:
           ownerObject = ins->toSlots()->object();
           break;
@@ -4486,9 +4490,10 @@ bool jit::AddKeepAliveInstructions(MIRGraph& graph) {
 
       MOZ_ASSERT(ownerObject->type() == MIRType::Object);
 
-      if (ownerObject->isConstant()) {
-        // Constants are kept alive by other pointers, for instance
-        // ImmGCPtr in JIT code.
+      const MDefinition* unwrapped = ownerObject->skipObjectGuards();
+      if (unwrapped->isConstant() || unwrapped->isNurseryObject()) {
+        // Constants are kept alive by other pointers, for instance ImmGCPtr in
+        // JIT code. NurseryObjects will be kept alive by the IonScript.
         continue;
       }
 

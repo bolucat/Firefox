@@ -175,6 +175,9 @@ document.addEventListener(
         case "context-pdfjs-highlight-selection":
           gContextMenu.pdfJSCmd("highlightSelection");
           break;
+        case "context-pdfjs-comment-selection":
+          gContextMenu.pdfJSCmd("commentSelection");
+          break;
         case "context-reveal-password":
           gContextMenu.toggleRevealPassword();
           break;
@@ -314,7 +317,7 @@ document.addEventListener(
           // attempts to generate the text fragment directive of selected text
           // Note: This is kicking off an async operation that might update
           // the context menu while it's open (enables an entry).
-          if (gContextMenu.isContentSelected) {
+          if (gContextMenu.textDirectiveTarget) {
             gContextMenu.getTextDirective();
           }
           break;

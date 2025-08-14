@@ -190,16 +190,12 @@ void wgpu_child_resolve_create_pipeline_promise(WGPUWebGPUChildPtr aChild,
   if (aError == nullptr) {
     if (pending_promise.is_render_pipeline) {
       RefPtr<RenderPipeline> object = new RenderPipeline(
-          pending_promise.device, pending_promise.pipeline_id,
-          pending_promise.implicit_pipeline_layout_id,
-          std::move(pending_promise.implicit_bind_group_layout_ids));
+          pending_promise.device, pending_promise.pipeline_id);
       object->SetLabel(pending_promise.label);
       pending_promise.promise->MaybeResolve(object);
     } else {
       RefPtr<ComputePipeline> object = new ComputePipeline(
-          pending_promise.device, pending_promise.pipeline_id,
-          pending_promise.implicit_pipeline_layout_id,
-          std::move(pending_promise.implicit_bind_group_layout_ids));
+          pending_promise.device, pending_promise.pipeline_id);
       object->SetLabel(pending_promise.label);
       pending_promise.promise->MaybeResolve(object);
     }
@@ -287,13 +283,17 @@ void wgpu_child_resolve_buffer_map_promise(WGPUWebGPUChildPtr aChild,
 void wgpu_child_resolve_on_submitted_work_done_promise(
     WGPUWebGPUChildPtr aChild, WGPUQueueId aQueueId) {
   auto* c = static_cast<WebGPUChild*>(aChild);
-  auto& pending_promises = c->mPendingOnSubmittedWorkDonePromises;
+  const auto& it = c->mPendingOnSubmittedWorkDonePromises.find(aQueueId);
+  MOZ_RELEASE_ASSERT(it != c->mPendingOnSubmittedWorkDonePromises.end());
+  auto& pending_promises = it->second;
   auto pending_promise = std::move(pending_promises.front());
   pending_promises.pop_front();
 
-  MOZ_RELEASE_ASSERT(pending_promise.queue_id == aQueueId);
+  if (pending_promises.empty()) {
+    c->mPendingOnSubmittedWorkDonePromises.erase(it);
+  }
 
-  pending_promise.promise->MaybeResolveWithUndefined();
+  pending_promise->MaybeResolveWithUndefined();
 };
 }  // namespace ffi
 
@@ -413,12 +413,14 @@ void WebGPUChild::SwapChainPresent(RawId aTextureId,
                                    const RemoteTextureOwnerId& aOwnerId) {
   // The parent side needs to create a command encoder which will be submitted
   // and dropped right away so we create and release an encoder ID here.
-  RawId encoderId = ffi::wgpu_client_make_encoder_id(GetClient());
-
-  ffi::wgpu_client_swap_chain_present(GetClient(), aTextureId, encoderId,
-                                      aRemoteTextureId.mId, aOwnerId.mId);
-
-  ffi::wgpu_client_free_command_encoder_id(GetClient(), encoderId);
+  RawId commandEncoderId =
+      ffi::wgpu_client_make_command_encoder_id(GetClient());
+  RawId commandBufferId = ffi::wgpu_client_make_command_buffer_id(GetClient());
+  ffi::wgpu_client_swap_chain_present(GetClient(), aTextureId, commandEncoderId,
+                                      commandBufferId, aRemoteTextureId.mId,
+                                      aOwnerId.mId);
+  ffi::wgpu_client_free_command_encoder_id(GetClient(), commandEncoderId);
+  ffi::wgpu_client_free_command_buffer_id(GetClient(), commandBufferId);
 }
 
 void WebGPUChild::RegisterDevice(Device* const aDevice) {
@@ -499,16 +501,12 @@ void WebGPUChild::ClearActorState() {
 
       if (pending_promise.is_render_pipeline) {
         RefPtr<RenderPipeline> object = new RenderPipeline(
-            pending_promise.device, pending_promise.pipeline_id,
-            pending_promise.implicit_pipeline_layout_id,
-            std::move(pending_promise.implicit_bind_group_layout_ids));
+            pending_promise.device, pending_promise.pipeline_id);
         object->SetLabel(pending_promise.label);
         pending_promise.promise->MaybeResolve(object);
       } else {
         RefPtr<ComputePipeline> object = new ComputePipeline(
-            pending_promise.device, pending_promise.pipeline_id,
-            pending_promise.implicit_pipeline_layout_id,
-            std::move(pending_promise.implicit_bind_group_layout_ids));
+            pending_promise.device, pending_promise.pipeline_id);
         object->SetLabel(pending_promise.label);
         pending_promise.promise->MaybeResolve(object);
       }
@@ -543,12 +541,20 @@ void WebGPUChild::ClearActorState() {
           pending_promise.promise);
     }
     // Pretend this worked, per spec; see "Listen for timeline event".
-    else if (!mPendingOnSubmittedWorkDonePromises.empty()) {
-      auto pending_promise =
-          std::move(mPendingOnSubmittedWorkDonePromises.front());
-      mPendingOnSubmittedWorkDonePromises.pop_front();
+    else if (auto it = mPendingOnSubmittedWorkDonePromises.begin();
+             it != mPendingOnSubmittedWorkDonePromises.end()) {
+      auto& pending_promises = it->second;
+      MOZ_ASSERT(!pending_promises.empty(),
+                 "Empty queues should have been removed from the map");
 
-      pending_promise.promise->MaybeResolveWithUndefined();
+      auto pending_promise = std::move(pending_promises.front());
+      pending_promises.pop_front();
+
+      if (pending_promises.empty()) {
+        mPendingOnSubmittedWorkDonePromises.erase(it);
+      }
+
+      pending_promise->MaybeResolveWithUndefined();
     } else {
       break;
     }

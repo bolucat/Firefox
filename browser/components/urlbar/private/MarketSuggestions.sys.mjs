@@ -163,12 +163,18 @@ export class MarketSuggestions extends SuggestProvider {
       return null;
     }
 
-    return new lazy.UrlbarResult(
-      lazy.UrlbarUtils.RESULT_TYPE.DYNAMIC,
-      lazy.UrlbarUtils.RESULT_SOURCE.SEARCH,
+    return Object.assign(
+      new lazy.UrlbarResult(
+        lazy.UrlbarUtils.RESULT_TYPE.DYNAMIC,
+        lazy.UrlbarUtils.RESULT_SOURCE.SEARCH,
+        {
+          ...suggestion.custom_details,
+          dynamicType: "market",
+        }
+      ),
       {
-        ...suggestion.custom_details,
-        dynamicType: "market",
+        isBestMatch: true,
+        hideRowLabel: true,
       }
     );
   }
@@ -185,7 +191,7 @@ export class MarketSuggestions extends SuggestProvider {
       case "not_interested": {
         lazy.UrlbarPrefs.set("suggest.market", false);
         result.acknowledgeDismissalL10n = {
-          id: "urlbar-dismissal-acknowledgment-market",
+          id: "urlbar-result-dismissal-acknowledgment-market",
         };
         controller.removeResult(result);
         return;

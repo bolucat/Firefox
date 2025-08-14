@@ -27,6 +27,7 @@
 #include "mozilla/dom/DirectionalityUtils.h"
 
 #include "mozilla/Maybe.h"
+#include "mozilla/dom/CharacterDataBuffer.h"
 #include "mozilla/dom/Document.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/HTMLInputElement.h"
@@ -40,7 +41,6 @@
 #include "nsIContent.h"
 #include "nsIContentInlines.h"
 #include "nsINode.h"
-#include "nsTextFragment.h"
 #include "nsUnicodeProperties.h"
 
 namespace mozilla {
@@ -205,12 +205,15 @@ static Directionality GetDirectionFromText(const char* aText,
 
 static Directionality GetDirectionFromText(const Text* aTextNode,
                                            uint32_t* aFirstStrong = nullptr) {
-  const nsTextFragment* frag = &aTextNode->TextFragment();
-  if (frag->Is2b()) {
-    return GetDirectionFromText(frag->Get2b(), frag->GetLength(), aFirstStrong);
+  const dom::CharacterDataBuffer* characterDataBuffer =
+      &aTextNode->DataBuffer();
+  if (characterDataBuffer->Is2b()) {
+    return GetDirectionFromText(characterDataBuffer->Get2b(),
+                                characterDataBuffer->GetLength(), aFirstStrong);
   }
 
-  return GetDirectionFromText(frag->Get1b(), frag->GetLength(), aFirstStrong);
+  return GetDirectionFromText(characterDataBuffer->Get1b(),
+                              characterDataBuffer->GetLength(), aFirstStrong);
 }
 
 /**

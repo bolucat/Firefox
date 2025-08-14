@@ -128,10 +128,71 @@ pub struct AdapterInformation<S> {
     support_use_shared_texture_in_swap_chain: bool,
 }
 
+#[repr(C)]
+pub struct TextureViewDescriptor<'a> {
+    label: Option<&'a nsACString>,
+    format: Option<&'a wgt::TextureFormat>,
+    dimension: Option<&'a wgt::TextureViewDimension>,
+    aspect: wgt::TextureAspect,
+    base_mip_level: u32,
+    mip_level_count: Option<&'a u32>,
+    base_array_layer: u32,
+    array_layer_count: Option<&'a u32>,
+}
+
+// Declare an ID type for referring to external texture sources, and allow
+// them to be managed by IdentityHub just like built-in wgpu resource types.
+#[derive(Debug)]
+pub enum ExternalTextureSource {}
+impl id::Marker for ExternalTextureSource {}
+pub type ExternalTextureSourceId = id::Id<ExternalTextureSource>;
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, serde::Serialize, serde::Deserialize)]
+pub enum PredefinedColorSpace {
+    Srgb,
+    DisplayP3,
+}
+
+// Descriptor for creating an external texture as used by the client side.
+// Contains the fields of dom::GPUExternalTextureDescriptor, but with the
+// source encoded as an ID.
+#[repr(C)]
 #[derive(serde::Serialize, serde::Deserialize)]
-struct ImplicitLayout<'a> {
-    pipeline: id::PipelineLayoutId,
-    bind_groups: Cow<'a, [id::BindGroupLayoutId]>,
+pub struct ExternalTextureDescriptor<L> {
+    label: L,
+    source: Option<crate::ExternalTextureSourceId>,
+    color_space: PredefinedColorSpace,
+}
+
+impl<L> ExternalTextureDescriptor<L> {
+    #[must_use]
+    pub fn map_label<K>(&self, fun: impl FnOnce(&L) -> K) -> ExternalTextureDescriptor<K> {
+        ExternalTextureDescriptor {
+            label: fun(&self.label),
+            source: self.source,
+            color_space: self.color_space,
+        }
+    }
+}
+
+// Descriptor for creating an external texture as used by the server side. This
+// contains information that can only be provided from the server side via the
+// `ExternalTextureSourceHost`. It will be combined with the
+// `ExternalTextureDescriptor` provided by the client in order to create the
+// descriptor that will be passed to wgpu.
+#[repr(C)]
+struct ExternalTextureDescriptorFromSource<'a> {
+    planes: FfiSlice<'a, id::TextureViewId>,
+    width: u32,
+    height: u32,
+    format: wgt::ExternalTextureFormat,
+    yuv_conversion_matrix: [f32; 16],
+    gamut_conversion_matrix: [f32; 9],
+    src_transfer_function: wgt::ExternalTextureTransferFunction,
+    dst_transfer_function: wgt::ExternalTextureTransferFunction,
+    sample_transform: [f32; 6],
+    load_transform: [f32; 6],
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -184,6 +245,7 @@ enum Message<'a> {
     CommandEncoderFinish(
         id::DeviceId,
         id::CommandEncoderId,
+        id::CommandBufferId,
         wgt::CommandBufferDescriptor<wgc::Label<'a>>,
     ),
     ReplayRenderPass(id::DeviceId, id::CommandEncoderId, RecordedRenderPass),
@@ -223,6 +285,7 @@ enum Message<'a> {
     SwapChainPresent {
         texture_id: id::TextureId,
         command_encoder_id: id::CommandEncoderId,
+        command_buffer_id: id::CommandBufferId,
         remote_texture_id: RemoteTextureId,
         remote_texture_owner_id: RemoteTextureOwnerId,
     },
@@ -234,26 +297,29 @@ enum Message<'a> {
 
     DestroyBuffer(id::BufferId),
     DestroyTexture(id::TextureId),
+    DestroyExternalTexture(id::ExternalTextureId),
+    DestroyExternalTextureSource(crate::ExternalTextureSourceId),
     DestroyDevice(id::DeviceId),
 
     DropAdapter(id::AdapterId),
     DropDevice(id::DeviceId),
     DropQueue(id::QueueId),
     DropBuffer(id::BufferId),
+    DropCommandEncoder(id::CommandEncoderId),
     DropCommandBuffer(id::CommandBufferId),
     DropRenderBundle(id::RenderBundleId),
     DropBindGroupLayout(id::BindGroupLayoutId),
     DropPipelineLayout(id::PipelineLayoutId),
     DropBindGroup(id::BindGroupId),
     DropShaderModule(id::ShaderModuleId),
-    DropComputePipeline(id::ComputePipelineId, Option<ImplicitLayout<'a>>),
-    DropRenderPipeline(id::RenderPipelineId, Option<ImplicitLayout<'a>>),
+    DropComputePipeline(id::ComputePipelineId),
+    DropRenderPipeline(id::RenderPipelineId),
     DropTexture(id::TextureId),
     DropTextureView(id::TextureViewId),
+    DropExternalTexture(id::ExternalTextureId),
+    DropExternalTextureSource(crate::ExternalTextureSourceId),
     DropSampler(id::SamplerId),
     DropQuerySet(id::QuerySetId),
-
-    DropCommandEncoder(id::CommandEncoderId),
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -267,6 +333,10 @@ enum DeviceAction<'a> {
         id::TextureId,
         wgc::resource::TextureDescriptor<'a>,
         Option<SwapChainId>,
+    ),
+    CreateExternalTexture(
+        id::ExternalTextureId,
+        crate::ExternalTextureDescriptor<wgc::Label<'a>>,
     ),
     CreateSampler(id::SamplerId, wgc::resource::SamplerDescriptor<'a>),
     CreateBindGroupLayout(
@@ -284,13 +354,11 @@ enum DeviceAction<'a> {
     CreateComputePipeline(
         id::ComputePipelineId,
         wgc::pipeline::ComputePipelineDescriptor<'a>,
-        Option<ImplicitLayout<'a>>,
         bool,
     ),
     CreateRenderPipeline(
         id::RenderPipelineId,
         wgc::pipeline::RenderPipelineDescriptor<'a>,
-        Option<ImplicitLayout<'a>>,
         bool,
     ),
     CreateRenderBundle(
@@ -366,12 +434,10 @@ enum ServerMessage<'a> {
     ),
     CreateRenderPipelineResponse {
         pipeline_id: id::RenderPipelineId,
-        implicit_ids: Option<ImplicitLayout<'a>>,
         error: Option<PipelineError>,
     },
     CreateComputePipelineResponse {
         pipeline_id: id::ComputePipelineId,
-        implicit_ids: Option<ImplicitLayout<'a>>,
         error: Option<PipelineError>,
     },
     CreateShaderModuleResponse(id::ShaderModuleId, Vec<ShaderModuleCompilationMessage>),

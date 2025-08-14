@@ -57,13 +57,27 @@ class OffscreenCanvasDisplayHelper final {
   void DestroyCanvas();
   void DestroyElement();
 
+  bool IsWriteOnly() const {
+    MutexAutoLock lock(mMutex);
+    return mIsWriteOnly;
+  }
+
+  bool HasWorkerRef() const {
+    MutexAutoLock lock(mMutex);
+    return !!mWorkerRef;
+  }
+
+  void SetWriteOnly(nsIPrincipal* aExpandedReader = nullptr);
+  bool CallerCanRead(nsIPrincipal& aPrincipal) const;
+
   bool CanElementCaptureStream() const;
   bool UsingElementCaptureStream() const;
 
   already_AddRefed<mozilla::gfx::SourceSurface> GetSurfaceSnapshot();
   already_AddRefed<mozilla::layers::Image> GetAsImage();
-  UniquePtr<uint8_t[]> GetImageBuffer(int32_t* aOutFormat,
-                                      gfx::IntSize* aOutImageSize);
+  UniquePtr<uint8_t[]> GetImageBuffer(
+      CanvasUtils::ImageExtraction aExtractionBehavior, int32_t* aOutFormat,
+      gfx::IntSize* aOutImageSize);
 
  private:
   ~OffscreenCanvasDisplayHelper();
@@ -90,6 +104,8 @@ class OffscreenCanvasDisplayHelper final {
   mozilla::layers::ImageContainer::FrameID mLastFrameID MOZ_GUARDED_BY(mMutex) =
       0;
   bool mPendingInvalidate MOZ_GUARDED_BY(mMutex) = false;
+  bool mIsWriteOnly MOZ_GUARDED_BY(mMutex) = false;
+  RefPtr<nsIPrincipal> mExpandedReader MOZ_GUARDED_BY(mMutex);
 };
 
 }  // namespace mozilla::dom

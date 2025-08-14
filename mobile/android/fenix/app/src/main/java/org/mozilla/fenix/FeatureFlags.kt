@@ -52,9 +52,9 @@ object FeatureFlags {
     val onboardingFeatureEnabled = !Config.channel.isDebug
 
     /**
-     * Determines whether to show live downloads in progress in the UI.
+     * Whether the composable toolbar should be allowed in the current build.
      */
-    val showLiveDownloads = Config.channel.isNightlyOrDebug
+    val composableToolbar = Config.channel.isNightlyOrDebug
 
     /**
      * Enables the custom review pre-prompt.

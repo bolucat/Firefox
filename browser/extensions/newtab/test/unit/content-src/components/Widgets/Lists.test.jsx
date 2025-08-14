@@ -13,7 +13,7 @@ const mockState = {
     lists: {
       "test-list": {
         label: "test",
-        tasks: [{ value: "task", completed: false, isUrl: false }],
+        tasks: [{ id: "1", value: "task", completed: false, isUrl: false }],
         completed: [],
       },
     },
@@ -77,12 +77,15 @@ describe("<Lists>", () => {
   });
 
   it("should toggle task completion", () => {
+    const taskItem = wrapper.find(".task-item").at(0);
     const checkbox = wrapper.find("input[type='checkbox']").at(0);
     checkbox.simulate("change", { target: { checked: true } });
-
+    // dispatch not called until transition has ended
+    assert.equal(dispatch.callCount, 0);
+    taskItem.simulate("transitionEnd", { propertyName: "opacity" });
+    assert.ok(dispatch.calledTwice);
     const [action] = dispatch.getCall(0).args;
     assert.equal(action.type, at.WIDGETS_LISTS_UPDATE);
-    console.log(`CONSOLE: `, action.data.lists["test-list"]);
     assert.ok(action.data.lists["test-list"].completed[0].completed);
   });
 
@@ -107,7 +110,7 @@ describe("<Lists>", () => {
     const deleteButton = wrapper.find("panel-item.delete-item").at(0);
     deleteButton.props().onClick();
 
-    assert.ok(dispatch.calledOnce);
+    assert.ok(dispatch.calledTwice);
     const [action] = dispatch.getCall(0).args;
     assert.equal(action.type, at.WIDGETS_LISTS_UPDATE);
 
@@ -130,7 +133,7 @@ describe("<Lists>", () => {
 
     input.simulate("keyDown", { key: "Enter" });
 
-    assert.ok(dispatch.calledOnce, "Expected dispatch to be called");
+    assert.ok(dispatch.calledTwice, "Expected dispatch to be called");
 
     const [action] = dispatch.getCall(0).args;
     assert.equal(action.type, at.WIDGETS_LISTS_UPDATE);
@@ -162,7 +165,7 @@ describe("<Lists>", () => {
     const deleteList = wrapper.find("panel-item").at(2);
     deleteList.props().onClick();
 
-    assert.ok(dispatch.calledTwice);
+    assert.ok(dispatch.calledThrice);
     assert.equal(dispatch.getCall(0).args[0].type, at.WIDGETS_LISTS_UPDATE);
     assert.equal(
       dispatch.getCall(1).args[0].type,
@@ -180,7 +183,7 @@ describe("<Lists>", () => {
     editableInput.simulate("change", { target: { value: "Updated List" } });
     editableInput.simulate("keyDown", { key: "Enter" });
 
-    assert.ok(dispatch.calledOnce);
+    assert.ok(dispatch.calledTwice);
     const [action] = dispatch.getCall(0).args;
     assert.equal(action.type, at.WIDGETS_LISTS_UPDATE);
     assert.equal(action.data.lists["test-list"].label, "Updated List");
@@ -189,11 +192,120 @@ describe("<Lists>", () => {
   it("should create a new list and dispatch update and select list actions", () => {
     const createListBtn = wrapper.find("panel-item").at(1); // assumes "Create a new list" is at index 1
     createListBtn.props().onClick();
-    assert.ok(dispatch.calledTwice);
+    assert.ok(dispatch.calledThrice);
     assert.equal(dispatch.getCall(0).args[0].type, at.WIDGETS_LISTS_UPDATE);
     assert.equal(
       dispatch.getCall(1).args[0].type,
       at.WIDGETS_LISTS_CHANGE_SELECTED
     );
+  });
+
+  it("should copy the current list to clipboard with correct formatting", () => {
+    // Set up task list with additional "completed" task
+    const task1 = {
+      id: "1",
+      value: "task 1",
+      completed: false,
+      isUrl: false,
+    };
+    const task2 = {
+      id: "2",
+      value: "task 2",
+      completed: true,
+      isUrl: false,
+    };
+
+    mockState.ListsWidget.lists["test-list"].tasks = [task1, task2];
+
+    wrapper = mount(
+      <WrapWithProvider state={mockState}>
+        <Lists dispatch={dispatch} />
+      </WrapWithProvider>
+    );
+
+    const clipboardWriteTextStub = sinon.stub(navigator.clipboard, "writeText");
+
+    // Grab panel-item for copying a list
+    const copyList = wrapper.find("panel-item").at(3);
+    copyList.props().onClick();
+
+    assert.ok(
+      clipboardWriteTextStub.calledOnce,
+      "Expected clipboard.writeText to be called"
+    );
+
+    const [copiedText] = clipboardWriteTextStub.firstCall.args;
+    assert.include(
+      copiedText,
+      "List: test",
+      "Expected list title in copied text"
+    );
+    assert.include(
+      copiedText,
+      "- [ ] task 1",
+      "- [x] task 2",
+      "Expected uncompleted and completed tasks in copied text"
+    );
+
+    // Confirm WIDGETS_LISTS_USER_EVENT telemetry `list_copy` event
+    assert.ok(dispatch.calledOnce);
+    const [copyEvent] = dispatch.lastCall.args;
+    assert.equal(copyEvent.type, at.WIDGETS_LISTS_USER_EVENT);
+    assert.equal(copyEvent.data.userAction, "list_copy");
+
+    clipboardWriteTextStub.restore();
+  });
+
+  it("should reorder tasks via reorder event", () => {
+    const task1 = {
+      id: "1",
+      value: "task 1",
+      completed: false,
+      isUrl: false,
+    };
+    const task2 = {
+      id: "2",
+      value: "task 2",
+      completed: false,
+      isUrl: false,
+    };
+
+    mockState.ListsWidget.lists["test-list"].tasks = [task1, task2];
+
+    wrapper = mount(
+      <WrapWithProvider state={mockState}>
+        <Lists dispatch={dispatch} />
+      </WrapWithProvider>
+    );
+
+    const reorderNode = wrapper.find("moz-reorderable-list").getDOMNode();
+
+    // Simulate moving task2 before task1
+    const event = new CustomEvent("reorder", {
+      detail: {
+        draggedElement: { id: "2" },
+        targetElement: { id: "1" },
+        position: -1,
+      },
+      bubbles: true,
+    });
+
+    reorderNode.dispatchEvent(event);
+
+    assert.ok(dispatch.calledOnce);
+    const [action] = dispatch.getCall(0).args;
+    assert.equal(action.type, at.WIDGETS_LISTS_UPDATE);
+
+    const reorderedTasks = action.data.lists["test-list"].tasks;
+    assert.deepEqual(reorderedTasks, [task2, task1]);
+  });
+
+  it("should dispatch OPEN_LINK when the Learn More option is clicked", () => {
+    const learnMoreItem = wrapper.find(".learn-more");
+    learnMoreItem.props().onClick();
+
+    assert.ok(dispatch.calledOnce);
+    const [action] = dispatch.getCall(0).args;
+    assert.equal(action.type, at.OPEN_LINK);
   });
 });

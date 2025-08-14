@@ -23,9 +23,9 @@ import mozilla.components.feature.downloads.AbstractFetchDownloadService
 import mozilla.components.feature.tabs.TabsUseCases
 import mozilla.components.lib.state.helpers.AbstractBinding
 import mozilla.components.ui.widgets.SnackbarDelegate
-import org.mozilla.fenix.FeatureFlags
 import org.mozilla.fenix.GleanMetrics.SentFromFirefox
 import org.mozilla.fenix.R
+import org.mozilla.fenix.bookmarks.friendlyRootTitle
 import org.mozilla.fenix.browser.BrowserFragmentDirections
 import org.mozilla.fenix.components.AppStore
 import org.mozilla.fenix.components.appstate.AppAction
@@ -38,7 +38,6 @@ import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.navigateWithBreadcrumb
 import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.ext.tabClosedUndoMessage
-import org.mozilla.fenix.library.bookmarks.friendlyRootTitle
 
 const val WEBCOMPAT_SNACKBAR_DURATION_MS = 20000
 const val DOWNLOAD_SNACKBAR_DURATION_MS = 20000
@@ -285,17 +284,11 @@ class SnackbarBinding(
                         snackbarDelegate.show(
                             text = context.getString(R.string.download_in_progress_snackbar),
                             duration = DOWNLOAD_SNACKBAR_DURATION_MS,
-                            action = if (FeatureFlags.showLiveDownloads) {
-                                context.getString(R.string.download_in_progress_snackbar_action_details)
-                            } else {
-                                null
-                            },
+                            action = context.getString(R.string.download_in_progress_snackbar_action_details),
                         ) {
-                            if (FeatureFlags.showLiveDownloads) {
-                                navController.navigate(
-                                    BrowserFragmentDirections.actionGlobalDownloadsFragment(),
-                                )
-                            }
+                            navController.navigate(
+                                BrowserFragmentDirections.actionGlobalDownloadsFragment(),
+                            )
                         }
 
                         appStore.dispatch(SnackbarAction.SnackbarShown)
@@ -307,17 +300,11 @@ class SnackbarBinding(
                             subText = state.fileName,
                             subTextOverflow = TextOverflow.MiddleEllipsis,
                             duration = DOWNLOAD_SNACKBAR_DURATION_MS,
-                            action = if (FeatureFlags.showLiveDownloads) {
-                                context.getString(R.string.download_failed_snackbar_action_details)
-                            } else {
-                                null
-                            },
+                            action = context.getString(R.string.download_failed_snackbar_action_details),
                         ) {
-                            if (FeatureFlags.showLiveDownloads) {
-                                navController.navigate(
-                                    BrowserFragmentDirections.actionGlobalDownloadsFragment(),
-                                )
-                            }
+                            navController.navigate(
+                                BrowserFragmentDirections.actionGlobalDownloadsFragment(),
+                            )
                         }
                         appStore.dispatch(SnackbarAction.SnackbarShown)
                     }
@@ -332,6 +319,7 @@ class SnackbarBinding(
                         ) {
                             val fileWasOpened = AbstractFetchDownloadService.openFile(
                                 applicationContext = context.applicationContext,
+                                packageName = context.applicationContext.packageName,
                                 downloadFileName = state.downloadState.fileName,
                                 downloadFilePath = state.downloadState.filePath,
                                 downloadContentType = state.downloadState.contentType,

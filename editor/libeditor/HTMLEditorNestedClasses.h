@@ -15,8 +15,8 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/OwningNonNull.h"
 #include "mozilla/Result.h"
+#include "mozilla/dom/CharacterDataBuffer.h"
 #include "mozilla/dom/Text.h"
-#include "nsTextFragment.h"
 
 namespace mozilla {
 
@@ -1743,13 +1743,13 @@ struct MOZ_STACK_CLASS HTMLEditor::NormalizedStringToInsertText final {
     if (mNormalizedString.IsEmpty() || !ReplaceLength()) {
       return *this;
     }
-    const nsTextFragment& textFragment = aText.TextFragment();
+    const dom::CharacterDataBuffer& characterDataBuffer = aText.DataBuffer();
     const uint32_t minimizedReplaceStart = [&]() {
       const auto firstDiffCharOffset =
-          mNewLengthBefore ? textFragment.FindFirstDifferentCharOffset(
+          mNewLengthBefore ? characterDataBuffer.FindFirstDifferentCharOffset(
                                  PrecedingWhiteSpaces(), mReplaceStartOffset)
-                           : nsTextFragment::kNotFound;
-      if (firstDiffCharOffset == nsTextFragment::kNotFound) {
+                           : dom::CharacterDataBuffer::kNotFound;
+      if (firstDiffCharOffset == dom::CharacterDataBuffer::kNotFound) {
         return
             // We don't need to insert new normalized white-spaces before the
             // inserting string,
@@ -1762,10 +1762,10 @@ struct MOZ_STACK_CLASS HTMLEditor::NormalizedStringToInsertText final {
     }();
     const uint32_t minimizedReplaceEnd = [&]() {
       const auto lastDiffCharOffset =
-          mNewLengthAfter ? textFragment.RFindFirstDifferentCharOffset(
+          mNewLengthAfter ? characterDataBuffer.RFindFirstDifferentCharOffset(
                                 FollowingWhiteSpaces(), mReplaceEndOffset)
-                          : nsTextFragment::kNotFound;
-      if (lastDiffCharOffset == nsTextFragment::kNotFound) {
+                          : dom::CharacterDataBuffer::kNotFound;
+      if (lastDiffCharOffset == dom::CharacterDataBuffer::kNotFound) {
         return
             // We don't need to insert new normalized white-spaces after the
             // inserting string,
@@ -1918,15 +1918,15 @@ struct MOZ_STACK_CLASS HTMLEditor::ReplaceWhiteSpacesData final {
     if (!ReplaceLength()) {
       return *this;
     }
-    const nsTextFragment& textFragment = aText.TextFragment();
+    const dom::CharacterDataBuffer& characterDataBuffer = aText.DataBuffer();
     const auto minimizedReplaceStart = [&]() -> uint32_t {
       if (mNormalizedString.IsEmpty()) {
         return mReplaceStartOffset;
       }
       const uint32_t firstDiffCharOffset =
-          textFragment.FindFirstDifferentCharOffset(mNormalizedString,
-                                                    mReplaceStartOffset);
-      if (firstDiffCharOffset == nsTextFragment::kNotFound) {
+          characterDataBuffer.FindFirstDifferentCharOffset(mNormalizedString,
+                                                           mReplaceStartOffset);
+      if (firstDiffCharOffset == dom::CharacterDataBuffer::kNotFound) {
         // We don't need to insert new white-spaces,
         return mReplaceStartOffset + mNormalizedString.Length();
       }
@@ -1951,10 +1951,10 @@ struct MOZ_STACK_CLASS HTMLEditor::ReplaceWhiteSpacesData final {
         return mReplaceEndOffset;
       }
       const auto lastDiffCharOffset =
-          textFragment.RFindFirstDifferentCharOffset(mNormalizedString,
-                                                     mReplaceEndOffset);
-      MOZ_ASSERT(lastDiffCharOffset != nsTextFragment::kNotFound);
-      return lastDiffCharOffset == nsTextFragment::kNotFound
+          characterDataBuffer.RFindFirstDifferentCharOffset(mNormalizedString,
+                                                            mReplaceEndOffset);
+      MOZ_ASSERT(lastDiffCharOffset != dom::CharacterDataBuffer::kNotFound);
+      return lastDiffCharOffset == dom::CharacterDataBuffer::kNotFound
                  ? mReplaceEndOffset
                  : lastDiffCharOffset + 1u;
     }();

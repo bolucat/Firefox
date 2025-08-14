@@ -17,12 +17,10 @@ import mozilla.components.browser.state.selector.findTab
 import mozilla.components.browser.state.selector.getNormalOrPrivateTabs
 import mozilla.components.browser.state.selector.normalTabs
 import mozilla.components.browser.state.state.BrowserState
-import mozilla.components.browser.state.state.SessionState
 import mozilla.components.browser.state.state.TabSessionState
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.browser.storage.sync.Tab
 import mozilla.components.concept.base.profiler.Profiler
-import mozilla.components.concept.engine.mediasession.MediaSession.PlaybackState
 import mozilla.components.concept.engine.prompt.ShareData
 import mozilla.components.concept.engine.utils.ABOUT_HOME_URL
 import mozilla.components.concept.storage.BookmarksStorage
@@ -64,7 +62,6 @@ import org.mozilla.fenix.tabstray.ui.TabManagementFragmentDirections
 import org.mozilla.fenix.utils.Settings
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.CoroutineContext
-import org.mozilla.fenix.GleanMetrics.Tab as GleanTab
 
 internal const val INACTIVE_TABS_FEATURE_NAME = "Inactive tabs"
 
@@ -260,6 +257,7 @@ class DefaultTabManagerController(
                 private = isPrivate,
             )
         } else {
+            navController.popBackStack()
             navController.navigate(
                 TabManagementFragmentDirections.actionGlobalHome(focusOnAddressBar = true),
             )
@@ -291,6 +289,7 @@ class DefaultTabManagerController(
         if (navController.currentDestination?.id == R.id.browserFragment) {
             return
         } else if (!navController.popBackStack(R.id.browserFragment, false)) {
+            navController.popBackStack()
             navController.navigate(R.id.browserFragment)
         }
     }
@@ -302,6 +301,7 @@ class DefaultTabManagerController(
         if (navController.currentDestination?.id == R.id.homeFragment) {
             return
         } else if (!navController.popBackStack(R.id.homeFragment, false)) {
+            navController.popBackStack()
             navController.navigate(
                 TabManagementFragmentDirections.actionGlobalHome(),
             )
@@ -424,7 +424,7 @@ class DefaultTabManagerController(
     override fun handleBookmarkSelectedTabsClicked() {
         val tabs = tabsTrayStore.state.mode.selectedTabs
 
-        TabsTray.bookmarkSelectedTabs.record(TabsTray.BookmarkSelectedTabsExtra(tabCount = tabs.size))
+        tabsTrayStore.dispatch(TabsTrayAction.BookmarkSelectedTabs(tabCount = tabs.size))
 
         // We don't combine the context with lifecycleScope so that our jobs are not cancelled
         // if we leave the fragment, i.e. we still want the bookmarks to be added if the

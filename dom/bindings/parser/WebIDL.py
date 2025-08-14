@@ -2696,6 +2696,9 @@ class IDLType(IDLObject):
     def isJSString(self):
         return False
 
+    def isInteger(self):
+        return False
+
     def isUndefined(self):
         return False
 
@@ -6531,6 +6534,13 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
         if static and identifier.name == "prototype":
             raise WebIDLError(
                 "The identifier of a static operation must not be 'prototype'",
+                [location],
+            )
+
+        # See https://github.com/whatwg/webidl/issues/1516
+        if (setter or deleter) and not returnType.isUndefined():
+            raise WebIDLError(
+                "The return type of a setter or deleter operation must be 'undefined'",
                 [location],
             )
 

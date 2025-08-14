@@ -14,7 +14,6 @@ import androidx.lifecycle.LifecycleRegistry
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDirections
-import androidx.navigation.NavOptions
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.mockk.Runs
 import io.mockk.every
@@ -164,7 +163,6 @@ import org.mozilla.fenix.ext.nav
 import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.helpers.FenixGleanTestRule
 import org.mozilla.fenix.tabstray.Page
-import org.mozilla.fenix.tabstray.TabManagementFeatureHelper
 import org.mozilla.fenix.utils.Settings
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
@@ -1380,11 +1378,18 @@ class BrowserToolbarMiddlewareTest {
     fun `GIVEN on a small screen with tabstrip is disabled and not using the extended layout THEN don't show a share button as page end action`() {
         every { settings.isTabStripEnabled } returns false
         every { settings.shouldUseExpandedToolbar } returns false
-        val browserScreenStore = buildBrowserScreenStore()
-        val middleware = buildMiddleware(appStore, browserScreenStore, browserStore)
-        val toolbarStore = buildStore(middleware, browsingModeManager = browsingModeManager, navController = navController)
+        mockkStatic(Context::isTallWindow) {
+            every { any<Context>().isTallWindow() } returns true
+            val browserScreenStore = buildBrowserScreenStore()
+            val middleware = buildMiddleware(appStore, browserScreenStore, browserStore)
+            val toolbarStore = buildStore(
+                middleware,
+                browsingModeManager = browsingModeManager,
+                navController = navController,
+            )
 
-        assertTrue(toolbarStore.state.displayState.pageActionsEnd.isEmpty())
+            assertTrue(toolbarStore.state.displayState.pageActionsEnd.isEmpty())
+        }
     }
 
     @Test
@@ -1399,6 +1404,26 @@ class BrowserToolbarMiddlewareTest {
 
             val shareButton = toolbarStore.state.displayState.pageActionsEnd[0]
             assertEquals(expectedShareButton(), shareButton)
+        }
+    }
+
+    @Test
+    fun `GIVEN on a large portrait screen with extended layout enabled THEN don't show a share button as page end action`() {
+        every { settings.shouldUseExpandedToolbar } returns true
+        mockkStatic(Context::isLargeWindow) {
+            mockkStatic(Context::isTallWindow) {
+                every { any<Context>().isLargeWindow() } returns true
+                every { any<Context>().isTallWindow() } returns true
+                val browserScreenStore = buildBrowserScreenStore()
+                val middleware = buildMiddleware(appStore, browserScreenStore, browserStore)
+                val toolbarStore = buildStore(
+                    middleware,
+                    browsingModeManager = browsingModeManager,
+                    navController = navController,
+                )
+
+                assertTrue(toolbarStore.state.displayState.pageActionsEnd.isEmpty())
+            }
         }
     }
 
@@ -1498,16 +1523,23 @@ class BrowserToolbarMiddlewareTest {
     }
 
     @Test
-    fun `GIVEN on a small screen with tabstrip is enabled and not using the extended layout THEN don't show a share button as browser end action`() {
-        every { settings.isTabStripEnabled } returns true
-        every { settings.shouldUseExpandedToolbar } returns false
-        val browserScreenStore = buildBrowserScreenStore()
-        val middleware = buildMiddleware(appStore, browserScreenStore, browserStore)
-        val toolbarStore = buildStore(middleware, browsingModeManager = browsingModeManager, navController = navController)
+    fun `GIVEN on a small width with tabstrip is enabled and not using the extended layout THEN don't show a share button as browser end action`() {
+        mockkStatic(Context::isTallWindow) {
+            every { any<Context>().isTallWindow() } returns true
+            every { settings.isTabStripEnabled } returns true
+            every { settings.shouldUseExpandedToolbar } returns false
+            val browserScreenStore = buildBrowserScreenStore()
+            val middleware = buildMiddleware(appStore, browserScreenStore, browserStore)
+            val toolbarStore = buildStore(
+                middleware,
+                browsingModeManager = browsingModeManager,
+                navController = navController,
+            )
 
-        assertEquals(1, toolbarStore.state.displayState.browserActionsEnd.size)
-        val toolbarButton = toolbarStore.state.displayState.browserActionsEnd[0]
-        assertNotEquals(expectedShareButton(), toolbarButton)
+            assertEquals(1, toolbarStore.state.displayState.browserActionsEnd.size)
+            val toolbarButton = toolbarStore.state.displayState.browserActionsEnd[0]
+            assertNotEquals(expectedShareButton(), toolbarButton)
+        }
     }
 
     @Test
@@ -1543,6 +1575,27 @@ class BrowserToolbarMiddlewareTest {
     }
 
     @Test
+    fun `GIVEN on a large portrait screen with tabstrip and extended layout enabled THEN don't show a share button as browser end action`() {
+        every { settings.isTabStripEnabled } returns true
+        every { settings.shouldUseExpandedToolbar } returns true
+        mockkStatic(Context::isLargeWindow) {
+            mockkStatic(Context::isTallWindow) {
+                every { any<Context>().isLargeWindow() } returns true
+                every { any<Context>().isTallWindow() } returns true
+                val browserScreenStore = buildBrowserScreenStore()
+                val middleware = buildMiddleware(appStore, browserScreenStore, browserStore)
+                val toolbarStore = buildStore(
+                    middleware,
+                    browsingModeManager = browsingModeManager,
+                    navController = navController,
+                )
+
+                assertTrue(toolbarStore.state.displayState.pageActionsEnd.isEmpty())
+            }
+        }
+    }
+
+    @Test
     fun `WHEN cycling through portrait and landscape orientations THEN update what end page actions should be shown`() {
         Dispatchers.setMain(Handler(Looper.getMainLooper()).asCoroutineDispatcher())
         val appStore = AppStore()
@@ -1556,27 +1609,45 @@ class BrowserToolbarMiddlewareTest {
             every { isTranslationPossible } returns true
         }
         every { browserScreenState.pageTranslationStatus } returns pageTranslationStatus
-        val middleware = buildMiddleware(appStore, browserScreenStore, browserStore)
-        val toolbarStore = buildStore(middleware)
 
-        assertEquals(
-            listOf(expectedReaderModeButton(false)),
-            toolbarStore.state.displayState.pageActionsEnd,
-        )
+        mockkStatic(Context::isTallWindow) {
+            every { any<Context>().isTallWindow() } returns true
+            val middleware = buildMiddleware(appStore, browserScreenStore, browserStore)
+            val toolbarStore = buildStore(middleware)
 
-        appStore.dispatch(AppAction.OrientationChange(Landscape)).joinBlocking()
-        shadowOf(Looper.getMainLooper()).idle()
-        assertEquals(
-            listOf(expectedReaderModeButton(false), expectedTranslateButton, expectedShareButton()),
-            toolbarStore.state.displayState.pageActionsEnd,
-        )
+            assertEquals(
+                listOf(expectedReaderModeButton(false)),
+                toolbarStore.state.displayState.pageActionsEnd,
+            )
+        }
 
-        appStore.dispatch(AppAction.OrientationChange(Portrait)).joinBlocking()
-        shadowOf(Looper.getMainLooper()).idle()
-        assertEquals(
-            listOf(expectedReaderModeButton(false)),
-            toolbarStore.state.displayState.pageActionsEnd,
-        )
+        mockkStatic(Context::isTallWindow) {
+            every { any<Context>().isTallWindow() } returns false
+            val middleware = buildMiddleware(appStore, browserScreenStore, browserStore)
+            val toolbarStore = buildStore(middleware)
+            shadowOf(Looper.getMainLooper()).idle()
+
+            assertEquals(
+                listOf(
+                    expectedReaderModeButton(false),
+                    expectedTranslateButton,
+                    expectedShareButton(),
+                ),
+                toolbarStore.state.displayState.pageActionsEnd,
+            )
+        }
+
+        mockkStatic(Context::isTallWindow) {
+            every { any<Context>().isTallWindow() } returns true
+            val middleware = buildMiddleware(appStore, browserScreenStore, browserStore)
+            val toolbarStore = buildStore(middleware)
+            shadowOf(Looper.getMainLooper()).idle()
+
+            assertEquals(
+                listOf(expectedReaderModeButton(false)),
+                toolbarStore.state.displayState.pageActionsEnd,
+            )
+        }
     }
 
     @Test
@@ -2316,27 +2387,32 @@ class BrowserToolbarMiddlewareTest {
     @Test
     fun `WHEN initializing the navigation bar AND should not use simple toolbar THEN add navigation bar actions`() = runTestOnMain {
         every { settings.shouldUseExpandedToolbar } returns true
-        every { appState.orientation } returns Portrait
         Dispatchers.setMain(StandardTestDispatcher())
-        val middleware = buildMiddleware(appStore = appStore)
-        val toolbarStore = buildStore(middleware)
-        testScheduler.advanceUntilIdle()
+        mockkStatic(Context::isTallWindow) {
+            every { any<Context>().isTallWindow() } returns true
+            val middleware = buildMiddleware(appStore = appStore)
+            val toolbarStore = buildStore(middleware)
+            testScheduler.advanceUntilIdle()
 
-        appStore.dispatch(AppAction.OrientationChange(Portrait)).joinBlocking()
-        testScheduler.advanceUntilIdle()
+            appStore.dispatch(AppAction.OrientationChange(Portrait)).joinBlocking()
+            testScheduler.advanceUntilIdle()
 
-        val navigationActions = toolbarStore.state.displayState.navigationActions
-        assertEquals(5, navigationActions.size)
-        val bookmarkButton = navigationActions[0] as ActionButtonRes
-        val shareButton = navigationActions[1] as ActionButtonRes
-        val newTabButton = navigationActions[2] as ActionButtonRes
-        val tabCounterButton = navigationActions[3] as TabCounterAction
-        val menuButton = navigationActions[4] as ActionButtonRes
-        assertEquals(expectedBookmarkButton(Source.NavigationBar), bookmarkButton)
-        assertEquals(expectedShareButton(Source.NavigationBar), shareButton)
-        assertEquals(expectedNewTabButton(Source.NavigationBar), newTabButton)
-        assertEqualsTabCounterButton(expectedTabCounterButton(source = Source.NavigationBar), tabCounterButton)
-        assertEquals(expectedMenuButton(Source.NavigationBar), menuButton)
+            val navigationActions = toolbarStore.state.displayState.navigationActions
+            assertEquals(5, navigationActions.size)
+            val bookmarkButton = navigationActions[0] as ActionButtonRes
+            val shareButton = navigationActions[1] as ActionButtonRes
+            val newTabButton = navigationActions[2] as ActionButtonRes
+            val tabCounterButton = navigationActions[3] as TabCounterAction
+            val menuButton = navigationActions[4] as ActionButtonRes
+            assertEquals(expectedBookmarkButton(Source.NavigationBar), bookmarkButton)
+            assertEquals(expectedShareButton(Source.NavigationBar), shareButton)
+            assertEquals(expectedNewTabButton(Source.NavigationBar), newTabButton)
+            assertEqualsTabCounterButton(
+                expectedTabCounterButton(source = Source.NavigationBar),
+                tabCounterButton,
+            )
+            assertEquals(expectedMenuButton(Source.NavigationBar), menuButton)
+        }
     }
 
     @Test
@@ -2543,16 +2619,6 @@ class BrowserToolbarMiddlewareTest {
         cookieBannersStorage = cookieBannersStorage,
         trackingProtectionUseCases = trackingProtectionUseCases,
         sessionUseCases = sessionUseCases,
-        tabManagementFeatureHelper = object : TabManagementFeatureHelper {
-            override val enhancementsEnabledNightly: Boolean
-                get() = false
-            override val enhancementsEnabledBeta: Boolean
-                get() = false
-            override val enhancementsEnabledRelease: Boolean
-                get() = false
-            override val enhancementsEnabled: Boolean
-                get() = false
-        },
         bookmarksStorage = bookmarksStorage,
     )
 

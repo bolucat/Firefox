@@ -845,8 +845,7 @@ void nsIFrame::Destroy(DestroyContext& aContext) {
 
   const auto* disp = StyleDisplay();
   if (disp->mPosition == StylePositionProperty::Sticky) {
-    if (auto* ssc =
-            StickyScrollContainer::GetStickyScrollContainerForFrame(this)) {
+    if (auto* ssc = StickyScrollContainer::GetOrCreateForFrame(this)) {
       ssc->RemoveFrame(this);
     }
   }
@@ -1333,8 +1332,7 @@ void nsIFrame::DidSetComputedStyle(ComputedStyle* aOldComputedStyle) {
     // yet know if we're a later part of a block-in-inline split, we'll just
     // add later members of a block-in-inline split here, and then
     // StickyScrollContainer will remove them later.
-    if (auto* ssc =
-            StickyScrollContainer::GetStickyScrollContainerForFrame(this)) {
+    if (auto* ssc = StickyScrollContainer::GetOrCreateForFrame(this)) {
       if (disp->mPosition == StylePositionProperty::Sticky) {
         ssc->AddFrame(this);
       } else {
@@ -2792,20 +2790,27 @@ static void ApplyOverflowClipping(
     nsDisplayListBuilder* aBuilder, const nsIFrame* aFrame,
     PhysicalAxes aClipAxes,
     DisplayListClipState::AutoClipMultiple& aClipState) {
+  nsRect clipRect;
+  nscoord radii[8];
+  bool haveRadii =
+      aFrame->ComputeOverflowClipRectRelativeToSelf(aClipAxes, clipRect, radii);
+  aClipState.ClipContainingBlockDescendantsExtra(
+      clipRect + aBuilder->ToReferenceFrame(aFrame),
+      haveRadii ? radii : nullptr);
+}
+
+bool nsIFrame::ComputeOverflowClipRectRelativeToSelf(
+    const PhysicalAxes aClipAxes, nsRect& aOutRect,
+    nscoord aOutRadii[8]) const {
   // Only 'clip' is handled here (and 'hidden' for table frames, and any
   // non-'visible' value for blocks in a paginated context).
   // We allow 'clip' to apply to any kind of frame. This is required by
   // comboboxes which make their display text (an inline frame) have clipping.
+  const auto* disp = StyleDisplay();
   MOZ_ASSERT(!aClipAxes.isEmpty());
-  MOZ_ASSERT(aFrame->ShouldApplyOverflowClipping(aFrame->StyleDisplay()) ==
-             aClipAxes);
-
-  nsRect clipRect;
-  bool haveRadii = false;
-  nscoord radii[8];
-  auto* disp = aFrame->StyleDisplay();
+  MOZ_ASSERT(ShouldApplyOverflowClipping(disp) == aClipAxes);
   // Only deflate the padding if we clip to the content-box in that axis.
-  auto wm = aFrame->GetWritingMode();
+  auto wm = GetWritingMode();
   bool cbH = (wm.IsVertical() ? disp->mOverflowClipBoxBlock
                               : disp->mOverflowClipBoxInline) ==
              StyleOverflowClipBox::ContentBox;
@@ -2813,7 +2818,7 @@ static void ApplyOverflowClipping(
                               : disp->mOverflowClipBoxBlock) ==
              StyleOverflowClipBox::ContentBox;
 
-  nsMargin boxMargin = -aFrame->GetUsedPadding();
+  nsMargin boxMargin = -GetUsedPadding();
   if (!cbH) {
     boxMargin.left = boxMargin.right = nscoord(0);
   }
@@ -2821,33 +2826,30 @@ static void ApplyOverflowClipping(
     boxMargin.top = boxMargin.bottom = nscoord(0);
   }
 
-  auto clipMargin = aFrame->OverflowClipMargin(aClipAxes);
+  auto clipMargin = OverflowClipMargin(aClipAxes);
 
-  boxMargin -= aFrame->GetUsedBorder();
+  boxMargin -= GetUsedBorder();
   boxMargin += nsMargin(clipMargin.height, clipMargin.width, clipMargin.height,
                         clipMargin.width);
-  boxMargin.ApplySkipSides(aFrame->GetSkipSides());
+  boxMargin.ApplySkipSides(GetSkipSides());
 
-  nsRect rect(nsPoint(0, 0), aFrame->GetSize());
-  rect.Inflate(boxMargin);
+  aOutRect = nsRect(nsPoint(), GetSize());
+  aOutRect.Inflate(boxMargin);
   if (MOZ_UNLIKELY(!aClipAxes.contains(PhysicalAxis::Horizontal))) {
     // NOTE(mats) We shouldn't be clipping at all in this dimension really,
     // but clipping in just one axis isn't supported by our GFX APIs so we
     // clip to our visual overflow rect instead.
-    nsRect o = aFrame->InkOverflowRect();
-    rect.x = o.x;
-    rect.width = o.width;
+    nsRect o = InkOverflowRect();
+    aOutRect.x = o.x;
+    aOutRect.width = o.width;
   }
   if (MOZ_UNLIKELY(!aClipAxes.contains(PhysicalAxis::Vertical))) {
     // See the note above.
-    nsRect o = aFrame->InkOverflowRect();
-    rect.y = o.y;
-    rect.height = o.height;
+    nsRect o = InkOverflowRect();
+    aOutRect.y = o.y;
+    aOutRect.height = o.height;
   }
-  clipRect = rect + aBuilder->ToReferenceFrame(aFrame);
-  haveRadii = aFrame->GetBoxBorderRadii(radii, boxMargin);
-  aClipState.ClipContainingBlockDescendantsExtra(clipRect,
-                                                 haveRadii ? radii : nullptr);
+  return GetBoxBorderRadii(aOutRadii, boxMargin);
 }
 
 nsSize nsIFrame::OverflowClipMargin(PhysicalAxes aClipAxes) const {
@@ -2889,15 +2891,17 @@ static bool BuilderHasScrolledClip(nsDisplayListBuilder* aBuilder) {
 
 class AutoTrackStackingContextBits {
   nsDisplayListBuilder& mBuilder;
-  StackingContextBits mSavedBits;
+  StackingContextBits mBitsToSet;
 
  public:
   explicit AutoTrackStackingContextBits(nsDisplayListBuilder& aBuilder)
-      : mBuilder(aBuilder), mSavedBits(aBuilder.GetStackingContextBits()) {}
+      : mBuilder(aBuilder), mBitsToSet(aBuilder.GetStackingContextBits()) {}
 
   ~AutoTrackStackingContextBits() {
-    mBuilder.SetStackingContextBits(mSavedBits);
+    mBuilder.SetStackingContextBits(mBitsToSet);
   }
+
+  void AddToParent(StackingContextBits aBits) { mBitsToSet |= aBits; }
 };
 
 static bool IsFrameOrAncestorApzAware(nsIFrame* aFrame) {
@@ -3208,12 +3212,9 @@ void nsIFrame::BuildDisplayListForStackingContext(
   // Elements with a view-transition name also form a backdrop-root.
   // See https://www.w3.org/TR/css-view-transitions-1/#named-and-transitioning
   // and https://github.com/w3c/csswg-drafts/issues/11772
-  bool hasViewTransitionName = style.StyleUIReset()->HasViewTransitionName() &&
-                               !style.IsRootElementStyle();
-
-  bool addBackdropRoot =
-      (disp->mWillChange.bits & StyleWillChangeBits::BACKDROP_ROOT) ||
-      hasViewTransitionName;
+  const bool hasViewTransitionName =
+      style.StyleUIReset()->HasViewTransitionName() &&
+      !style.IsRootElementStyle();
 
   if (aBuilder->IsForPainting() && disp->mWillChange.bits) {
     aBuilder->AddToWillChangeBudget(this, GetSize());
@@ -3262,23 +3263,7 @@ void nsIFrame::BuildDisplayListForStackingContext(
     }
   }
 
-  const bool useBlendMode = effects->mMixBlendMode != StyleBlend::Normal;
-  if (useBlendMode) {
-    aBuilder->AddStackingContextBits(StackingContextBits::ContainsMixBlendMode);
-  }
-
-  // NOTE: When changing this condition make sure to tweak ScrollContainerFrame
-  // as well.
-  const bool usingBackdropFilter = effects->HasBackdropFilters() &&
-                                   IsVisibleForPainting() &&
-                                   !style.IsRootElementStyle();
-
-  if (usingBackdropFilter) {
-    aBuilder->AddStackingContextBits(
-        StackingContextBits::ContainsBackdropFilter);
-  }
-
-  AutoTrackStackingContextBits autoRestoreStackingContextBits(*aBuilder);
+  AutoTrackStackingContextBits stackingContextTracker(*aBuilder);
   aBuilder->ClearStackingContextBits();
 
   nsRect visibleRectOutsideTransform = visibleRect;
@@ -3614,6 +3599,37 @@ void nsIFrame::BuildDisplayListForStackingContext(
   const ActiveScrolledRoot* containerItemASR = contASRTracker.GetContainerASR();
 
   bool createdContainer = false;
+  const StackingContextBits localIsolationReasons = [&] {
+    auto reasons = StackingContextBits::None;
+    if (!GetParent()) {
+      // We don't need to isolate the root frame.
+      return reasons;
+    }
+    if ((disp->mWillChange.bits & StyleWillChangeBits::BACKDROP_ROOT) ||
+        hasViewTransitionName) {
+      reasons |= StackingContextBits::ContainsBackdropFilter;
+    }
+    if (!combines3DTransformWithAncestors) {
+      reasons |= StackingContextBits::MayContainNonIsolated3DTransform;
+    }
+    return reasons;
+  }();
+
+  StackingContextBits currentIsolationReasons =
+      localIsolationReasons & aBuilder->GetStackingContextBits();
+  bool isolated = false;
+  auto MarkAsIsolated = [&] {
+    isolated = true;
+    currentIsolationReasons = StackingContextBits::None;
+  };
+  auto ShouldForceIsolation = [&] {
+    if (localIsolationReasons == StackingContextBits::None) {
+      return false;
+    }
+    bool force = currentIsolationReasons != StackingContextBits::None;
+    MarkAsIsolated();
+    return force;
+  };
 
   // If adding both a nsDisplayBlendContainer and a nsDisplayBlendMode to the
   // same list, the nsDisplayBlendContainer should be added first. This only
@@ -3625,16 +3641,23 @@ void nsIFrame::BuildDisplayListForStackingContext(
     resultList.AppendToTop(nsDisplayBlendContainer::CreateForMixBlendMode(
         aBuilder, this, &resultList, containerItemASR));
     createdContainer = true;
-    addBackdropRoot = false;
+    MarkAsIsolated();
   }
 
+  // NOTE: When changing this condition make sure to tweak ScrollContainerFrame
+  // as well.
+  const bool usingBackdropFilter = effects->HasBackdropFilters() &&
+                                   IsVisibleForPainting() &&
+                                   !style.IsRootElementStyle();
   if (usingBackdropFilter) {
+    stackingContextTracker.AddToParent(
+        StackingContextBits::ContainsBackdropFilter);
     nsRect backdropRect =
         GetRectRelativeToSelf() + aBuilder->ToReferenceFrame(this);
     resultList.AppendNewToTop<nsDisplayBackdropFilters>(
         aBuilder, this, &resultList, backdropRect, this);
     createdContainer = true;
-    addBackdropRoot = false;
+    MarkAsIsolated();
   }
 
   // If there are any SVG effects, wrap the list up in an SVG effects item
@@ -3676,7 +3699,7 @@ void nsIFrame::BuildDisplayListForStackingContext(
       resultList.AppendNewToTop<nsDisplayMasksAndClipPaths>(
           aBuilder, this, &resultList, maskASR, usingBackdropFilter);
       createdContainer = true;
-      addBackdropRoot = false;
+      MarkAsIsolated();
     }
 
     // TODO(miko): We could probably create a wraplist here and avoid creating
@@ -3696,10 +3719,8 @@ void nsIFrame::BuildDisplayListForStackingContext(
         nsDisplayOpacity::NeedsActiveLayer(aBuilder, this);
     resultList.AppendNewToTop<nsDisplayOpacity>(
         aBuilder, this, &resultList, containerItemASR, opacityItemForEventsOnly,
-        needsActiveOpacityLayer, usingBackdropFilter,
-        addBackdropRoot && aBuilder->ContainsBackdropFilter());
+        needsActiveOpacityLayer, usingBackdropFilter, ShouldForceIsolation());
     createdContainer = true;
-    addBackdropRoot = false;
   }
 
   // If we're going to apply a transformation and don't have preserve-3d set,
@@ -3751,7 +3772,7 @@ void nsIFrame::BuildDisplayListForStackingContext(
 
       if (separator) {
         createdContainer = true;
-        addBackdropRoot = false;
+        MarkAsIsolated();
       }
 
       resultList.AppendToTop(&participants);
@@ -3797,7 +3818,7 @@ void nsIFrame::BuildDisplayListForStackingContext(
 
     nsDisplayTransform* transformItem = MakeDisplayItem<nsDisplayTransform>(
         aBuilder, this, &resultList, visibleRect, prerenderInfo.mDecision,
-        usingBackdropFilter);
+        usingBackdropFilter, ShouldForceIsolation());
     if (transformItem) {
       resultList.AppendToTop(transformItem);
       createdContainer = true;
@@ -3816,6 +3837,16 @@ void nsIFrame::BuildDisplayListForStackingContext(
         resultList.AppendNewToTop<nsDisplayPerspective>(aBuilder, this,
                                                         &resultList);
         createdContainer = true;
+      }
+
+      // TODO(emilio): Ideally should also isolate when the transform is
+      // potentially animated (prerenderInfo.mHasAnimations), but that causes a
+      // lot of fuzz on Windows due to text antialiasing.
+      const bool hasMaybe3dTransform =
+          hasPerspective || !transformItem->GetTransform().Is2D();
+      if (hasMaybe3dTransform) {
+        stackingContextTracker.AddToParent(
+            StackingContextBits::MayContainNonIsolated3DTransform);
       }
     }
     if (clipCapturedBy ==
@@ -3847,7 +3878,8 @@ void nsIFrame::BuildDisplayListForStackingContext(
     const ActiveScrolledRoot* fixedASR = ActiveScrolledRoot::PickAncestor(
         containerItemASR, aBuilder->CurrentActiveScrolledRoot());
     resultList.AppendNewToTop<nsDisplayFixedPosition>(
-        aBuilder, this, &resultList, fixedASR, containerItemASR);
+        aBuilder, this, &resultList, fixedASR, containerItemASR,
+        ShouldForceIsolation());
     createdContainer = true;
   } else if (useStickyPosition && !capturedByViewTransition) {
     // For position:sticky, the clip needs to be applied both to the sticky
@@ -3871,15 +3903,9 @@ void nsIFrame::BuildDisplayListForStackingContext(
         aBuilder->CurrentActiveScrolledRoot(),
         clipState.IsClippedToDisplayPort());
 
-    bool shouldFlatten = true;
-
-    StickyScrollContainer* stickyScrollContainer =
-        StickyScrollContainer::GetStickyScrollContainerForFrame(this);
-    if (stickyScrollContainer && stickyScrollContainer->ScrollContainer()
-                                     ->IsMaybeAsynchronouslyScrolled()) {
-      shouldFlatten = false;
-    }
-
+    auto* ssc = StickyScrollContainer::GetOrCreateForFrame(this);
+    const bool shouldFlatten =
+        !ssc || !ssc->ScrollContainer()->IsMaybeAsynchronouslyScrolled();
     stickyItem->SetShouldFlatten(shouldFlatten);
 
     resultList.AppendToTop(stickyItem);
@@ -3897,19 +3923,21 @@ void nsIFrame::BuildDisplayListForStackingContext(
   // If there's blending, wrap up the list in a blend-mode item. Note that
   // opacity can be applied before blending as the blend color is not affected
   // by foreground opacity (only background alpha).
-  if (useBlendMode) {
-    DisplayListClipState::AutoSaveRestore blendModeClipState(aBuilder);
+  if (effects->mMixBlendMode != StyleBlend::Normal) {
+    stackingContextTracker.AddToParent(
+        StackingContextBits::ContainsMixBlendMode);
     resultList.AppendNewToTop<nsDisplayBlendMode>(aBuilder, this, &resultList,
                                                   effects->mMixBlendMode,
                                                   containerItemASR, false);
     createdContainer = true;
+    MarkAsIsolated();
   }
 
   if (capturedByViewTransition) {
     resultList.AppendNewToTop<nsDisplayViewTransitionCapture>(
         aBuilder, this, &resultList, nullptr, /* aIsRoot = */ false);
     createdContainer = true;
-    addBackdropRoot = false;
+    MarkAsIsolated();
     // We don't want the capture to be clipped, so we do this _after_ building
     // the wrapping item.
     if (clipCapturedBy == ContainerItemType::ViewTransitionCapture) {
@@ -3917,11 +3945,15 @@ void nsIFrame::BuildDisplayListForStackingContext(
     }
   }
 
-  if (addBackdropRoot) {
-    resultList.AppendToTop(nsDisplayBlendContainer::CreateForBackdropRoot(
-        aBuilder, this, &resultList, containerItemASR,
-        /* aNeedsBackdropRoot = */ aBuilder->ContainsBackdropFilter()));
+  if (!isolated && localIsolationReasons != StackingContextBits::None) {
+    resultList.AppendToTop(nsDisplayBlendContainer::CreateForIsolation(
+        aBuilder, this, &resultList, containerItemASR, ShouldForceIsolation()));
     createdContainer = true;
+  }
+
+  if (!isolated && aBuilder->MayContainNonIsolated3DTransform()) {
+    stackingContextTracker.AddToParent(
+        StackingContextBits::MayContainNonIsolated3DTransform);
   }
 
   if (aBuilder->IsReusingStackingContextItems()) {
@@ -12227,6 +12259,7 @@ PhysicalAxes nsIFrame::ShouldApplyOverflowClipping(
       case LayoutFrameType::SVGSymbol:
       case LayoutFrameType::Table:
       case LayoutFrameType::TableCell:
+      case LayoutFrameType::Image:
         return kPhysicalAxesBoth;
       case LayoutFrameType::TextInput:
         // It has an anonymous scroll container frame that handles any overflow.

@@ -14,6 +14,7 @@ import androidx.lifecycle.Lifecycle.State.RESUMED
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.NavController
+import androidx.navigation.NavOptions
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -214,6 +215,7 @@ class BrowserToolbarSearchMiddleware(
                 appStore.dispatch(SearchEngineSelected(action.searchEngine, true))
                 appStore.dispatch(SearchStarted())
                 refreshConfigurationAfterSearchEngineChange(context, action.searchEngine)
+                updateSearchEndPageActions(context) // to update the visibility of the qr scanner button
             }
 
             is UrlSuggestionAutocompleted -> {
@@ -459,7 +461,7 @@ class BrowserToolbarSearchMiddleware(
         val isValidSearchEngine = selectedSearchEngine?.isGeneral == true ||
                 selectedSearchEngine?.type == CUSTOM
 
-        if (isSpeechRecognitionAvailable()) {
+        if (settings.shouldShowVoiceSearch && isSpeechRecognitionAvailable()) {
             add(
                 ActionButtonRes(
                     drawableResId = iconsR.drawable.mozac_ic_microphone_24,
@@ -495,17 +497,29 @@ class BrowserToolbarSearchMiddleware(
             distinctUntilChangedBy { it.qrScannerState.lastScanData }
                 .collect {
                     if (it.qrScannerState.lastScanData?.isNotEmpty() == true) {
+                        observeQRScannerInputJob?.cancel()
+
                         appStore.dispatch(AppAction.QrScannerAction.QrScannerInputConsumed)
                         context.dispatch(SearchQueryUpdated(it.qrScannerState.lastScanData))
-                        context.dispatch(SearchQueryUpdated(it.qrScannerState.lastScanData, false))
                         components.useCases.fenixBrowserUseCases.loadUrlOrSearch(
                             searchTermOrURL = it.qrScannerState.lastScanData,
                             newTab = appStore.state.searchState.sourceTabId == null,
                             flags = EngineSession.LoadUrlFlags.external(),
                             private = false,
                         )
-                        environment?.navController?.navigate(R.id.browserFragment)
-                        observeQRScannerInputJob?.cancel()
+                        environment?.navController?.navigate(
+                            resId = R.id.browserFragment,
+                            args = null,
+                            navOptions = when (environment?.navController?.currentDestination?.id) {
+                                R.id.historyFragment,
+                                R.id.bookmarkFragment,
+                                    -> NavOptions.Builder()
+                                        .setPopUpTo(R.id.browserFragment, true)
+                                        .build()
+
+                                else -> null
+                            },
+                        )
                     }
                 }
         }

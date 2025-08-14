@@ -551,6 +551,7 @@ class Longhand(Property):
             "SVGStrokeDashArray",
             "SVGWidth",
             "TextDecorationLength",
+            "TextDecorationTrim",
             "TextIndent",
             "WordSpacing",
         }
@@ -652,6 +653,7 @@ class Longhand(Property):
                 "ScrollSnapType",
                 "TextAlign",
                 "TextAlignLast",
+                "TextAutospace",
                 "TextDecorationLine",
                 "TextEmphasisPosition",
                 "TextJustify",

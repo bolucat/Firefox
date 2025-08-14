@@ -11,10 +11,10 @@ use crate::values::computed::text::TextEmphasisStyle as ComputedTextEmphasisStyl
 use crate::values::computed::{Context, ToComputedValue};
 use crate::values::generics::text::{
     GenericHyphenateLimitChars, GenericInitialLetter, GenericTextDecorationLength,
-    GenericTextIndent,
+    GenericTextDecorationTrim, GenericTextIndent,
 };
 use crate::values::generics::NumberOrAuto;
-use crate::values::specified::length::LengthPercentage;
+use crate::values::specified::length::{Length, LengthPercentage};
 use crate::values::specified::{AllowQuirks, Integer, Number};
 use crate::Zero;
 use cssparser::Parser;
@@ -1052,6 +1052,38 @@ impl TextDecorationLength {
     }
 }
 
+/// Implements type for `text-decoration-trim` property
+pub type TextDecorationTrim = GenericTextDecorationTrim<Length>;
+
+impl TextDecorationTrim {
+    /// `Auto` value.
+    #[inline]
+    pub fn auto() -> Self {
+        GenericTextDecorationTrim::Auto
+    }
+
+    /// Whether this is the `Auto` value.
+    #[inline]
+    pub fn is_auto(&self) -> bool {
+        matches!(*self, GenericTextDecorationTrim::Auto)
+    }
+}
+
+impl Parse for TextDecorationTrim {
+    fn parse<'i, 't>(
+        ctx: &ParserContext,
+        input: &mut Parser<'i, 't>,
+    ) -> Result<Self, ParseError<'i>> {
+        if let Ok(start) = input.try_parse(|i| Length::parse(ctx, i)) {
+            let end = input.try_parse(|i| Length::parse(ctx, i));
+            let end = end.unwrap_or_else(|_| start.clone());
+            return Ok(TextDecorationTrim::Length{start, end});
+        }
+        input.expect_ident_matching("auto")?;
+        Ok(TextDecorationTrim::Auto)
+    }
+}
+
 #[derive(
     Clone,
     Copy,
@@ -1201,3 +1233,77 @@ impl SpecifiedValueInfo for RubyPosition {
         f(&["alternate", "over", "under"])
     }
 }
+
+/// Specified value for the text-autospace property
+/// which takes the grammar:
+///     normal | <autospace> | auto
+/// where:
+///     <autospace> = no-autospace |
+///                   [ ideograph-alpha || ideograph-numeric || punctuation ]
+///                   || [ insert | replace ]
+///
+/// https://drafts.csswg.org/css-text-4/#text-autospace-property
+///
+/// Bug 1980111: 'replace' value is not supported yet.
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    MallocSizeOf,
+    Parse,
+    PartialEq,
+    Serialize,
+    SpecifiedValueInfo,
+    ToCss,
+    ToComputedValue,
+    ToResolvedValue,
+    ToShmem,
+)]
+#[css(bitflags(
+    single = "normal,auto,no-autospace",
+    // Bug 1980111: add 'replace' to 'mixed' in the future so that it parses correctly.
+    mixed = "ideograph-alpha,ideograph-numeric,punctuation,insert",
+    // Bug 1980111: Uncomment 'validate_mixed' to support 'replace' value.
+    // validate_mixed = "Self::validate_mixed_flags",
+))]
+#[repr(C)]
+pub struct TextAutospace(u8);
+bitflags! {
+    impl TextAutospace: u8 {
+        /// Same behavior as ideograph-alpha ideograph-numeric.
+        const NORMAL = 0;
+
+        /// The user agent chooses a set of typographically high quality spacing values.
+        const AUTO = 1 << 0;
+
+        /// No automatic space is inserted.
+        const NO_AUTOSPACE = 1 << 1;
+
+        /// 1/8ic space between ideographic characters and non-ideographic letters.
+        const IDEOGRAPH_ALPHA = 1 << 2;
+
+        /// 1/8ic space between ideographic characters and non-ideographic decimal numerals.
+        const IDEOGRAPH_NUMERIC = 1 << 3;
+
+        /// Apply special spacing between letters and punctuation (French).
+        const PUNCTUATION = 1 << 4;
+
+        /// Auto-spacing is only inserted if no space character is present in the text.
+        const INSERT = 1 << 5;
+
+        /* Bug 1980111: Uncomment the following to support 'replace' value.
+        /// Auto-spacing may replace an existing U+0020 space with custom space.
+        const REPLACE = 1 << 6;
+        */
+    }
+}
+
+/* Bug 1980111: Uncomment the following to support 'replace' value.
+impl TextAutospace {
+    fn validate_mixed_flags(&self) -> bool {
+        // It's not valid to have both INSERT and REPLACE set.
+        !self.contains(TextAutospace::INSERT | TextAutospace::REPLACE)
+    }
+}
+*/

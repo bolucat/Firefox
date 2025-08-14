@@ -31,7 +31,7 @@ class ReviewPromptMiddlewareTest {
         middlewares = listOf(
             ReviewPromptMiddleware(
                 settings = settings,
-                {
+                createJexlHelper = {
                     object : NimbusMessagingHelperInterface {
                         override fun evalJexl(expression: String) = assertUnused()
                         override fun getUuid(template: String) = assertUnused()
@@ -208,25 +208,57 @@ class ReviewPromptMiddlewareTest {
     }
 
     @Test
+    fun `WHEN evalJexl returns false THEN createdAtLeastOneBookmark returns false`() {
+        val jexlHelper = FakeNimbusMessagingHelperInterface(false)
+
+        val result = createdAtLeastOneBookmark(jexlHelper)
+
+        assertEquals(jexlHelper.evalJexlValue, result)
+    }
+
+    @Test
+    fun `WHEN evalJexl returns true THEN createdAtLeastOneBookmark returns true`() {
+        val jexlHelper = FakeNimbusMessagingHelperInterface(true)
+
+        val result = createdAtLeastOneBookmark(jexlHelper)
+
+        assertEquals(jexlHelper.evalJexlValue, result)
+    }
+
+    @Test
     fun `WHEN evalJexl returns false THEN isDefaultBrowserTrigger returns false`() {
-        val fakeNimbusMessagingHelperInterfaceFalse = FakeNimbusMessagingHelperInterface(false)
-        val jexlHelper = fakeNimbusMessagingHelperInterfaceFalse.fakeJexlHelper
+        val jexlHelper = FakeNimbusMessagingHelperInterface(false)
 
-        isDefaultBrowserTrigger(jexlHelper)
+        val result = isDefaultBrowserTrigger(jexlHelper)
 
-        // We are not testing the internals of the evalJexl function so the expression is redundant.
-        assertFalse(jexlHelper.evalJexl(""))
+        assertFalse(result)
     }
 
     @Test
     fun `WHEN evalJexl returns true THEN isDefaultBrowserTrigger returns true`() {
-        val fakeNimbusMessagingHelperInterfaceFalse = FakeNimbusMessagingHelperInterface(true)
-        val jexlHelper = fakeNimbusMessagingHelperInterfaceFalse.fakeJexlHelper
+        val jexlHelper = FakeNimbusMessagingHelperInterface(true)
 
-        isDefaultBrowserTrigger(jexlHelper)
+        val result = isDefaultBrowserTrigger(jexlHelper)
 
-        // We are not testing the internals of the evalJexl function so the expression is redundant.
-        assertTrue(jexlHelper.evalJexl(""))
+        assertTrue(result)
+    }
+
+    @Test
+    fun `WHEN evalJexl returns false THEN usedAppOnAtLeastFourOfLastSevenDaysTrigger returns false`() {
+        val jexlHelper = FakeNimbusMessagingHelperInterface(false)
+
+        val result = usedAppOnAtLeastFourOfLastSevenDaysTrigger(jexlHelper)
+
+        assertFalse(result)
+    }
+
+    @Test
+    fun `WHEN evalJexl returns true THEN usedAppOnAtLeastFourOfLastSevenDaysTrigger returns true`() {
+        val jexlHelper = FakeNimbusMessagingHelperInterface(true)
+
+        val result = usedAppOnAtLeastFourOfLastSevenDaysTrigger(jexlHelper)
+
+        assertTrue(result)
     }
 
     private fun assertNoOp(action: ReviewPromptAction) {
@@ -242,17 +274,17 @@ class ReviewPromptMiddlewareTest {
         )
     }
 
-    private fun assertUnused(): Nothing = throw AssertionError("Expected unused function, but was called here ")
+    private fun assertUnused(): Nothing =
+        throw AssertionError("Expected unused function, but was called here ")
 
     private companion object {
         const val TEST_TIME_NOW = 1598416882805L
     }
 
-    private class FakeNimbusMessagingHelperInterface(evalJexlValue: Boolean) {
-        val fakeJexlHelper = object : NimbusMessagingHelperInterface {
-            override fun evalJexl(expression: String): Boolean = evalJexlValue
-            override fun getUuid(template: String): String? = null
-            override fun stringFormat(template: String, uuid: String?): String = ""
-        }
+    private class FakeNimbusMessagingHelperInterface(val evalJexlValue: Boolean) :
+        NimbusMessagingHelperInterface {
+        override fun evalJexl(expression: String): Boolean = evalJexlValue
+        override fun getUuid(template: String): String? = null
+        override fun stringFormat(template: String, uuid: String?): String = ""
     }
 }

@@ -203,11 +203,11 @@ class JSObject
     return hasFlag(js::ObjectFlag::GenerationCountedGlobal);
   }
 
-  bool hasFuseProperty() const {
-    return hasFlag(js::ObjectFlag::HasFuseProperty);
+  bool hasRealmFuseProperty() const {
+    return hasFlag(js::ObjectFlag::HasRealmFuseProperty);
   }
-  static bool setHasFuseProperty(JSContext* cx, JS::HandleObject obj) {
-    return setFlag(cx, obj, js::ObjectFlag::HasFuseProperty);
+  static bool setHasRealmFuseProperty(JSContext* cx, JS::HandleObject obj) {
+    return setFlag(cx, obj, js::ObjectFlag::HasRealmFuseProperty);
   }
 
   bool hasNonFunctionAccessor() const {
@@ -216,6 +216,8 @@ class JSObject
   static bool setHasNonFunctionAccessor(JSContext* cx, JS::HandleObject obj) {
     return setFlag(cx, obj, js::ObjectFlag::HasNonFunctionAccessor);
   }
+
+  bool hasObjectFuse() const { return hasFlag(js::ObjectFlag::HasObjectFuse); }
 
   // A "qualified" varobj is the object on which "qualified" variable
   // declarations (i.e., those defined with "var") are kept.

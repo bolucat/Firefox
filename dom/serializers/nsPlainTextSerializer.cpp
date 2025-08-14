@@ -21,6 +21,7 @@
 #include "mozilla/TextEditor.h"
 #include "mozilla/dom/AbstractRange.h"
 #include "mozilla/dom/CharacterData.h"
+#include "mozilla/dom/CharacterDataBuffer.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/HTMLBRElement.h"
 #include "mozilla/dom/Text.h"
@@ -34,7 +35,6 @@
 #include "nsNameSpaceManager.h"
 #include "nsPrintfCString.h"
 #include "nsReadableUtils.h"
-#include "nsTextFragment.h"
 #include "nsUnicharUtils.h"
 #include "nsUnicodeProperties.h"
 
@@ -419,12 +419,12 @@ nsPlainTextSerializer::AppendText(nsIContent* aText, int32_t aStartOffset,
   nsresult rv = NS_OK;
 
   nsIContent* content = aText;
-  const nsTextFragment* frag;
-  if (!content || !(frag = content->GetText())) {
+  const CharacterDataBuffer* characterDataBuffer = nullptr;
+  if (!content || !(characterDataBuffer = content->GetCharacterDataBuffer())) {
     return NS_ERROR_FAILURE;
   }
 
-  int32_t fragLength = frag->GetLength();
+  int32_t fragLength = characterDataBuffer->GetLength();
   int32_t endoffset =
       (aEndOffset == -1) ? fragLength : std::min(aEndOffset, fragLength);
   NS_ASSERTION(aStartOffset <= endoffset,
@@ -436,11 +436,11 @@ nsPlainTextSerializer::AppendText(nsIContent* aText, int32_t aStartOffset,
   }
 
   nsAutoString textstr;
-  if (frag->Is2b()) {
-    textstr.Assign(frag->Get2b() + aStartOffset, length);
+  if (characterDataBuffer->Is2b()) {
+    textstr.Assign(characterDataBuffer->Get2b() + aStartOffset, length);
   } else {
     // AssignASCII is for 7-bit character only, so don't use it
-    const char* data = frag->Get1b();
+    const char* data = characterDataBuffer->Get1b();
     CopyASCIItoUTF16(Substring(data + aStartOffset, data + endoffset), textstr);
   }
 

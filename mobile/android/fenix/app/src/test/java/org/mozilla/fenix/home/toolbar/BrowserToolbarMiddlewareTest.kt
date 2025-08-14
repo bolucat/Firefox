@@ -83,7 +83,6 @@ import org.mozilla.fenix.components.appstate.search.SearchState
 import org.mozilla.fenix.components.appstate.search.SelectedSearchEngine
 import org.mozilla.fenix.components.menu.MenuAccessPoint
 import org.mozilla.fenix.components.toolbar.BrowserToolbarEnvironment
-import org.mozilla.fenix.components.toolbar.ToolbarPosition
 import org.mozilla.fenix.components.usecases.FenixBrowserUseCases
 import org.mozilla.fenix.ext.nav
 import org.mozilla.fenix.ext.settings
@@ -98,7 +97,6 @@ import org.mozilla.fenix.home.toolbar.TabCounterInteractions.TabCounterLongClick
 import org.mozilla.fenix.search.fixtures.assertSearchSelectorEquals
 import org.mozilla.fenix.search.fixtures.buildExpectedSearchSelector
 import org.mozilla.fenix.tabstray.Page
-import org.mozilla.fenix.tabstray.TabManagementFeatureHelper
 import org.robolectric.Shadows.shadowOf
 import mozilla.components.ui.icons.R as iconsR
 
@@ -121,6 +119,7 @@ class BrowserToolbarMiddlewareTest {
     fun setup() = runTestOnMain {
         every { testContext.settings().shouldUseExpandedToolbar } returns false
         every { testContext.settings().isTabStripEnabled } returns false
+        every { testContext.settings().tabManagerEnhancementsEnabled } returns false
     }
 
     @Test
@@ -130,16 +129,6 @@ class BrowserToolbarMiddlewareTest {
             browserStore,
             mockk(),
             mockk(),
-            tabManagementFeatureHelper = object : TabManagementFeatureHelper {
-                override val enhancementsEnabledNightly: Boolean
-                    get() = false
-                override val enhancementsEnabledBeta: Boolean
-                    get() = false
-                override val enhancementsEnabledRelease: Boolean
-                    get() = false
-                override val enhancementsEnabled: Boolean
-                    get() = false
-            },
         )
 
         val toolbarStore = buildStore(middleware)
@@ -155,33 +144,42 @@ class BrowserToolbarMiddlewareTest {
     @Test
     fun `WHEN initializing the toolbar AND should use expanded toolbar THEN add browser end actions`() = runTestOnMain {
         every { testContext.settings().shouldUseExpandedToolbar } returns true
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
+        mockkStatic(Context::isTallWindow) {
+            every { any<Context>().isTallWindow() } returns true
+            val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
 
-        val toolbarStore = buildStore(middleware)
+            val toolbarStore = buildStore(middleware)
 
-        val toolbarBrowserActions = toolbarStore.state.displayState.browserActionsEnd
-        assertEquals(0, toolbarBrowserActions.size)
+            val toolbarBrowserActions = toolbarStore.state.displayState.browserActionsEnd
+            assertEquals(0, toolbarBrowserActions.size)
+        }
     }
 
     @Test
     fun `WHEN initializing the navigation bar AND should use expanded toolbar THEN add navigation bar actions`() = runTestOnMain {
         every { testContext.settings().shouldUseExpandedToolbar } returns true
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
+        mockkStatic(Context::isTallWindow) {
+            every { any<Context>().isTallWindow() } returns true
+            val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
 
-        val toolbarStore = buildStore(middleware)
+            val toolbarStore = buildStore(middleware)
 
-        val navigationActions = toolbarStore.state.displayState.navigationActions
-        assertEquals(5, navigationActions.size)
-        val bookmarkButton = navigationActions[0] as ActionButtonRes
-        val shareButton = navigationActions[1] as ActionButtonRes
-        val newTabButton = navigationActions[2] as ActionButtonRes
-        val tabCounterButton = navigationActions[3] as TabCounterAction
-        val menuButton = navigationActions[4] as ActionButtonRes
-        assertEquals(expectedBookmarkButton, bookmarkButton)
-        assertEquals(expectedShareButton, shareButton)
-        assertEquals(expectedNewTabButton(Source.NavigationBar), newTabButton)
-        assertEqualsToolbarButton(expectedToolbarButton(source = Source.NavigationBar), tabCounterButton)
-        assertEquals(expectedMenuButton(Source.NavigationBar), menuButton)
+            val navigationActions = toolbarStore.state.displayState.navigationActions
+            assertEquals(5, navigationActions.size)
+            val bookmarkButton = navigationActions[0] as ActionButtonRes
+            val shareButton = navigationActions[1] as ActionButtonRes
+            val newTabButton = navigationActions[2] as ActionButtonRes
+            val tabCounterButton = navigationActions[3] as TabCounterAction
+            val menuButton = navigationActions[4] as ActionButtonRes
+            assertEquals(expectedBookmarkButton, bookmarkButton)
+            assertEquals(expectedShareButton, shareButton)
+            assertEquals(expectedNewTabButton(Source.NavigationBar), newTabButton)
+            assertEqualsToolbarButton(
+                expectedToolbarButton(source = Source.NavigationBar),
+                tabCounterButton,
+            )
+            assertEquals(expectedMenuButton(Source.NavigationBar), menuButton)
+        }
     }
 
     @Test
@@ -494,7 +492,7 @@ class BrowserToolbarMiddlewareTest {
     fun `GIVEN in normal browsing mode WHEN the page origin is clicked THEN start the search UX for normal browsing`() {
         val browsingModeManager = SimpleBrowsingModeManager(Normal)
         val navController: NavController = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), mockk())
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
         val toolbarStore = buildStore(
             middleware = middleware,
             navController = navController,
@@ -510,7 +508,7 @@ class BrowserToolbarMiddlewareTest {
     fun `GIVEN in private browsing mode WHEN the page origin is clicked THEN start the search UX for private browsing`() {
         val browsingModeManager = SimpleBrowsingModeManager(Private)
         val navController: NavController = mockk(relaxed = true)
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), mockk())
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
         val toolbarStore = buildStore(
             middleware = middleware,
             navController = navController,
@@ -605,7 +603,7 @@ class BrowserToolbarMiddlewareTest {
                 ),
             ),
         )
-        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk(), mockk())
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
         val toolbarStore = buildStore(middleware)
 
         browserStore.dispatch(ApplicationSearchEnginesLoaded(listOf(otherSearchEngine))).joinBlocking()

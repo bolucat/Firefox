@@ -12,6 +12,7 @@
 #include "CompilationInfo.h"
 #include "ComputePipeline.h"
 #include "DeviceLostInfo.h"
+#include "ExternalTexture.h"
 #include "InternalError.h"
 #include "OutOfMemoryError.h"
 #include "PipelineLayout.h"
@@ -35,6 +36,7 @@
 #include "mozilla/RefPtr.h"
 #include "mozilla/dom/Console.h"
 #include "mozilla/dom/Promise.h"
+#include "mozilla/dom/VideoFrame.h"
 #include "mozilla/dom/WebGPUBinding.h"
 #include "nsGlobalWindowInner.h"
 
@@ -193,6 +195,47 @@ already_AddRefed<Texture> Device::CreateTexture(
   RefPtr<Texture> texture = new Texture(this, id, aDesc);
   texture->SetLabel(aDesc.mLabel);
   return texture.forget();
+}
+
+already_AddRefed<ExternalTexture> Device::ImportExternalTexture(
+    const dom::GPUExternalTextureDescriptor& aDesc, ErrorResult& aRv) {
+  RefPtr<ExternalTexture> externalTexture =
+      mExternalTextureCache.GetOrCreate(this, aDesc, aRv);
+
+  switch (aDesc.mSource.GetType()) {
+    case dom::OwningHTMLVideoElementOrVideoFrame::Type::eHTMLVideoElement: {
+      // Add the texture to the list of textures to be expired in the next
+      // automatic expiry task, scheduling the task if required.
+      // Using RunInStableState ensures it runs after any microtasks that may
+      // be scheduled during the current task.
+      if (mExternalTexturesToExpire.IsEmpty()) {
+        nsContentUtils::RunInStableState(
+            NewRunnableMethod("webgpu::Device::ExpireExternalTextures", this,
+                              &Device::ExpireExternalTextures));
+      }
+      mExternalTexturesToExpire.AppendElement(externalTexture);
+    } break;
+    case dom::OwningHTMLVideoElementOrVideoFrame::Type::eVideoFrame: {
+      // Ensure the VideoFrame knows about the external texture, so that it can
+      // expire it when the VideoFrame is closed.
+      const auto& videoFrame = aDesc.mSource.GetAsVideoFrame();
+      videoFrame->TrackWebGPUExternalTexture(externalTexture.get());
+    } break;
+  }
+
+  return externalTexture.forget();
+}
+
+void Device::ExpireExternalTextures() {
+  MOZ_ASSERT(!mExternalTexturesToExpire.IsEmpty(),
+             "Task should not have been scheduled if there are no external "
+             "textures to expire");
+  for (const auto& weakExternalTexture : mExternalTexturesToExpire) {
+    if (auto* externalTexture = weakExternalTexture.get()) {
+      externalTexture->Expire();
+    }
+  }
+  mExternalTexturesToExpire.Clear();
 }
 
 already_AddRefed<Sampler> Device::CreateSampler(
@@ -427,6 +470,7 @@ already_AddRefed<BindGroup> Device::CreateBindGroup(
     const dom::GPUBindGroupDescriptor& aDesc) {
   nsTArray<ffi::WGPUBindGroupEntry> entries(aDesc.mEntries.Length());
   CanvasContextArray canvasContexts;
+  nsTArray<RefPtr<ExternalTexture>> externalTextures;
   for (const auto& entry : aDesc.mEntries) {
     ffi::WGPUBindGroupEntry e = {};
     e.binding = entry.mBinding;
@@ -466,10 +510,15 @@ already_AddRefed<BindGroup> Device::CreateBindGroup(
       setTextureViewBinding(texture_view);
     } else if (entry.mResource.IsGPUSampler()) {
       e.sampler = entry.mResource.GetAsGPUSampler()->mId;
+    } else if (entry.mResource.IsGPUExternalTexture()) {
+      const RefPtr<ExternalTexture> externalTexture =
+          entry.mResource.GetAsGPUExternalTexture();
+      e.external_texture = externalTexture->mId;
+      externalTextures.AppendElement(externalTexture);
     } else {
-      // Not a buffer, nor a texture view, nor a sampler. If we pass
-      // this to wgpu_client, it'll panic. Log a warning instead and
-      // ignore this entry.
+      // Not a buffer, nor a texture view, nor a sampler, nor an external
+      // texture. If we pass this to wgpu_client, it'll panic. Log a warning
+      // instead and ignore this entry.
       NS_WARNING("Bind group entry has unknown type.");
       continue;
     }
@@ -486,7 +535,8 @@ already_AddRefed<BindGroup> Device::CreateBindGroup(
   RawId id =
       ffi::wgpu_client_create_bind_group(mBridge->GetClient(), mId, &desc);
 
-  RefPtr<BindGroup> object = new BindGroup(this, id, std::move(canvasContexts));
+  RefPtr<BindGroup> object = new BindGroup(this, id, std::move(canvasContexts),
+                                           std::move(externalTextures));
   object->SetLabel(aDesc.mLabel);
 
   return object.forget();
@@ -636,8 +686,7 @@ already_AddRefed<ShaderModule> Device::CreateShaderModule(
   return shaderModule.forget();
 }
 
-RawId CreateComputePipelineImpl(PipelineCreationContext* const aContext,
-                                WebGPUChild* aBridge,
+RawId CreateComputePipelineImpl(RawId deviceId, WebGPUChild* aBridge,
                                 const dom::GPUComputePipelineDescriptor& aDesc,
                                 bool isAsync) {
   ffi::WGPUComputePipelineDescriptor desc = {};
@@ -677,21 +726,13 @@ RawId CreateComputePipelineImpl(PipelineCreationContext* const aContext,
     desc.stage.constants = {constants.Elements(), constants.Length()};
   }
 
-  RawId implicit_bgl_ids[WGPUMAX_BIND_GROUPS] = {};
-  RawId id = ffi::wgpu_client_create_compute_pipeline(
-      aBridge->GetClient(), aContext->mParentId, &desc,
-      &aContext->mImplicitPipelineLayoutId, implicit_bgl_ids, isAsync);
-
-  for (const auto& cur : implicit_bgl_ids) {
-    if (!cur) break;
-    aContext->mImplicitBindGroupLayoutIds.AppendElement(cur);
-  }
+  RawId id = ffi::wgpu_client_create_compute_pipeline(aBridge->GetClient(),
+                                                      deviceId, &desc, isAsync);
 
   return id;
 }
 
-RawId CreateRenderPipelineImpl(PipelineCreationContext* const aContext,
-                               WebGPUChild* aBridge,
+RawId CreateRenderPipelineImpl(RawId deviceId, WebGPUChild* aBridge,
                                const dom::GPURenderPipelineDescriptor& aDesc,
                                bool isAsync) {
   // A bunch of stack locals that we can have pointers into
@@ -846,39 +887,26 @@ RawId CreateRenderPipelineImpl(PipelineCreationContext* const aContext,
     desc.depth_stencil = &depthStencilState;
   }
 
-  RawId implicit_bgl_ids[WGPUMAX_BIND_GROUPS] = {};
-  RawId id = ffi::wgpu_client_create_render_pipeline(
-      aBridge->GetClient(), aContext->mParentId, &desc,
-      &aContext->mImplicitPipelineLayoutId, implicit_bgl_ids, isAsync);
-
-  for (const auto& cur : implicit_bgl_ids) {
-    if (!cur) break;
-    aContext->mImplicitBindGroupLayoutIds.AppendElement(cur);
-  }
+  RawId id = ffi::wgpu_client_create_render_pipeline(aBridge->GetClient(),
+                                                     deviceId, &desc, isAsync);
 
   return id;
 }
 
 already_AddRefed<ComputePipeline> Device::CreateComputePipeline(
     const dom::GPUComputePipelineDescriptor& aDesc) {
-  PipelineCreationContext context = {mId};
-  RawId id = CreateComputePipelineImpl(&context, mBridge, aDesc, false);
+  RawId pipelineId = CreateComputePipelineImpl(mId, mBridge, aDesc, false);
 
-  RefPtr<ComputePipeline> object =
-      new ComputePipeline(this, id, context.mImplicitPipelineLayoutId,
-                          std::move(context.mImplicitBindGroupLayoutIds));
+  RefPtr<ComputePipeline> object = new ComputePipeline(this, pipelineId);
   object->SetLabel(aDesc.mLabel);
   return object.forget();
 }
 
 already_AddRefed<RenderPipeline> Device::CreateRenderPipeline(
     const dom::GPURenderPipelineDescriptor& aDesc) {
-  PipelineCreationContext context = {mId};
-  RawId id = CreateRenderPipelineImpl(&context, mBridge, aDesc, false);
+  RawId pipelineId = CreateRenderPipelineImpl(mId, mBridge, aDesc, false);
 
-  RefPtr<RenderPipeline> object =
-      new RenderPipeline(this, id, context.mImplicitPipelineLayoutId,
-                         std::move(context.mImplicitBindGroupLayoutIds));
+  RefPtr<RenderPipeline> object = new RenderPipeline(this, pipelineId);
   object->SetLabel(aDesc.mLabel);
 
   return object.forget();
@@ -891,21 +919,10 @@ already_AddRefed<dom::Promise> Device::CreateComputePipelineAsync(
     return nullptr;
   }
 
-  std::shared_ptr<PipelineCreationContext> context(
-      new PipelineCreationContext());
-  context->mParentId = mId;
-
-  RawId pipelineId =
-      CreateComputePipelineImpl(context.get(), mBridge, aDesc, true);
+  RawId pipelineId = CreateComputePipelineImpl(mId, mBridge, aDesc, true);
 
   auto pending_promise = WebGPUChild::PendingCreatePipelinePromise{
-      RefPtr(promise),
-      RefPtr(this),
-      false,
-      pipelineId,
-      context->mImplicitPipelineLayoutId,
-      std::move(context->mImplicitBindGroupLayoutIds),
-      aDesc.mLabel};
+      RefPtr(promise), RefPtr(this), false, pipelineId, aDesc.mLabel};
   mBridge->mPendingCreatePipelinePromises.push_back(std::move(pending_promise));
 
   return promise.forget();
@@ -918,21 +935,10 @@ already_AddRefed<dom::Promise> Device::CreateRenderPipelineAsync(
     return nullptr;
   }
 
-  std::shared_ptr<PipelineCreationContext> context(
-      new PipelineCreationContext());
-  context->mParentId = mId;
-
-  RawId pipelineId =
-      CreateRenderPipelineImpl(context.get(), mBridge, aDesc, true);
+  RawId pipelineId = CreateRenderPipelineImpl(mId, mBridge, aDesc, true);
 
   auto pending_promise = WebGPUChild::PendingCreatePipelinePromise{
-      RefPtr(promise),
-      RefPtr(this),
-      true,
-      pipelineId,
-      context->mImplicitPipelineLayoutId,
-      std::move(context->mImplicitBindGroupLayoutIds),
-      aDesc.mLabel};
+      RefPtr(promise), RefPtr(this), true, pipelineId, aDesc.mLabel};
   mBridge->mPendingCreatePipelinePromises.push_back(std::move(pending_promise));
 
   return promise.forget();
