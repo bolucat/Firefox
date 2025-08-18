@@ -369,7 +369,11 @@ pref("browser.warnOnQuit", true);
 
 pref("browser.overlink-delay", 80);
 
-pref("browser.taskbarTabs.enabled", false);
+#if defined(XP_WIN)
+  pref("browser.taskbarTabs.enabled", true);
+#else
+  pref("browser.taskbarTabs.enabled", false);
+#endif
 
 #if defined(MOZ_WIDGET_GTK)
   pref("browser.theme.native-theme", true);
@@ -459,7 +463,6 @@ pref("browser.urlbar.recentsearches.featureGate", true);
 
 // Enable Rich Entities.
 pref("browser.urlbar.richSuggestions.featureGate", true);
-pref("browser.search.param.search_rich_suggestions", "fen");
 
 // Feature gate pref for weather suggestions in the urlbar.
 pref("browser.urlbar.weather.featureGate", false);
@@ -718,19 +721,9 @@ pref("browser.urlbar.yelp.serviceResultDistinction", false);
 pref("browser.urlbar.suggest.yelp", true);
 
 // Feature gate pref for Fakespot suggestions in the urlbar.
+// TODO Bug 1982966: Remove this after all experiments and rollouts using it
+// finish.
 pref("browser.urlbar.fakespot.featureGate", false);
-
-// The minimum prefix length of a Fakespot keyword the user must type to trigger
-// the suggestion. 0 means the min length should be taken from Nimbus.
-pref("browser.urlbar.fakespot.minKeywordLength", 4);
-
-// The index of Fakespot results within the Firefox Suggest section. A negative
-// index is relative to the end of the section.
-pref("browser.urlbar.fakespot.suggestedIndex", -1);
-
-// If `browser.urlbar.fakespot.featureGate` is true, this controls whether
-// Fakespot suggestions are turned on.
-pref("browser.urlbar.suggest.fakespot", true);
 
 // The minimum prefix length of addons keyword the user must type to trigger
 // the suggestion. 0 means the min length should be taken from Nimbus.
@@ -1896,7 +1889,6 @@ pref("browser.newtabpage.activity-stream.discoverystream.titleLines", 3);
 pref("browser.newtabpage.activity-stream.discoverystream.descLines", 3);
 pref("browser.newtabpage.activity-stream.discoverystream.readTime.enabled", true);
 pref("browser.newtabpage.activity-stream.discoverystream.newSponsoredLabel.enabled", false);
-pref("browser.newtabpage.activity-stream.discoverystream.recentSaves.enabled", false);
 pref("browser.newtabpage.activity-stream.discoverystream.spoc-positions", "2,4,8,13,17,20");
 
 // For both spoc and tiles, count corresponds to the matching placement. So the first placement in an array corresponds to the first count.
@@ -2067,6 +2059,8 @@ pref("browser.newtabpage.resource-mapping.log", false);
 // Base URL for the newtab trainhop add-on version xpi downloads.
 pref("browser.newtabpage.trainhopAddon.xpiBaseURL", "https://archive.mozilla.org/pub/system-addons/newtab/");
 
+pref("browser.newtabpage.sponsor-protection.enabled", true);
+
 // Separate about welcome
 pref("browser.aboutwelcome.enabled", true);
 // Used to set multistage welcome UX
@@ -2196,7 +2190,7 @@ pref("browser.ml.linkPreview.noKeyPointsRegions", "AD,AT,BE,BG,CH,CY,CZ,DE,DK,EE
 pref("browser.ml.linkPreview.optin", false);
 pref("browser.ml.linkPreview.outputSentences", 3);
 pref("browser.ml.linkPreview.recentTypingMs", 1000);
-pref("browser.ml.linkPreview.shift", true);
+pref("browser.ml.linkPreview.shift", false);
 pref("browser.ml.linkPreview.shiftAlt", false);
 
 pref("browser.ml.pageAssist.enabled", false);
@@ -2709,8 +2703,6 @@ pref("extensions.pocket.loggedOutVariant", "control");
 
 // Just for the new Pocket panels, enables the email signup button.
 pref("extensions.pocket.refresh.emailButton.enabled", false);
-// Hides the recently saved section in the home panel.
-pref("extensions.pocket.refresh.hideRecentSaves.enabled", false);
 
 // "available"      - user can see feature offer.
 // "offered"        - we have offered feature to user and they have not yet made a decision.

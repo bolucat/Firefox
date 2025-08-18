@@ -133,18 +133,6 @@ newtab-menu-manage-sponsored-content = Manage sponsored content
 newtab-menu-our-sponsors-and-your-privacy = Our sponsors and your privacy
 newtab-menu-report-this-ad = Report this ad
 
-## Message displayed in a modal window to explain privacy and provide context for sponsored content.
-
-newtab-privacy-modal-button-done = Done
-newtab-privacy-modal-button-manage = Manage sponsored content settings
-newtab-privacy-modal-header = Your privacy matters.
-newtab-privacy-modal-paragraph-2 =
-    In addition to dishing up captivating stories, we also show you relevant,
-    highly-vetted content from select sponsors. Rest assured, <strong>your browsing
-    data never leaves your personal copy of { -brand-product-name }</strong> — we don’t see it, and our
-    sponsors don’t either.
-newtab-privacy-modal-link = Learn how privacy works on the new tab
-
 ##
 
 # Bookmark is a noun in this case, "Remove bookmark".
@@ -271,7 +259,6 @@ newtab-custom-row-selector =
 newtab-custom-stories-toggle =
   .label = Recommended stories
   .description = Exceptional content curated by the { -brand-product-name } family
-newtab-custom-pocket-show-recent-saves = Show recent saves
 newtab-custom-weather-toggle =
   .label = Weather
   .description = Today’s forecast at a glance
@@ -591,7 +578,8 @@ newtab-widget-lists-menu-delete = Delete this list
 newtab-widget-lists-menu-copy = Copy list to clipboard
 newtab-widget-lists-menu-hide = Hide all lists
 newtab-widget-lists-menu-learn-more = Learn more
-newtab-widget-lists-input-placeholder = Add an item
+newtab-widget-lists-input-add-an-item =
+    .placeholder = Add an item
 newtab-widget-lists-input-error = Please include text to add an item.
 newtab-widget-lists-input-menu-open-link = Open link
 newtab-widget-lists-input-menu-move-up = Move up
@@ -620,6 +608,8 @@ newtab-widget-timer-menu-notifications = Turn off notifications
 newtab-widget-timer-menu-notifications-on = Turn on notifications
 newtab-widget-timer-menu-hide = Hide timer
 newtab-widget-timer-menu-learn-more = Learn more
+
+newtab-widget-keep-scrolling = Scroll for more
 
 # Strings for the default promo card
 

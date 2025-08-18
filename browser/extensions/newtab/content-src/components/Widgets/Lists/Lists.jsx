@@ -29,7 +29,10 @@ const USER_ACTION_TYPES = {
   TASK_COMPLETE: "task_complete",
 };
 
+const PREF_WIDGETS_LISTS_MAX_LISTS = "widgets.lists.maxLists";
+
 function Lists({ dispatch }) {
+  const prefs = useSelector(state => state.Prefs.values);
   const { selected, lists } = useSelector(state => state.ListsWidget);
   const [newTask, setNewTask] = useState("");
   const [isEditing, setIsEditing] = useState(false);
@@ -462,6 +465,13 @@ function Lists({ dispatch }) {
     );
   }
 
+  // Reset baseline only when switching lists
+  useEffect(() => {
+    prevCompletedCount.current = selectedList?.completed?.length || 0;
+    // intentionally leaving out selectedList from dependency array
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
+
   useEffect(() => {
     if (selectedList) {
       const doneCount = selectedList.completed?.length || 0;
@@ -473,10 +483,22 @@ function Lists({ dispatch }) {
       }
       prevCompletedCount.current = doneCount;
     }
-  }, [selectedList, fireConfetti]);
+  }, [selectedList, fireConfetti, selected]);
 
   if (!lists) {
     return null;
+  }
+
+  // Enforce maximum count limits to lists
+  const currentListsCount = Object.keys(lists).length;
+  let maxListsCount = prefs[PREF_WIDGETS_LISTS_MAX_LISTS];
+
+  function isAtMaxListsLimit() {
+    // Edge case if user sets max limit to `0`
+    if (maxListsCount < 1) {
+      maxListsCount = 1;
+    }
+    return currentListsCount >= maxListsCount;
   }
 
   return (
@@ -501,7 +523,10 @@ function Lists({ dispatch }) {
             ))}
           </moz-select>
         </EditableText>
-        <moz-badge data-l10n-id="newtab-widget-lists-label-beta"></moz-badge>
+        {/* Hide the badge when user is editing task list title */}
+        {!isEditing && (
+          <moz-badge data-l10n-id="newtab-widget-lists-label-new"></moz-badge>
+        )}
         <moz-button
           className="lists-panel-button"
           iconSrc="chrome://global/skin/icons/more.svg"
@@ -514,8 +539,10 @@ function Lists({ dispatch }) {
             onClick={() => setIsEditing(true)}
           ></panel-item>
           <panel-item
+            {...(isAtMaxListsLimit ? { disabled: true } : {})}
             data-l10n-id="newtab-widget-lists-menu-create"
             onClick={() => handleCreateNewList()}
+            className="create-list"
           ></panel-item>
           <panel-item
             data-l10n-id="newtab-widget-lists-menu-delete"
@@ -544,7 +571,7 @@ function Lists({ dispatch }) {
           onBlur={() => saveTask()}
           onChange={e => setNewTask(e.target.value)}
           value={newTask}
-          placeholder="Add a task"
+          data-l10n-id="newtab-widget-lists-input-add-an-item"
           className="add-task-input"
           onKeyDown={handleKeyDown}
           type="text"

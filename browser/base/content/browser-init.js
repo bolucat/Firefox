@@ -755,6 +755,7 @@ var gBrowserInit = {
             : Ci.nsIScriptSecurityManager.DEFAULT_USER_CONTEXT_ID;
 
         let hasValidUserGestureActivation = undefined;
+        let textDirectiveUserActivation = undefined;
         let fromExternal = undefined;
         let globalHistoryOptions = undefined;
         let triggeringRemoteType = undefined;
@@ -773,6 +774,11 @@ var gBrowserInit = {
               "hasValidUserGestureActivation"
             );
           }
+          if (extraOptions.hasKey("textDirectiveUserActivation")) {
+            textDirectiveUserActivation = extraOptions.getPropertyAsBool(
+              "textDirectiveUserActivation"
+            );
+          }
           if (extraOptions.hasKey("fromExternal")) {
             fromExternal = extraOptions.getPropertyAsBool("fromExternal");
           }
@@ -787,6 +793,10 @@ var gBrowserInit = {
                 extraOptions.getPropertyAsUint64(
                   "triggeringSponsoredURLVisitTimeMS"
                 );
+            }
+            if (extraOptions.hasKey("triggeringSource")) {
+              globalHistoryOptions.triggeringSource =
+                extraOptions.getPropertyAsACString("triggeringSource");
             }
           }
           if (extraOptions.hasKey("triggeringRemoteType")) {
@@ -822,6 +832,7 @@ var gBrowserInit = {
             forceAboutBlankViewerInCurrent: !!window.arguments[6],
             forceAllowDataURI,
             hasValidUserGestureActivation,
+            textDirectiveUserActivation,
             fromExternal,
             globalHistoryOptions,
             triggeringRemoteType,

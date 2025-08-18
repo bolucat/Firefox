@@ -112,6 +112,12 @@ function openInWindow(url, params, sourceWindow) {
       params.hasValidUserGestureActivation
     );
   }
+  if (params.textDirectiveUserActivation !== undefined) {
+    extraOptions.setPropertyAsBool(
+      "textDirectiveUserActivation",
+      params.textDirectiveUserActivation
+    );
+  }
   if (forceAllowDataURI) {
     extraOptions.setPropertyAsBool("forceAllowDataURI", true);
   }
@@ -127,6 +133,12 @@ function openInWindow(url, params, sourceWindow) {
       extraOptions.setPropertyAsUint64(
         "triggeringSponsoredURLVisitTimeMS",
         globalHistoryOptions.triggeringSponsoredURLVisitTimeMS
+      );
+    }
+    if (globalHistoryOptions.triggeringSource) {
+      extraOptions.setPropertyAsACString(
+        "triggeringSource",
+        globalHistoryOptions.triggeringSource
       );
     }
   }
@@ -262,6 +274,7 @@ function openInCurrentTab(targetBrowser, url, uriObj, params) {
     postData,
     userContextId,
     hasValidUserGestureActivation,
+    textDirectiveUserActivation,
     globalHistoryOptions,
     triggeringRemoteType,
     schemelessInput,
@@ -275,10 +288,12 @@ function openInCurrentTab(targetBrowser, url, uriObj, params) {
     postData,
     userContextId,
     hasValidUserGestureActivation,
+    textDirectiveUserActivation,
     globalHistoryOptions,
     triggeringRemoteType,
     schemelessInput,
   });
+
   params.resolveOnContentBrowserCreated?.(targetBrowser);
 }
 

@@ -72,7 +72,6 @@ export const INITIAL_STATE = {
     // This is a JSON-parsed copy of the discoverystream.config pref value.
     config: { enabled: false },
     layout: [],
-    isPrivacyInfoModalVisible: false,
     topicsLoading: false,
     feeds: {
       data: {
@@ -103,9 +102,7 @@ export const INITIAL_STATE = {
       utmCampaign: undefined,
       utmContent: undefined,
     },
-    recentSavesData: [],
     isUserLoggedIn: false,
-    recentSavesEnabled: false,
     showTopicSelection: false,
     report: {
       visible: false,
@@ -749,7 +746,6 @@ function DiscoveryStream(prevState = INITIAL_STATE.DiscoveryStream, action) {
     case at.DISCOVERY_STREAM_PREFS_SETUP:
       return {
         ...prevState,
-        recentSavesEnabled: action.data.recentSavesEnabled,
         pocketButtonEnabled: action.data.pocketButtonEnabled,
         hideDescriptions: action.data.hideDescriptions,
         compactImages: action.data.compactImages,
@@ -759,25 +755,14 @@ function DiscoveryStream(prevState = INITIAL_STATE.DiscoveryStream, action) {
         descLines: action.data.descLines,
         readTime: action.data.readTime,
       };
-    case at.DISCOVERY_STREAM_RECENT_SAVES:
-      return {
-        ...prevState,
-        recentSavesData: action.data.recentSaves,
-      };
     case at.DISCOVERY_STREAM_POCKET_STATE_SET:
       return {
         ...prevState,
         isUserLoggedIn: action.data.isUserLoggedIn,
       };
-    case at.HIDE_PRIVACY_INFO:
-      return {
-        ...prevState,
-        isPrivacyInfoModalVisible: false,
-      };
     case at.SHOW_PRIVACY_INFO:
       return {
         ...prevState,
-        isPrivacyInfoModalVisible: true,
       };
     case at.DISCOVERY_STREAM_LAYOUT_RESET:
       return { ...INITIAL_STATE.DiscoveryStream, config: prevState.config };

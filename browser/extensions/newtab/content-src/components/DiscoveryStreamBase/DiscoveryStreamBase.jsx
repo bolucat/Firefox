@@ -6,7 +6,6 @@ import { CardGrid } from "content-src/components/DiscoveryStreamComponents/CardG
 import { CollapsibleSection } from "content-src/components/CollapsibleSection/CollapsibleSection";
 import { connect } from "react-redux";
 import { DSMessage } from "content-src/components/DiscoveryStreamComponents/DSMessage/DSMessage";
-import { DSPrivacyModal } from "content-src/components/DiscoveryStreamComponents/DSPrivacyModal/DSPrivacyModal";
 import { ReportContent } from "../DiscoveryStreamComponents/ReportContent/ReportContent";
 import { DSSignup } from "content-src/components/DiscoveryStreamComponents/DSSignup/DSSignup";
 import { DSTextPromo } from "content-src/components/DiscoveryStreamComponents/DSTextPromo/DSTextPromo";
@@ -175,7 +174,6 @@ export class _DiscoveryStreamBase extends React.PureComponent {
               dispatch={this.props.dispatch}
               type={component.type}
               firstVisibleTimestamp={this.props.firstVisibleTimestamp}
-              is_collection={true}
               ctaButtonSponsors={component.properties.ctaButtonSponsors}
               ctaButtonVariant={component.properties.ctaButtonVariant}
               spocMessageVariant={component.properties.spocMessageVariant}
@@ -199,7 +197,6 @@ export class _DiscoveryStreamBase extends React.PureComponent {
             ctaButtonSponsors={component.properties.ctaButtonSponsors}
             ctaButtonVariant={component.properties.ctaButtonVariant}
             spocMessageVariant={component.properties.spocMessageVariant}
-            recentSavesEnabled={this.props.DiscoveryStream.recentSavesEnabled}
             hideDescriptions={this.props.DiscoveryStream.hideDescriptions}
             firstVisibleTimestamp={this.props.firstVisibleTimestamp}
             spocPositions={component.spocs?.positions}
@@ -311,10 +308,6 @@ export class _DiscoveryStreamBase extends React.PureComponent {
 
     return (
       <React.Fragment>
-        {this.props.DiscoveryStream.isPrivacyInfoModalVisible && (
-          <DSPrivacyModal dispatch={this.props.dispatch} />
-        )}
-
         {/* Reporting stories/articles will only be available in sections, not the default card grid  */}
         {((reportAdsEnabled && spocsEnabled) || sectionsEnabled) && (
           <ReportContent spocs={DiscoveryStream.spocs} />

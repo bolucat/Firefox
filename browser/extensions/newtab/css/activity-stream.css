@@ -4249,9 +4249,46 @@ main section {
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 .discovery-stream.ds-layout.ds-layout-widgets {
   margin-inline: 0;
   margin-block-end: var(--space-xlarge);
+}
+
+.widgets-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.widgets-wrapper .widgets-scroll-message {
+  color: var(--newtab-text-primary-color);
+  position: absolute;
+  bottom: calc(var(--space-xxlarge) * -2);
+  animation: fade-in 0.25s ease-out 0.7s both;
+  border-radius: var(--button-border-radius);
+  background: var(--button-background-color);
+  padding: var(--space-small) var(--space-xlarge);
+}
+.lightWallpaper .widgets-wrapper .widgets-scroll-message {
+  color-scheme: light;
+}
+.darkWallpaper .widgets-wrapper .widgets-scroll-message {
+  color-scheme: dark;
+}
+.widgets-wrapper .widgets-scroll-message p {
+  margin: 0;
+  font-weight: var(--font-weight-bold);
 }
 
 .widgets-container:has(.lists), .widgets-container:has(.focus-timer) {
@@ -4345,7 +4382,7 @@ main section {
   padding: 0 var(--space-medium);
   margin: 0 var(--space-xsmall);
   border: none;
-  overflow-y: scroll;
+  overflow-y: auto;
   max-height: 165px;
 }
 .lists .task-item {
@@ -4417,6 +4454,7 @@ main section {
 .lists .empty-list-text {
   height: var(--space-xlarge);
   color: var(--text-color-deemphasized);
+  font-size: var(--font-size-small);
 }
 .lists .completed-task-wrapper summary {
   list-style: none;
@@ -4749,11 +4787,6 @@ main section {
 .ds-card-grid.ad-sizing-variant-a, .ds-card-grid.ad-sizing-variant-b {
   row-gap: var(--space-xlarge);
   column-gap: var(--space-large);
-}
-@media (min-width: 610px) and (max-width: 866px) {
-  .ds-card-grid.ds-card-grid-recent-saves .ds-card:last-child:nth-child(2n-1) {
-    display: none;
-  }
 }
 .ds-card-grid .ds-card-link:focus {
   border: 0;
@@ -8075,44 +8108,6 @@ main section {
     margin-block-start: 0;
     display: inline;
   }
-}
-
-.ds-privacy-modal .modal-link {
-  display: flex;
-  align-items: center;
-  margin: 0 0 var(--space-small);
-  border: 0;
-  padding: 0;
-  color: var(--newtab-primary-action-background);
-  width: max-content;
-}
-.ds-privacy-modal .modal-link:hover {
-  text-decoration: underline;
-  cursor: pointer;
-}
-.ds-privacy-modal .modal-link::before {
-  -moz-context-properties: fill;
-  fill: var(--newtab-primary-action-background);
-  content: "";
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  margin: 0;
-  margin-inline-end: var(--space-small);
-  background-position: center center;
-  background-repeat: no-repeat;
-  background-size: 16px;
-}
-.ds-privacy-modal .modal-link.modal-link-privacy::before {
-  background-image: url("chrome://global/skin/icons/info.svg");
-}
-.ds-privacy-modal .modal-link.modal-link-manage::before {
-  background-image: url("chrome://global/skin/icons/settings.svg");
-}
-.ds-privacy-modal .privacy-notice {
-  max-width: 572px;
-  padding: var(--space-xxlarge);
-  margin: auto;
 }
 
 .ds-privacy-link {

@@ -915,6 +915,7 @@ export class _DSCard extends React.PureComponent {
           onLinkClick={!this.props.placeholder ? this.onLinkClick : undefined}
           url={this.props.url}
           title={this.props.title}
+          isSponsored={!!this.props.flightId}
         >
           {this.props.showTopics &&
             !this.props.mayHaveSectionsCards &&
@@ -1024,9 +1025,7 @@ export class _DSCard extends React.PureComponent {
                 pocket_id={this.props.pocket_id}
                 shim={this.props.shim}
                 bookmarkGuid={this.props.bookmarkGuid}
-                flightId={
-                  !this.props.is_collection ? this.props.flightId : undefined
-                }
+                flightId={this.props.flightId}
                 showPrivacyInfo={!!this.props.flightId}
                 onMenuUpdate={this.onMenuUpdate}
                 onMenuShow={this.onMenuShow}

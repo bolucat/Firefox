@@ -20,6 +20,7 @@
 #include "WidgetUtilsGtk.h"
 #include "mozilla/widget/xx-pip-v1-client-protocol.h"
 #include "nsGtkKeyUtils.h"
+#include "nsGtkUtils.h"
 #include "nsLayoutUtils.h"
 #include "nsWindow.h"
 #include "wayland-proxy.h"
@@ -547,6 +548,67 @@ void nsWaylandDisplay::SetColorManager(wp_color_manager_v1* aColorManager) {
   }
 }
 
+void nsWaylandDisplay::SetSupportedCoefficientsAndRanges(uint32_t aCoefficients,
+                                                         uint32_t aRange) {
+  if (aCoefficients < sSupportedRangesNum) {
+    LOG("nsWaylandDisplay::SetSupportedCoefficientsAndRanges(): coefficients "
+        "%d range %d",
+        aCoefficients, aRange);
+    mSupportedRanges[aCoefficients] += aRange;
+  }
+}
+
+uint32_t nsWaylandDisplay::GetColorRange(uint32_t aCoefficients,
+                                         bool aFullRange) {
+  if (aCoefficients >= sSupportedRangesNum) {
+    return 0;
+  }
+  auto range = mSupportedRanges[aCoefficients];
+  if (aFullRange) {
+    return range == sSupportedRangeBoth || range == sSupportedRangeFull
+               ? WP_COLOR_REPRESENTATION_SURFACE_V1_RANGE_FULL
+               : 0;
+  } else {
+    return range == sSupportedRangeBoth || range == sSupportedRangeLimited
+               ? WP_COLOR_REPRESENTATION_SURFACE_V1_RANGE_LIMITED
+               : 0;
+  }
+}
+
+static void supported_alpha_mode(
+    void* data,
+    struct wp_color_representation_manager_v1* color_representation_manager,
+    uint32_t alpha_mode) {}
+
+static void supported_coefficients_and_ranges(
+    void* data,
+    struct wp_color_representation_manager_v1* color_representation_manager,
+    uint32_t coefficients, uint32_t range) {
+  auto* display = static_cast<nsWaylandDisplay*>(data);
+  display->SetSupportedCoefficientsAndRanges(coefficients, range);
+}
+
+static void color_representation_done(
+    void* data,
+    struct wp_color_representation_manager_v1* color_representation_manager) {}
+
+static const struct wp_color_representation_manager_v1_listener
+    color_representation_listener = {
+        supported_alpha_mode,
+        supported_coefficients_and_ranges,
+        color_representation_done,
+};
+
+void nsWaylandDisplay::SetColorRepresentationManager(
+    wp_color_representation_manager_v1* aColorRepresentationManager) {
+  mColorRepresentationManager = aColorRepresentationManager;
+  if (mColorRepresentationManager) {
+    LOG("nsWaylandDisplay::SetColorRepresentationManager()");
+    wp_color_representation_manager_v1_add_listener(
+        mColorRepresentationManager, &color_representation_listener, this);
+  }
+}
+
 static void global_registry_handler(void* data, wl_registry* registry,
                                     uint32_t id, const char* interface,
                                     uint32_t version) {
@@ -628,6 +690,11 @@ static void global_registry_handler(void* data, wl_registry* registry,
     auto* colorManager = WaylandRegistryBind<wp_color_manager_v1>(
         registry, id, &wp_color_manager_v1_interface, version);
     display->SetColorManager(colorManager);
+  } else if (iface.EqualsLiteral("wp_color_representation_manager_v1")) {
+    auto* colorRepresentationManager =
+        WaylandRegistryBind<wp_color_representation_manager_v1>(
+            registry, id, &wp_color_representation_manager_v1_interface, 1);
+    display->SetColorRepresentationManager(colorRepresentationManager);
   } else if (iface.EqualsLiteral("xx_pip_shell_v1")) {
     auto* pipShell = WaylandRegistryBind<xx_pip_shell_v1>(
         registry, id, &xx_pip_shell_v1_interface, version);
@@ -653,6 +720,9 @@ static const struct wl_registry_listener registry_listener = {
 
 nsWaylandDisplay::~nsWaylandDisplay() {
   g_list_free_full(mAsyncRoundtrips, (GDestroyNotify)wl_callback_destroy);
+  MozClearPointer(mColorManager, wp_color_manager_v1_destroy);
+  MozClearPointer(mColorRepresentationManager,
+                  wp_color_representation_manager_v1_destroy);
 }
 
 void nsWaylandDisplay::AsyncRoundtripCallback(void* aData,
