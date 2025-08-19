@@ -7,20 +7,39 @@
 #ifndef mozilla_layers_SmoothScrollAnimation_h_
 #define mozilla_layers_SmoothScrollAnimation_h_
 
-#include "GenericScrollAnimation.h"
+#include "AsyncPanZoomAnimation.h"
+#include "InputData.h"
 #include "ScrollPositionUpdate.h"
+#include "mozilla/AlreadyAddRefed.h"
 #include "mozilla/ScrollOrigin.h"
+#include "mozilla/layers/APZPublicUtils.h"
 #include "mozilla/layers/KeyboardScrollAction.h"
 
 namespace mozilla {
+
+class ScrollAnimationPhysics;
+
 namespace layers {
 
 class AsyncPanZoomController;
 
-class SmoothScrollAnimation : public GenericScrollAnimation {
+class SmoothScrollAnimation : public AsyncPanZoomAnimation {
  public:
-  SmoothScrollAnimation(AsyncPanZoomController& aApzc,
-                        const nsPoint& aInitialPosition, ScrollOrigin aOrigin);
+  using ScrollAnimationKind = apz::ScrollAnimationKind;
+
+  // Create a SmoothScrollAnimation of kind Smooth.
+  static already_AddRefed<SmoothScrollAnimation> Create(
+      AsyncPanZoomController& aApzc, ScrollOrigin aOrigin);
+  // Create a SmoothScrollAnimation of kind SmoothMsd.
+  static already_AddRefed<SmoothScrollAnimation> CreateMsd(
+      AsyncPanZoomController& aApzc);
+  // Create a SmoothScrollAnimation of kind Keyboard.
+  static already_AddRefed<SmoothScrollAnimation> CreateForKeyboard(
+      AsyncPanZoomController& aApzc, ScrollOrigin aOrigin);
+  // Create a SmoothScrollAnimation of kind Wheel.
+  static already_AddRefed<SmoothScrollAnimation> CreateForWheel(
+      AsyncPanZoomController& aApzc,
+      ScrollWheelInput::ScrollDeltaType aDeltaType);
 
   void UpdateDestinationAndSnapTargets(
       TimeStamp aTime, const nsPoint& aDestination,
@@ -31,13 +50,45 @@ class SmoothScrollAnimation : public GenericScrollAnimation {
   bool WasTriggeredByScript() const override {
     return mTriggeredByScript == ScrollTriggeredByScript::Yes;
   }
+  ScrollAnimationKind Kind() const { return mKind; }
   ScrollSnapTargetIds TakeSnapTargetIds() { return std::move(mSnapTargetIds); }
   ScrollOrigin GetScrollOrigin() const;
   static ScrollOrigin GetScrollOriginForAction(
       KeyboardScrollAction::KeyboardScrollActionType aAction);
 
+  bool DoSample(FrameMetrics& aFrameMetrics,
+                const TimeDuration& aDelta) override;
+
+  bool HandleScrollOffsetUpdate(const Maybe<CSSPoint>& aRelativeDelta) override;
+
+  void UpdateDelta(TimeStamp aTime, const nsPoint& aDelta,
+                   const nsSize& aCurrentVelocity);
+  void UpdateDestination(TimeStamp aTime, const nsPoint& aDestination,
+                         const nsSize& aCurrentVelocity);
+
+  CSSPoint GetDestination() const {
+    return CSSPoint::FromAppUnits(mFinalDestination);
+  }
+
  private:
+  SmoothScrollAnimation(ScrollAnimationKind aKind,
+                        AsyncPanZoomController& aApzc, ScrollOrigin aOrigin);
+
+  void Update(TimeStamp aTime, const nsSize& aCurrentVelocity);
+
+  ScrollAnimationKind mKind;
+  AsyncPanZoomController& mApzc;
+  UniquePtr<ScrollAnimationPhysics> mAnimationPhysics;
+  nsPoint mFinalDestination;
+  // If a direction is forced to overscroll, it means it's axis in that
+  // direction is locked, and scroll in that direction is treated as overscroll
+  // of an equal amount, which, for example, may then bubble up a scroll action
+  // to its parent, or may behave as whatever an overscroll occurence requires
+  // to behave
+  Maybe<ScrollDirection> mDirectionForcedToOverscroll;
   ScrollOrigin mOrigin;
+
+  // These fields are only used for animations of kind Smooth and SmoothMsd.
   ScrollSnapTargetIds mSnapTargetIds;
   ScrollTriggeredByScript mTriggeredByScript;
 };

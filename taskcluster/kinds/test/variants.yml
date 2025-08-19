@@ -42,7 +42,7 @@ headless:
 a11y-checks:
     description: "{description} with accessibility checks enabled"
     component: "Core::Disability Access APIs"
-    expiration: "2025-09-01"
+    expiration: "2026-03-01"
     suffix: "a11y-checks"
     mozinfo: "a11y_checks"
     replace:
@@ -77,13 +77,23 @@ aab:
     merge:
         fetches:
             toolchain:
-                - android-system-image-x86_64-linux
-                - android-avd-x86_64-linux
-                - android-emulator-linux
-                - linux64-minidump-stackwalk
-                - linux64-fix-stacks
-                - linux64-jdk
-                - linux64-hostutils
+                by-test-platform:
+                    android-em-7.*:
+                        - android-system-image-x86_64-linux
+                        - android-avd-x86_64-linux
+                        - android-emulator-linux
+                        - linux64-minidump-stackwalk
+                        - linux64-fix-stacks
+                        - linux64-jdk
+                        - linux64-hostutils
+                    android-em-14.*:
+                        - android34-system-image-x86_64-linux
+                        - android34-avd-x86_64-linux
+                        - android-emulator-linux
+                        - linux64-minidump-stackwalk
+                        - linux64-fix-stacks
+                        - linux64-jdk
+                        - linux64-hostutils
     replace:
         target: "geckoview-test_runner.aab"
 
@@ -203,7 +213,7 @@ conditioned_profile:
 socketprocess:
     description: "{description} with socket process enabled"
     component: "Core::Networking"
-    expiration: "2025-09-01"
+    expiration: "2026-03-01"
     suffix: "spi"
     mozinfo: "socketprocess_e10s"
     when:
@@ -217,7 +227,7 @@ socketprocess:
 socketprocess_networking:
     description: "{description} with networking on socket process enabled"
     component: "Core::Networking"
-    expiration: "2025-09-01"
+    expiration: "2026-03-01"
     suffix: "spi-nw"
     mozinfo: "socketprocess_networking"
     when:
@@ -440,7 +450,7 @@ msix:
 http3:
     description: "{description} with http3 server"
     component: "Core::Networking"
-    expiration: "2025-09-01"
+    expiration: "2026-03-01"
     suffix: "http3"
     mozinfo: "http3"
     when:
@@ -459,7 +469,7 @@ http3:
 http2:
     description: "{description} with http2 server"
     component: "Core::Networking"
-    expiration: "2025-09-01"
+    expiration: "2026-03-01"
     suffix: "http2"
     mozinfo: "http2"
     when:

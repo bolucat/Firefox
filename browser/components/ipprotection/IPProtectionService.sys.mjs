@@ -12,8 +12,12 @@ ChromeUtils.defineESModuleGetters(lazy, {
   // eslint-disable-next-line mozilla/valid-lazy
   IPPChannelFilter: "resource:///modules/ipprotection/IPPChannelFilter.sys.mjs",
   UIState: "resource://services-sync/UIState.sys.mjs",
+  SpecialMessageActions:
+    "resource://messaging-system/lib/SpecialMessageActions.sys.mjs",
   IPProtection: "resource:///modules/ipprotection/IPProtection.sys.mjs",
 });
+
+import { SIGNIN_DATA } from "chrome://browser/content/ipprotection/ipprotection-constants.mjs";
 
 const ENABLED_PREF = "browser.ipProtection.enabled";
 
@@ -33,6 +37,9 @@ const ENABLED_PREF = "browser.ipProtection.enabled";
  *  When user signs out of their account
  */
 class IPProtectionServiceSingleton extends EventTarget {
+  static WIDGET_ID = "ipprotection-button";
+  static PANEL_ID = "PanelUI-ipprotection";
+
   isActive = false;
   activatedAt = null;
   deactivatedAt = null;
@@ -69,13 +76,10 @@ class IPProtectionServiceSingleton extends EventTarget {
 
   /**
    * Removes the IPProtectionService and IPProtection widget.
-   *
-   * @param {boolean} prefChange
    */
-  uninit(prefChange = false) {
+  uninit() {
     if (this.#hasWidget) {
-      lazy.IPProtection.uninit(prefChange);
-      this.#hasWidget = false;
+      lazy.IPProtection.uninit();
     }
 
     if (this.fxaObserver) {
@@ -88,6 +92,7 @@ class IPProtectionServiceSingleton extends EventTarget {
 
     this.isSignedIn = false;
 
+    this.#hasWidget = false;
     this.#inited = false;
   }
 
@@ -157,7 +162,7 @@ class IPProtectionServiceSingleton extends EventTarget {
     if (this.featureEnabled) {
       this.init();
     } else {
-      this.uninit(true);
+      this.uninit();
     }
   }
 
@@ -205,6 +210,10 @@ class IPProtectionServiceSingleton extends EventTarget {
         })
       );
     }
+  }
+
+  async startLoginFlow(browser) {
+    return lazy.SpecialMessageActions.fxaSignInFlow(SIGNIN_DATA, browser);
   }
 }
 

@@ -4733,6 +4733,13 @@ export class UrlbarInput {
     this.controller.engagementEvent.handleBounceEventTrigger(
       event.target.linkedBrowser
     );
+
+    if (this.view.isOpen) {
+      // Refresh results when a tab is closed while the results view is open.
+      // This prevents switch-to-tab results from remaining in the results
+      // list after their tab is closed.
+      this.startQuery();
+    }
   }
 
   _on_beforeinput(event) {
@@ -5417,7 +5424,7 @@ class AddSearchEngineHelper {
     if (engine.icon) {
       elt.setAttribute("image", engine.icon);
     } else {
-      elt.removeAttribute("image", engine.icon);
+      elt.removeAttribute("image");
     }
     elt.addEventListener("command", this._onCommand.bind(this));
     return elt;
@@ -5433,7 +5440,7 @@ class AddSearchEngineHelper {
       "search-one-offs-add-engine-menu"
     );
     if (engine.icon) {
-      elt.setAttribute("image", engine.icon);
+      elt.setAttribute("image", encodeURI(engine.icon));
     }
     let popup = this.input.document.createXULElement("menupopup");
     elt.appendChild(popup);

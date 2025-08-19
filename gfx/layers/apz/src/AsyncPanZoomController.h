@@ -8,6 +8,7 @@
 #define mozilla_layers_AsyncPanZoomController_h
 
 #include "Units.h"
+#include "apz/public/APZPublicUtils.h"
 #include "mozilla/layers/CompositorScrollUpdate.h"
 #include "mozilla/layers/GeckoContentController.h"
 #include "mozilla/layers/RepaintRequest.h"
@@ -180,10 +181,11 @@ struct PointerEventsConsumableFlags {
 class AsyncPanZoomController {
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(AsyncPanZoomController)
 
-  typedef mozilla::MonitorAutoLock MonitorAutoLock;
-  typedef mozilla::gfx::Matrix4x4 Matrix4x4;
-  typedef mozilla::layers::RepaintRequest::ScrollOffsetUpdateType
-      RepaintUpdateType;
+  using MonitorAutoLock = mozilla::MonitorAutoLock;
+  using Matrix4x4 = mozilla::gfx::Matrix4x4;
+  using RepaintUpdateType =
+      mozilla::layers::RepaintRequest::ScrollOffsetUpdateType;
+  using ScrollAnimationKind = apz::ScrollAnimationKind;
 
  public:
   enum GestureBehavior {
@@ -1620,9 +1622,8 @@ class AsyncPanZoomController {
   friend class AndroidFlingPhysics;
   friend class DesktopFlingPhysics;
   friend class OverscrollAnimation;
-  friend class SmoothMsdScrollAnimation;
   friend class GenericScrollAnimation;
-  friend class WheelScrollAnimation;
+  friend class SmoothScrollAnimation;
   friend class ZoomAnimation;
 
   friend class GenericOverscrollEffect;

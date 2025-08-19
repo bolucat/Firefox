@@ -110,7 +110,6 @@ allprojects {
         targetSdkVersion = tryInt(mozconfig.substs.ANDROID_TARGET_SDK)
         minSdkVersion = tryInt(mozconfig.substs.MOZ_ANDROID_MIN_SDK_VERSION)
         manifestPlaceholders = [
-            ANDROID_PACKAGE_NAME: mozconfig.substs.ANDROID_PACKAGE_NAME,
             ANDROID_TARGET_SDK: mozconfig.substs.ANDROID_TARGET_SDK,
             MOZ_ANDROID_MIN_SDK_VERSION: mozconfig.substs.MOZ_ANDROID_MIN_SDK_VERSION,
         ]
@@ -333,11 +332,9 @@ task machStagePackage(type: MachExec) {
 
     workingDir "${topobjdir}"
 
-    // We'd prefer this to be a `mach` invocation, but `mach build
-    // mobile/android/installer/stage-package` doesn't work as expected.
-    commandLine mozconfig.substs.GMAKE
-    args '-C'
-    args "${topobjdir}/mobile/android/installer"
+    commandLine mozconfig.substs.PYTHON3
+    args "${topsrcdir}/mach"
+    args 'build'
     args 'stage-package'
 
     outputs.file "${topobjdir}/dist/geckoview/assets/omni.ja"

@@ -371,6 +371,7 @@ class DownloadTest : TestSetup() {
     }
 
     // TestRail link: https://mozilla.testrail.io/index.php?/cases/view/244125
+    @Ignore("Failing, see https://bugzilla.mozilla.org/show_bug.cgi?id=1983769")
     @Test
     fun restartDownloadFromAppNotificationAfterConnectionIsInterruptedTest() {
         downloadFile = "3GB.zip"
@@ -434,6 +435,31 @@ class DownloadTest : TestSetup() {
             verifyAndroidShareLayout()
             clickSharingApp("Gmail", GMAIL_APP)
             assertNativeAppOpens(GMAIL_APP)
+        }
+    }
+
+    // TestRail link: https://mozilla.testrail.io/index.php?/cases/view/457111
+    @Ignore("Failing, see https://bugzilla.mozilla.org/show_bug.cgi?id=1983769")
+    @Test
+    fun downloadRestartAfterConnectionIsReestablishedTest() {
+        downloadFile = "3GB.zip"
+
+        downloadRobot {
+            openPageAndDownloadFile(url = downloadTestPage.toUri(), downloadFile = "3GB.zip")
+            downloadRobot {
+            }.openNotificationShade {
+                expandNotificationMessage("3GB.zip")
+                clickDownloadNotificationControlButton("PAUSE")
+                setNetworkEnabled(false)
+                verifySystemNotificationExists("Download paused")
+                clickDownloadNotificationControlButton("RESUME")
+                verifySystemNotificationExists("Download failed")
+                setNetworkEnabled(enabled = true)
+                clickDownloadNotificationControlButton("TRY AGAIN")
+                expandNotificationMessage("3GB.zip")
+                clickDownloadNotificationControlButton("CANCEL")
+                verifySystemNotificationDoesNotExist("3GB.zip")
+            }
         }
     }
 }

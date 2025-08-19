@@ -89,9 +89,7 @@
 #include "prsystem.h"        // for PR_GetPhysicalMemorySize
 #include "ScrollSnap.h"      // for ScrollSnapUtils
 #include "ScrollAnimationPhysics.h"  // for ComputeAcceleratedWheelDelta
-#include "SmoothMsdScrollAnimation.h"
 #include "SmoothScrollAnimation.h"
-#include "WheelScrollAnimation.h"
 #if defined(MOZ_WIDGET_ANDROID)
 #  include "AndroidAPZ.h"
 #endif  // defined(MOZ_WIDGET_ANDROID)
@@ -2241,10 +2239,8 @@ nsEventStatus AsyncPanZoomController::OnKeyboard(const KeyboardInput& aEvent) {
     }
     SetState(KEYBOARD_SCROLL);
 
-    nsPoint initialPosition =
-        CSSPoint::ToAppUnits(Metrics().GetVisualScrollOffset());
-    StartAnimation(do_AddRef(
-        new SmoothScrollAnimation(*this, initialPosition, scrollOrigin)));
+    StartAnimation(
+        SmoothScrollAnimation::CreateForKeyboard(*this, scrollOrigin));
   }
 
   // Convert velocity from ParentLayerPoints/ms to ParentLayerPoints/s and then
@@ -2729,10 +2725,8 @@ nsEventStatus AsyncPanZoomController::OnScrollWheel(
         CancelAnimation();
         SetState(WHEEL_SCROLL);
 
-        nsPoint initialPosition =
-            CSSPoint::ToAppUnits(Metrics().GetVisualScrollOffset());
-        StartAnimation(do_AddRef(new WheelScrollAnimation(
-            *this, initialPosition, aEvent.mDeltaType)));
+        StartAnimation(
+            SmoothScrollAnimation::CreateForWheel(*this, aEvent.mDeltaType));
       }
       // Convert velocity from ParentLayerPoints/ms to ParentLayerPoints/s and
       // then to appunits/second.
@@ -2747,7 +2741,7 @@ nsEventStatus AsyncPanZoomController::OnScrollWheel(
                                  Metrics().GetZoom());
       }
 
-      WheelScrollAnimation* animation = mAnimation->AsWheelScrollAnimation();
+      SmoothScrollAnimation* animation = mAnimation->AsSmoothScrollAnimation();
       animation->UpdateDelta(GetFrameTime().Time(), deltaInAppUnits,
                              nsSize(velocity.x, velocity.y));
       break;
@@ -4103,19 +4097,10 @@ float AsyncPanZoomController::ComputePLPPI(ParentLayerPoint aPoint,
 
 Maybe<CSSPoint> AsyncPanZoomController::GetCurrentAnimationDestination(
     const RecursiveMutexAutoLock& aProofOfLock) const {
-  if (mState == WHEEL_SCROLL) {
-    return Some(mAnimation->AsWheelScrollAnimation()->GetDestination());
-  }
-  if (mState == SMOOTH_SCROLL) {
+  if (mState == SMOOTHMSD_SCROLL || mState == SMOOTH_SCROLL ||
+      mState == KEYBOARD_SCROLL || mState == WHEEL_SCROLL) {
     return Some(mAnimation->AsSmoothScrollAnimation()->GetDestination());
   }
-  if (mState == SMOOTHMSD_SCROLL) {
-    return Some(mAnimation->AsSmoothMsdScrollAnimation()->GetDestination());
-  }
-  if (mState == KEYBOARD_SCROLL) {
-    return Some(mAnimation->AsSmoothScrollAnimation()->GetDestination());
-  }
-
   return Nothing();
 }
 
@@ -4213,7 +4198,8 @@ void AsyncPanZoomController::SmoothScrollTo(
   if (mState == SMOOTH_SCROLL && mAnimation) {
     RefPtr<SmoothScrollAnimation> animation(
         mAnimation->AsSmoothScrollAnimation());
-    if (animation->GetScrollOrigin() == aOrigin) {
+    if (animation->Kind() == ScrollAnimationKind::Smooth &&
+        animation->GetScrollOrigin() == aOrigin) {
       APZC_LOG("%p updating destination on existing animation\n", this);
       animation->UpdateDestinationAndSnapTargets(
           GetFrameTime().Time(), destination, velocity,
@@ -4231,10 +4217,8 @@ void AsyncPanZoomController::SmoothScrollTo(
   }
 
   SetState(SMOOTH_SCROLL);
-  nsPoint initialPosition =
-      CSSPoint::ToAppUnits(Metrics().GetVisualScrollOffset());
   RefPtr<SmoothScrollAnimation> animation =
-      new SmoothScrollAnimation(*this, initialPosition, aOrigin);
+      SmoothScrollAnimation::Create(*this, aOrigin);
   animation->UpdateDestinationAndSnapTargets(
       GetFrameTime().Time(), destination, velocity,
       std::move(aDestination.mTargetIds), aTriggeredByScript);
@@ -4244,13 +4228,22 @@ void AsyncPanZoomController::SmoothScrollTo(
 void AsyncPanZoomController::SmoothMsdScrollTo(
     CSSSnapDestination&& aDestination,
     ScrollTriggeredByScript aTriggeredByScript) {
+  // Convert velocity from ParentLayerPoints/ms to ParentLayerPoints/s.
+  CSSSize initialVelocity;
+  if (Metrics().GetZoom() != CSSToParentLayerScale(0)) {
+    initialVelocity = ParentLayerSize(mX.GetVelocity() * 1000.0f,
+                                      mY.GetVelocity() * 1000.0f) /
+                      Metrics().GetZoom();
+  }
+
   if (mState == SMOOTHMSD_SCROLL && mAnimation) {
     APZC_LOG("%p updating destination on existing animation\n", this);
-    RefPtr<SmoothMsdScrollAnimation> animation(
-        static_cast<SmoothMsdScrollAnimation*>(mAnimation.get()));
-    animation->SetDestination(aDestination.mPosition,
-                              std::move(aDestination.mTargetIds),
-                              aTriggeredByScript);
+    RefPtr<SmoothScrollAnimation> animation(
+        static_cast<SmoothScrollAnimation*>(mAnimation.get()));
+    animation->UpdateDestinationAndSnapTargets(
+        GetFrameTime().Time(), CSSPoint::ToAppUnits(aDestination.mPosition),
+        CSSPoint::ToAppUnits(initialVelocity),
+        std::move(aDestination.mTargetIds), aTriggeredByScript);
     return;
   }
 
@@ -4261,20 +4254,14 @@ void AsyncPanZoomController::SmoothMsdScrollTo(
   }
   CancelAnimation();
   SetState(SMOOTHMSD_SCROLL);
-  // Convert velocity from ParentLayerPoints/ms to ParentLayerPoints/s.
-  CSSPoint initialVelocity;
-  if (Metrics().GetZoom() != CSSToParentLayerScale(0)) {
-    initialVelocity = ParentLayerPoint(mX.GetVelocity() * 1000.0f,
-                                       mY.GetVelocity() * 1000.0f) /
-                      Metrics().GetZoom();
-  }
 
-  StartAnimation(do_AddRef(new SmoothMsdScrollAnimation(
-      *this, Metrics().GetVisualScrollOffset(), initialVelocity,
-      aDestination.mPosition,
-      StaticPrefs::layout_css_scroll_behavior_spring_constant(),
-      StaticPrefs::layout_css_scroll_behavior_damping_ratio(),
-      std::move(aDestination.mTargetIds), aTriggeredByScript)));
+  RefPtr<SmoothScrollAnimation> animation =
+      SmoothScrollAnimation::CreateMsd(*this);
+  animation->UpdateDestinationAndSnapTargets(
+      GetFrameTime().Time(), CSSPoint::ToAppUnits(aDestination.mPosition),
+      CSSPoint::ToAppUnits(initialVelocity), std::move(aDestination.mTargetIds),
+      aTriggeredByScript);
+  StartAnimation(animation.forget());
 }
 
 void AsyncPanZoomController::StartOverscrollAnimation(
@@ -4972,13 +4959,9 @@ bool AsyncPanZoomController::UpdateAnimation(
     *aOutDeferredTasks = mAnimation->TakeDeferredTasks();
     if (!continueAnimation) {
       SetState(NOTHING);
-      if (mAnimation->AsSmoothMsdScrollAnimation()) {
-        {
-          RecursiveMutexAutoLock lock(mRecursiveMutex);
-          mLastSnapTargetIds =
-              mAnimation->AsSmoothMsdScrollAnimation()->TakeSnapTargetIds();
-        }
-      } else if (mAnimation->AsSmoothScrollAnimation()) {
+      if (SmoothScrollAnimation* anim = mAnimation->AsSmoothScrollAnimation();
+          anim && (anim->Kind() == ScrollAnimationKind::Smooth ||
+                   anim->Kind() == ScrollAnimationKind::SmoothMsd)) {
         RecursiveMutexAutoLock lock(mRecursiveMutex);
         mLastSnapTargetIds =
             mAnimation->AsSmoothScrollAnimation()->TakeSnapTargetIds();

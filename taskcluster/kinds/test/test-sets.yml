@@ -154,8 +154,7 @@ desktop-screenshot-capture:
 
 newtab-trainhop-tests:
     - mochitest-browser-newtab-trainhop-beta
-    # Disabled until newtab as a built-in addon reaches the release channel
-    # - mochitest-browser-newtab-trainhop-release
+    - mochitest-browser-newtab-trainhop-release
 
 ### Specific platform test sets
 
@@ -504,6 +503,28 @@ android-x86_64-tests:
     - web-platform-tests-webcodecs
     - web-platform-tests-eme
     - xpcshell
+
+android14-x86_64-tests:
+    # - cppunittest
+    - crashtest
+    # - geckoview-junit
+    # - gtest
+    # - mochitest-media
+    - mochitest-plain
+    - mochitest-plain-gpu
+    # - mochitest-webgl1-core # Harness issues?
+    # - mochitest-webgl1-ext
+    # - mochitest-webgl2-core # Emulator not creating ES3?
+    # - mochitest-webgl2-ext
+    # - reftest
+    - test-verify
+    # - web-platform-tests
+    - web-platform-tests-crashtest
+    # - web-platform-tests-reftest
+    # - web-platform-tests-wdspec
+    # - web-platform-tests-webcodecs
+    - web-platform-tests-eme
+    # - xpcshell
 
 android-x86-tests:
     - cppunittest

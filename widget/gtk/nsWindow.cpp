@@ -7378,8 +7378,15 @@ void nsWindow::SetWindowDecoration(BorderStyle aStyle) {
     wasVisible = true;
   }
 
-  gtk_window_set_decorated(GTK_WINDOW(mShell),
-                           !mUndecorated && aStyle != BorderStyle::None);
+  const bool decorated = !mUndecorated && aStyle != BorderStyle::None;
+  gtk_window_set_decorated(GTK_WINDOW(mShell), decorated);
+
+  if (!decorated) {
+    // Work around for https://gitlab.gnome.org/GNOME/gtk/-/merge_requests/8875,
+    // window shadow doesn't update on Wayland after removing window
+    // decorations. This doesn't seem like it'd affect GTK4.
+    gdk_window_set_shadow_width(GetToplevelGdkWindow(), 0, 0, 0, 0);
+  }
 
   gint wmd = ConvertBorderStyles(aStyle);
   if (wmd != -1) {
@@ -7518,7 +7525,14 @@ MOZ_CAN_RUN_SCRIPT static void WaylandDragWorkaround(nsWindow* aWindow,
   NS_WARNING(
       "Quit unfinished Wayland Drag and Drop operation. Buggy Wayland "
       "compositor?");
+#if defined(NIGHTLY_BUILD)
+  // Terminate as drag failed in Nightly. That led to rather critical
+  // Bug 1955112 before, let's try again after workaround update
+  // at Bug 1979719 but definitely not test on release/beta.
+  currentDragSession->EndDragSession(false, 0);
+#else
   currentDragSession->EndDragSession(true, 0);
+#endif
 }
 
 static nsWindow* get_window_for_gtk_widget(GtkWidget* widget) {

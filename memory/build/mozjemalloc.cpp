@@ -820,6 +820,10 @@ struct arena_t {
     // this chunk.  Either because it has no dirty pages or is dying.
     bool FindDirtyPages(bool aPurgedOnce) MOZ_REQUIRES(mArena.mLock);
 
+    // This is used internally by FindDirtyPages to actually perform scanning
+    // within a chunk's page tables.
+    bool ScanChunkForDirtyPage();
+
     // Returns a pair, the first field indicates if there are more dirty pages
     // remaining in the current chunk. The second field if non-null points to a
     // chunk that must be released by the caller.
@@ -1509,6 +1513,10 @@ bool arena_t::SplitRun(arena_run_t* aRun, size_t aSize, bool aLarge,
     mRunsAvail.Insert(&chunk->mPageMap[run_ind + need_pages]);
   }
 
+  if (chunk->mDirtyRunHint == run_ind) {
+    chunk->mDirtyRunHint = run_ind + need_pages;
+  }
+
   for (size_t i = 0; i < need_pages; i++) {
     // Zero if necessary.
     if (aZero) {
@@ -2033,35 +2041,7 @@ bool arena_t::PurgeInfo::FindDirtyPages(bool aPurgedOnce) {
     return false;
   }
 
-  // Look for the first dirty page, as we do record the beginning of the run
-  // that contains the dirty page.
-  bool previous_page_is_allocated = true;
-  for (size_t i = gChunkHeaderNumPages; i < gChunkNumPages - 1; i++) {
-    size_t bits = mChunk->mPageMap[i].bits;
-
-    // We must not find any busy pages because this chunk shouldn't be in
-    // the dirty list.
-    MOZ_ASSERT((bits & CHUNK_MAP_BUSY) == 0);
-
-    // The first page belonging to a free run has the allocated bit clear
-    // and a non-zero size. To distinguish it from the last page of a free
-    // run we track the allocated bit of the previous page, if it's set
-    // then this is the first.
-    if ((bits & CHUNK_MAP_ALLOCATED) == 0 && (bits & ~gPageSizeMask) != 0 &&
-        previous_page_is_allocated) {
-      mFreeRunInd = i;
-      mFreeRunLen = bits >> gPageSize2Pow;
-    }
-
-    if (bits & CHUNK_MAP_DIRTY) {
-      MOZ_ASSERT((mChunk->mPageMap[i].bits &
-                  CHUNK_MAP_FRESH_MADVISED_OR_DECOMMITTED) == 0);
-      mDirtyInd = i;
-      break;
-    }
-
-    previous_page_is_allocated = bits & CHUNK_MAP_ALLOCATED;
-  }
+  MOZ_ALWAYS_TRUE(ScanChunkForDirtyPage());
   MOZ_ASSERT(mDirtyInd != 0);
   MOZ_ASSERT(mFreeRunInd >= gChunkHeaderNumPages);
   MOZ_ASSERT(mFreeRunInd <= mDirtyInd);
@@ -2103,6 +2083,62 @@ bool arena_t::PurgeInfo::FindDirtyPages(bool aPurgedOnce) {
   return true;
 }
 
+// Look for the first dirty page and the run it belongs to.
+bool arena_t::PurgeInfo::ScanChunkForDirtyPage() {
+  // Scan in two nested loops.  The outer loop iterates over runs, and the inner
+  // loop iterates over pages within unallocated runs.
+  size_t run_pages;
+  for (size_t run_idx = mChunk->mDirtyRunHint; run_idx < gChunkNumPages;
+       run_idx += run_pages) {
+    size_t run_bits = mChunk->mPageMap[run_idx].bits;
+    // We must not find any busy pages because this chunk shouldn't be in
+    // the dirty list.
+    MOZ_ASSERT((run_bits & CHUNK_MAP_BUSY) == 0);
+
+    // Determine the run's size, this is used in the loop iteration to move to
+    // the next run.
+    if (run_bits & CHUNK_MAP_LARGE || !(run_bits & CHUNK_MAP_ALLOCATED)) {
+      size_t size = run_bits & ~gPageSizeMask;
+      run_pages = size >> gPageSize2Pow;
+    } else {
+      arena_run_t* run =
+          reinterpret_cast<arena_run_t*>(run_bits & ~gPageSizeMask);
+      MOZ_ASSERT(run == reinterpret_cast<arena_run_t*>(
+                            reinterpret_cast<uintptr_t>(mChunk) +
+                            (run_idx << gPageSize2Pow)));
+      run_pages = run->mBin->mRunSizePages;
+    }
+    MOZ_ASSERT(run_pages > 0);
+    MOZ_ASSERT(run_idx + run_pages <= gChunkNumPages);
+
+    if (run_bits & CHUNK_MAP_ALLOCATED) {
+      // Allocated runs won't contain dirty pages.
+      continue;
+    }
+
+    mFreeRunInd = run_idx;
+    mFreeRunLen = run_pages;
+
+    // Scan for dirty pages.
+    for (size_t page_idx = run_idx; page_idx < run_idx + run_pages;
+         page_idx++) {
+      size_t page_bits = mChunk->mPageMap[page_idx].bits;
+      // We must not find any busy pages because this chunk shouldn't be in
+      // the dirty list.
+      MOZ_ASSERT((page_bits & CHUNK_MAP_BUSY) == 0);
+
+      if (page_bits & CHUNK_MAP_DIRTY) {
+        MOZ_ASSERT((page_bits & CHUNK_MAP_FRESH_MADVISED_OR_DECOMMITTED) == 0);
+        mDirtyInd = page_idx;
+        mChunk->mDirtyRunHint = run_idx;
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 std::pair<bool, arena_chunk_t*> arena_t::PurgeInfo::UpdatePagesAndCounts() {
   for (size_t i = 0; i < mDirtyNPages; i++) {
     // The page must not have any of the madvised, decommited or dirty bits
@@ -2133,6 +2169,9 @@ std::pair<bool, arena_chunk_t*> arena_t::PurgeInfo::UpdatePagesAndCounts() {
   mArena.mStats.committed -= mDirtyNPages;
   mPurgeStats.pages += mDirtyNPages;
   mPurgeStats.system_calls++;
+
+  // Note that this code can't update the dirty run hint.  There may be other
+  // dirty pages within the same run.
 
   if (mChunk->mDying) {
     // A dying chunk doesn't need to be coaleased, it will already have one
@@ -2254,6 +2293,14 @@ size_t arena_t::TryCoalesce(arena_chunk_t* aChunk, size_t run_ind,
         size | (aChunk->mPageMap[run_ind + run_pages - 1].bits & gPageSizeMask);
   }
 
+  // If the dirty run hint points within the run then the new greater run
+  // is the run with the lowest index containing dirty pages.  So update the
+  // hint.
+  if ((aChunk->mDirtyRunHint > run_ind) &&
+      (aChunk->mDirtyRunHint < run_ind + run_pages)) {
+    aChunk->mDirtyRunHint = run_ind;
+  }
+
   return run_ind;
 }
 
@@ -2298,6 +2345,11 @@ arena_chunk_t* arena_t::DallocRun(arena_run_t* aRun, bool aDirty) {
       size | (chunk->mPageMap[run_ind + run_pages - 1].bits & gPageSizeMask);
 
   run_ind = TryCoalesce(chunk, run_ind, run_pages, size);
+
+  // Now that run_ind is finalised we can update the dirty run hint.
+  if (aDirty && run_ind < chunk->mDirtyRunHint) {
+    chunk->mDirtyRunHint = run_ind;
+  }
 
   // Deallocate chunk if it is now completely unused.
   arena_chunk_t* chunk_dealloc = nullptr;
