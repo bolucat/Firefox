@@ -56,7 +56,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -102,6 +101,7 @@ import mozilla.components.lib.state.ext.observeAsComposableState
 import mozilla.components.lib.state.ext.observeAsState
 import mozilla.components.support.ktx.android.view.hideKeyboard
 import org.mozilla.fenix.R
+import org.mozilla.fenix.bookmarks.BookmarksTestTag.BOOKMARK_TOOLBAR
 import org.mozilla.fenix.bookmarks.BookmarksTestTag.EDIT_BOOKMARK_ITEM_TITLE_TEXT_FIELD
 import org.mozilla.fenix.bookmarks.BookmarksTestTag.EDIT_BOOKMARK_ITEM_URL_TEXT_FIELD
 import org.mozilla.fenix.components.AppStore
@@ -586,6 +586,10 @@ private fun BookmarksListTopBar(
 
     Box {
         TopAppBar(
+            modifier = Modifier.semantics {
+                testTagsAsResourceId = true
+                testTag = BOOKMARK_TOOLBAR
+            },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = backgroundColor),
             title = {
                 Text(
@@ -1268,7 +1272,6 @@ private fun EditFolderTopBar(
     )
 }
 
-@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun AddFolderScreen(
     store: BookmarksStore,
@@ -1394,7 +1397,6 @@ private fun EditBookmarkScreen(
     }
 }
 
-@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun BookmarkEditor(
     bookmarkItem: BookmarkItem.Bookmark,

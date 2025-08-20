@@ -32,7 +32,6 @@ describe("DiscoveryStreamFeed", () => {
   let fetchStub;
   let clock;
   let fakeNewTabUtils;
-  let fakePktApi;
   let globals;
 
   const setPref = (name, value) => {
@@ -121,11 +120,6 @@ describe("DiscoveryStreamFeed", () => {
       getOHTTPConfig: () => {},
       ohttpRequest: () => {},
     });
-
-    fakePktApi = {
-      isUserLoggedIn: () => false,
-    };
-    globals.set("pktApi", fakePktApi);
   });
 
   afterEach(() => {
@@ -287,25 +281,6 @@ describe("DiscoveryStreamFeed", () => {
         "https://relay.url",
         fakeOhttpConfig,
         DUMMY_ENDPOINT
-      );
-    });
-  });
-
-  describe("#setupPocketState", () => {
-    it("should setup logged in state", async () => {
-      fakePktApi.isUserLoggedIn = () => true;
-      sandbox.spy(feed.store, "dispatch");
-      await feed.setupPocketState({});
-      assert.calledOnce(feed.store.dispatch);
-      assert.calledWith(
-        feed.store.dispatch.firstCall,
-        ac.OnlyToOneContent(
-          {
-            type: at.DISCOVERY_STREAM_POCKET_STATE_SET,
-            data: { isUserLoggedIn: true },
-          },
-          {}
-        )
       );
     });
   });
@@ -1035,6 +1010,50 @@ describe("DiscoveryStreamFeed", () => {
           items: [{ id: "data", score: 1, fetchTimestamp: 0 }],
         },
       });
+    });
+    it("should fetch MARS pre flight info", async () => {
+      sandbox
+        .stub(feed, "fetchFromEndpoint")
+        .withArgs("unifiedAdEndpoint/v1/o", { method: "GET" })
+        .resolves({
+          normalized_ua: "normalized_ua",
+          geoname_id: "geoname_id",
+        });
+
+      feed.store = createStore(combineReducers(reducers), {
+        Prefs: {
+          values: {
+            "unifiedAds.endpoint": "unifiedAdEndpoint/",
+            "unifiedAds.blockedAds": "",
+            "unifiedAds.spocs.enabled": true,
+            "discoverystream.placements.spocs": "newtab_stories_1",
+            "discoverystream.placements.spocs.counts": "1",
+            trainhopConfig: {
+              marsPreFlight: { enabled: true },
+            },
+          },
+        },
+      });
+
+      await feed.loadSpocs(feed.store.dispatch);
+
+      assert.equal(
+        feed.fetchFromEndpoint.firstCall.args[0],
+        "unifiedAdEndpoint/v1/o"
+      );
+      assert.equal(feed.fetchFromEndpoint.firstCall.args[1].method, "GET");
+      assert.equal(
+        feed.fetchFromEndpoint.secondCall.args[0],
+        "unifiedAdEndpoint/v1/ads"
+      );
+      assert.equal(
+        feed.fetchFromEndpoint.secondCall.args[1].headers.get("X-User-Agent"),
+        "normalized_ua"
+      );
+      assert.equal(
+        feed.fetchFromEndpoint.secondCall.args[1].headers.get("X-Geoname-ID"),
+        "geoname_id"
+      );
     });
     describe("test SOV behaviour", () => {
       beforeEach(() => {
@@ -2442,17 +2461,6 @@ describe("DiscoveryStreamFeed", () => {
         },
         type: at.SET_PREF,
       });
-    });
-  });
-
-  describe("#onAction: DISCOVERY_STREAM_POCKET_STATE_INIT", async () => {
-    it("should call setupPocketState", async () => {
-      sandbox.spy(feed, "setupPocketState");
-      feed.onAction({
-        type: at.DISCOVERY_STREAM_POCKET_STATE_INIT,
-        meta: { fromTarget: {} },
-      });
-      assert.calledOnce(feed.setupPocketState);
     });
   });
 

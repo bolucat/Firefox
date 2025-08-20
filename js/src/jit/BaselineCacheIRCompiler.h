@@ -71,12 +71,17 @@ class MOZ_RAII BaselineCacheIRCompiler : public CacheIRCompiler {
       CacheOp op, ObjOperandId objId, uint32_t offsetOffset, ValOperandId rhsId,
       uint32_t newShapeOffset, mozilla::Maybe<uint32_t> numNewSlotsOffset);
 
-  bool updateArgc(CallFlags flags, Register argcReg, Register scratch);
+  bool updateArgc(CallFlags flags, Register argcReg, uint32_t argcFixed,
+                  Register scratch);
   void loadStackObject(ArgumentKind kind, CallFlags flags, Register argcReg,
                        Register dest);
   void pushArguments(Register argcReg, Register calleeReg, Register scratch,
                      Register scratch2, CallFlags flags, uint32_t argcFixed,
                      bool isJitCall);
+  void prepareForArguments(Register argcReg, Register calleeReg,
+                           Register scratch, Register scratch2, CallFlags flags,
+                           uint32_t argcFixed);
+  void pushNewTarget();
   void pushStandardArguments(Register argcReg, Register scratch,
                              Register scratch2, uint32_t argcFixed,
                              bool isJitCall, bool isConstructing);

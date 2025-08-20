@@ -34,8 +34,12 @@ vendoring:
 updatebot:
   maintainer-phab: "#nss-reviewers"
   maintainer-bz: jschanck@mozilla.com
+  fuzzy-paths:
+    - netwerk/base
+    - security/certverifier
+    - security/manager/ssl
   tasks:
     - type: vendoring
       enabled: true
       frequency: 1 week
-      blocking: 1978341
+      blocking: 1983213

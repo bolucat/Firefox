@@ -8,7 +8,6 @@ ChromeUtils.defineESModuleGetters(lazy, {
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
   NewTabUtils: "resource://gre/modules/NewTabUtils.sys.mjs",
   ObliviousHTTP: "resource://gre/modules/ObliviousHTTP.sys.mjs",
-  pktApi: "chrome://pocket/content/pktApi.sys.mjs",
   PersistentCache: "resource://newtab/lib/PersistentCache.sys.mjs",
   Region: "resource://gre/modules/Region.sys.mjs",
   RemoteSettings: "resource://services-settings/remote-settings.sys.mjs",
@@ -138,6 +137,12 @@ const PREF_SURFACE_ID = "telemetry.surfaceId";
 const PREF_WIDGET_LISTS_ENABLED = "widgets.lists.enabled";
 
 let getHardcodedLayout;
+
+ChromeUtils.defineLazyGetter(lazy, "userAgent", () => {
+  return Cc["@mozilla.org/network/protocol;1?name=http"].getService(
+    Ci.nsIHttpProtocolHandler
+  ).userAgent;
+});
 
 export class DiscoveryStreamFeed {
   constructor() {
@@ -447,18 +452,6 @@ export class DiscoveryStreamFeed {
         },
       })
     );
-  }
-
-  async setupPocketState(target) {
-    let dispatch = action =>
-      this.store.dispatch(ac.OnlyToOneContent(action, target));
-    const isUserLoggedIn = lazy.pktApi.isUserLoggedIn();
-    dispatch({
-      type: at.DISCOVERY_STREAM_POCKET_STATE_SET,
-      data: {
-        isUserLoggedIn,
-      },
-    });
   }
 
   uninitPrefs() {
@@ -1344,6 +1337,8 @@ export class DiscoveryStreamFeed {
       }
 
       if (placements?.length) {
+        const headers = new Headers();
+        headers.append("content-type", "application/json");
         const apiKeyPref = this.config.api_key_pref;
         const apiKey = Services.prefs.getCharPref(apiKeyPref, "");
         const state = this.store.getState();
@@ -1362,6 +1357,29 @@ export class DiscoveryStreamFeed {
           unifiedAdsPlacements = this.getAdsPlacements();
           const blockedSponsors =
             state.Prefs.values[PREF_UNIFIED_ADS_BLOCKED_LIST];
+          const preFlightConfig =
+            state.Prefs.values?.trainhopConfig?.marsPreFlight || {};
+
+          // We need some basic data that we can pass along to the ohttp request.
+          // We purposefully don't use ohttp on this request. We also expect to
+          // mostly hit the HTTP cache rather than the network with these requests.
+          if (preFlightConfig.enabled) {
+            const preFlight = await this.fetchFromEndpoint(
+              `${endpointBaseUrl}v1/o`,
+              {
+                method: "GET",
+              }
+            );
+
+            if (preFlight) {
+              // If we don't get a normalized_ua, it means it matched the default userAgent.
+              headers.append(
+                "X-User-Agent",
+                preFlight.normalized_ua || lazy.userAgent
+              );
+              headers.append("X-Geoname-ID", preFlight.geoname_id);
+            }
+          }
 
           body = {
             context_id: await lazy.ContextId.request(),
@@ -1370,9 +1388,7 @@ export class DiscoveryStreamFeed {
           };
         }
 
-        const headers = new Headers();
         const marsOhttpEnabled = state.Prefs.values[PREF_UNIFIED_ADS_OHTTP];
-        headers.append("content-type", "application/json");
 
         let spocsResponse;
         // Logic decision point: Query ads servers in this file or utilize AdsFeed method
@@ -2141,8 +2157,13 @@ export class DiscoveryStreamFeed {
 
       let inferredInterests = null;
       if (inferredPersonalization && merinoOhttpEnabled) {
+        const useLaplace =
+          !prefs.inferredPersonalizationConfig?.iv_unary_dp_in_request;
         inferredInterests =
-          this.store.getState().InferredPersonalization.inferredInterests || {};
+          (useLaplace
+            ? this.store.getState().InferredPersonalization.inferredInterests
+            : this.store.getState().InferredPersonalization
+                .coarsePrivateInferredInterests) || {};
       }
       const requestMetadata = {
         utc_offset: lazy.NewTabUtils.getUtcOffset(prefs[PREF_SURFACE_ID]),
@@ -2803,9 +2824,6 @@ export class DiscoveryStreamFeed {
             })
           )
         );
-        break;
-      case at.DISCOVERY_STREAM_POCKET_STATE_INIT:
-        this.setupPocketState(action.meta.fromTarget);
         break;
       case at.DISCOVERY_STREAM_PERSONALIZATION_UPDATED:
         if (this.personalized) {

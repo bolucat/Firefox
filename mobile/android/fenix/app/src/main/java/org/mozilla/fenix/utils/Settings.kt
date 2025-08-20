@@ -2407,30 +2407,6 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         )
 
     /**
-     * Returns the height of the bottom toolbar container.
-     *
-     * The bottom toolbar container can consist of a navigation bar, the microsurvey prompt
-     * a combination of a navigation and microsurvey prompt, or be absent.
-     */
-    fun getBottomToolbarContainerHeight(): Int {
-        val isMicrosurveyEnabled = shouldShowMicrosurveyPrompt
-
-        val microsurveyHeight = if (isMicrosurveyEnabled) {
-            appContext.pixelSizeFor(R.dimen.browser_microsurvey_height)
-        } else {
-            0
-        }
-
-        val navBarHeight = if (shouldUseExpandedToolbar) {
-            appContext.pixelSizeFor(R.dimen.browser_navbar_height)
-        } else {
-            0
-        }
-
-        return microsurveyHeight + navBarHeight
-    }
-
-    /**
      * Indicates if the microsurvey feature is enabled.
      */
     var microsurveyFeatureEnabled by lazyFeatureFlagPreference(
@@ -2700,14 +2676,6 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     var distributionId by stringPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_distribution_id),
         default = "",
-    )
-
-    /**
-     * Suffix of the currently selected app icon (launcher alias).
-     */
-    var selectedAppIcon by stringPreference(
-        key = appContext.getPreferenceKey(R.string.pref_key_selected_app_icon),
-        default = AppIcon.AppDefault.aliasSuffix,
     )
 
     /**

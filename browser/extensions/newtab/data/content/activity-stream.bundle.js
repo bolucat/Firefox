@@ -146,8 +146,6 @@ for (const type of [
   "DISCOVERY_STREAM_PERSONALIZATION_RESET",
   "DISCOVERY_STREAM_PERSONALIZATION_TOGGLE",
   "DISCOVERY_STREAM_PERSONALIZATION_UPDATED",
-  "DISCOVERY_STREAM_POCKET_STATE_INIT",
-  "DISCOVERY_STREAM_POCKET_STATE_SET",
   "DISCOVERY_STREAM_PREFS_SETUP",
   "DISCOVERY_STREAM_RETRY_FEED",
   "DISCOVERY_STREAM_SPOCS_CAPS",
@@ -203,7 +201,6 @@ for (const type of [
   "PLACES_LINKS_DELETED",
   "PLACES_LINK_BLOCKED",
   "POCKET_CTA",
-  "POCKET_LOGGED_IN",
   "POCKET_THUMBS_DOWN",
   "POCKET_THUMBS_UP",
   "POCKET_WAITING_FOR_SPOC",
@@ -3297,7 +3294,8 @@ function FeatureHighlight({
   openedOverride = false,
   showButtonIcon = true,
   dismissCallback = () => {},
-  outsideClickCallback = () => {}
+  outsideClickCallback = () => {},
+  modalClassName = ""
 }) {
   const [opened, setOpened] = (0,external_React_namespaceObject.useState)(openedOverride);
   const ref = (0,external_React_namespaceObject.useRef)(null);
@@ -3348,7 +3346,7 @@ function FeatureHighlight({
     className: `toggle-button ${hideButtonClass}`,
     onClick: onToggleClick
   }, toggle), /*#__PURE__*/external_React_default().createElement("div", {
-    className: `feature-highlight-modal ${position} ${arrowPosition} ${openedClassname}`
+    className: `feature-highlight-modal ${position} ${arrowPosition} ${modalClassName} ${openedClassname}`
   }, /*#__PURE__*/external_React_default().createElement("div", {
     className: "message-icon"
   }, icon), /*#__PURE__*/external_React_default().createElement("p", {
@@ -7552,7 +7550,6 @@ const INITIAL_STATE = {
   },
   Sections: [],
   Pocket: {
-    isUserLoggedIn: null,
     pocketCta: {},
     waitingForSpoc: true,
   },
@@ -7591,7 +7588,6 @@ const INITIAL_STATE = {
       utmCampaign: undefined,
       utmContent: undefined,
     },
-    isUserLoggedIn: false,
     showTopicSelection: false,
     report: {
       visible: false,
@@ -8097,8 +8093,6 @@ function Pocket(prevState = INITIAL_STATE.Pocket, action) {
   switch (action.type) {
     case actionTypes.POCKET_WAITING_FOR_SPOC:
       return { ...prevState, waitingForSpoc: action.data };
-    case actionTypes.POCKET_LOGGED_IN:
-      return { ...prevState, isUserLoggedIn: !!action.data };
     case actionTypes.POCKET_CTA:
       return {
         ...prevState,
@@ -8243,11 +8237,6 @@ function DiscoveryStream(prevState = INITIAL_STATE.DiscoveryStream, action) {
         titleLines: action.data.titleLines,
         descLines: action.data.descLines,
         readTime: action.data.readTime,
-      };
-    case actionTypes.DISCOVERY_STREAM_POCKET_STATE_SET:
-      return {
-        ...prevState,
-        isUserLoggedIn: action.data.isUserLoggedIn,
       };
     case actionTypes.SHOW_PRIVACY_INFO:
       return {
@@ -12066,6 +12055,7 @@ const USER_ACTION_TYPES = {
   TASK_COMPLETE: "task_complete"
 };
 const PREF_WIDGETS_LISTS_MAX_LISTS = "widgets.lists.maxLists";
+const PREF_WIDGETS_LISTS_MAX_LISTITEMS = "widgets.lists.maxListItems";
 function Lists({
   dispatch
 }) {
@@ -12468,6 +12458,14 @@ function Lists({
   // Ensure a minimum of 1, but allow higher values from prefs
   const maxListsCount = Math.max(1, prefs[PREF_WIDGETS_LISTS_MAX_LISTS]);
   const isAtMaxListsLimit = currentListsCount >= maxListsCount;
+
+  // Enforce maximum count limits to list items
+  // The maximum applies to the total number of items (both incomplete and completed items)
+  const currentSelectedListItemsCount = selectedList?.tasks.length + selectedList?.completed.length;
+
+  // Ensure a minimum of 1, but allow higher values from prefs
+  const maxListItemsCount = Math.max(1, prefs[PREF_WIDGETS_LISTS_MAX_LISTITEMS]);
+  const isAtMaxListItemsLimit = currentSelectedListItemsCount >= maxListItemsCount;
   return /*#__PURE__*/external_React_default().createElement("article", {
     className: "lists",
     ref: el => {
@@ -12523,7 +12521,7 @@ function Lists({
   }))), /*#__PURE__*/external_React_default().createElement("div", {
     className: "add-task-container"
   }, /*#__PURE__*/external_React_default().createElement("span", {
-    className: "icon icon-add"
+    className: `icon icon-add ${isAtMaxListItemsLimit ? "icon-disabled" : ""}`
   }), /*#__PURE__*/external_React_default().createElement("input", {
     ref: inputRef,
     onBlur: () => saveTask(),
@@ -12533,7 +12531,8 @@ function Lists({
     className: "add-task-input",
     onKeyDown: handleKeyDown,
     type: "text",
-    maxLength: 100
+    maxLength: 100,
+    disabled: isAtMaxListItemsLimit
   })), /*#__PURE__*/external_React_default().createElement("div", {
     className: "task-list-wrapper"
   }, /*#__PURE__*/external_React_default().createElement("moz-reorderable-list", {
@@ -13271,10 +13270,50 @@ function EditableTimerFields({
     tabIndex: tabIndex
   }, formatTime(props.timeLeft).split(":")[1]));
 }
+;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/FeatureHighlight/WidgetsFeatureHighlight.jsx
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+
+
+function WidgetsFeatureHighlight({
+  handleDismiss,
+  handleBlock,
+  dispatch
+}) {
+  const {
+    messageData
+  } = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Messages);
+  return /*#__PURE__*/React.createElement(FeatureHighlight, {
+    position: "inset-inline-center inset-block-end",
+    arrowPosition: "arrow-top-center",
+    openedOverride: true,
+    showButtonIcon: false,
+    feature: messageData.content.feature,
+    modalClassName: "widget-highlight-wrapper",
+    message: /*#__PURE__*/React.createElement("div", {
+      className: "widget-highlight"
+    }, /*#__PURE__*/React.createElement("h3", {
+      "data-l10n-id": "newtab-widget-message-title"
+    }), /*#__PURE__*/React.createElement("p", {
+      "data-l10n-id": "newtab-widget-message-copy"
+    })),
+    dispatch: dispatch,
+    dismissCallback: () => {
+      handleDismiss();
+      handleBlock();
+    },
+    outsideClickCallback: handleDismiss
+  });
+}
+
 ;// CONCATENATED MODULE: ./content-src/components/Widgets/Widgets.jsx
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
 
 
 
@@ -13286,6 +13325,9 @@ const PREF_WIDGETS_TIMER_ENABLED = "widgets.focusTimer.enabled";
 const PREF_WIDGETS_SYSTEM_TIMER_ENABLED = "widgets.system.focusTimer.enabled";
 function Widgets() {
   const prefs = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Prefs.values);
+  const {
+    messageData
+  } = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Messages);
   const listsState = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.ListsWidget);
   const timerState = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.TimerWidget);
   const timerType = timerState?.timerType;
@@ -13311,6 +13353,10 @@ function Widgets() {
     "aria-live": "polite"
   }, /*#__PURE__*/external_React_default().createElement("p", {
     "data-l10n-id": "newtab-widget-keep-scrolling"
+  })), messageData?.content?.messageType === "WidgetMessage" && /*#__PURE__*/external_React_default().createElement(MessageWrapper, {
+    dispatch: dispatch
+  }, /*#__PURE__*/external_React_default().createElement(WidgetsFeatureHighlight, {
+    dispatch: dispatch
   })));
 }
 
@@ -14423,6 +14469,7 @@ const WallpaperCategories = (0,external_ReactRedux_namespaceObject.connect)(stat
   };
 })(_WallpaperCategories);
 ;// CONCATENATED MODULE: ./content-src/components/CustomizeMenu/ContentSection/ContentSection.jsx
+function ContentSection_extends() { return ContentSection_extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, ContentSection_extends.apply(null, arguments); }
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -14494,7 +14541,7 @@ class ContentSection extends (external_React_default()).PureComponent {
     if (drawerRef) {
       let drawerHeight = parseFloat(window.getComputedStyle(drawerRef)?.height) || 0;
       if (isOpen) {
-        drawerRef.style.marginTop = "var(--space-large)";
+        drawerRef.style.marginTop = "var(--space-small)";
       } else {
         drawerRef.style.marginTop = `-${drawerHeight + 3}px`;
       }
@@ -14659,15 +14706,18 @@ class ContentSection extends (external_React_default()).PureComponent {
     }))))))), pocketRegion && /*#__PURE__*/external_React_default().createElement("div", {
       id: "pocket-section",
       className: "section"
-    }, /*#__PURE__*/external_React_default().createElement("moz-toggle", {
+    }, /*#__PURE__*/external_React_default().createElement("moz-toggle", ContentSection_extends({
       id: "pocket-toggle",
       pressed: pocketEnabled || null,
       onToggle: this.onPreferenceSelect,
       "aria-describedby": "custom-pocket-subtitle",
       "data-preference": "feeds.section.topstories",
-      "data-eventSource": "TOP_STORIES",
+      "data-eventSource": "TOP_STORIES"
+    }, mayHaveInferredPersonalization ? {
+      label: "Stories"
+    } : {
       "data-l10n-id": "newtab-custom-stories-toggle"
-    }, /*#__PURE__*/external_React_default().createElement("div", {
+    }), /*#__PURE__*/external_React_default().createElement("div", {
       slot: "nested"
     }, (mayHaveInferredPersonalization || mayHaveTopicSections) && /*#__PURE__*/external_React_default().createElement("div", {
       className: "more-info-pocket-wrapper"
@@ -14689,7 +14739,7 @@ class ContentSection extends (external_React_default()).PureComponent {
     }), /*#__PURE__*/external_React_default().createElement("label", {
       className: "customize-menu-checkbox-label",
       htmlFor: "inferred-personalization"
-    }, "Recommendations inferred from your activity with the feed")), mayHaveTopicSections && /*#__PURE__*/external_React_default().createElement(SectionsMgmtPanel, {
+    }, "Personalized stories based on your activity")), mayHaveTopicSections && /*#__PURE__*/external_React_default().createElement(SectionsMgmtPanel, {
       exitEventFired: exitEventFired
     }))))))), /*#__PURE__*/external_React_default().createElement("span", {
       className: "divider",

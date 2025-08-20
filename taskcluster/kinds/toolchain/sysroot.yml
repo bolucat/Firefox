@@ -92,6 +92,7 @@ sysroot-wasm32-wasi-clang-17:
             - wasi-sdk.patch
         resources:
             - taskcluster/scripts/misc/wasi-sdk.patch
+        toolchain-alias: sysroot-wasm32-wasi-clang-base
         toolchain-artifact: public/build/sysroot-wasm32-wasi.tar.zst
     fetches:
         fetch:

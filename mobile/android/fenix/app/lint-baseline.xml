@@ -785,17 +785,6 @@
     <issue
         id="NoStaticMocking"
         message="Usage of MockK&apos;s &apos;mockkStatic&apos; for static mocking is discouraged. Refactor to use dependency injection."
-        errorLine1="        mockkStatic(View::increaseTapArea)"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/test/java/org/mozilla/fenix/search/toolbar/IncreasedTapAreaActionDecoratorTest.kt"
-            line="31"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="NoStaticMocking"
-        message="Usage of MockK&apos;s &apos;mockkStatic&apos; for static mocking is discouraged. Refactor to use dependency injection."
         errorLine1="        mockkStatic(&quot;org.mozilla.fenix.settings.advanced.LocaleManagerExtensionKt&quot;)"
         errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
@@ -804,16 +793,7 @@
             column="9"/>
     </issue>
 
-    <issue
-        id="NoStaticMocking"
-        message="Usage of MockK&apos;s &apos;mockkStatic&apos; for static mocking is discouraged. Refactor to use dependency injection."
-        errorLine1="        mockkStatic(Log::class)"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/test/java/org/mozilla/fenix/ext/LogTest.kt"
-            line="24"
-            column="9"/>
-    </issue>
+
 
     <issue
         id="NoStaticMocking"
@@ -857,50 +837,6 @@
             file="src/test/java/org/mozilla/fenix/tabstray/NavigationInteractorTest.kt"
             line="156"
             column="13"/>
-    </issue>
-
-    <issue
-        id="NoStaticMocking"
-        message="Usage of MockK&apos;s &apos;mockkStatic&apos; for static mocking is discouraged. Refactor to use dependency injection."
-        errorLine1="        mockkStatic(ShortcutManagerCompat::class)"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/test/java/org/mozilla/fenix/components/PrivateShortcutCreateManagerTest.kt"
-            line="34"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="NoStaticMocking"
-        message="Usage of MockK&apos;s &apos;mockkStatic&apos; for static mocking is discouraged. Refactor to use dependency injection."
-        errorLine1="        mockkStatic(PendingIntent::class)"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/test/java/org/mozilla/fenix/components/PrivateShortcutCreateManagerTest.kt"
-            line="35"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="NoStaticMocking"
-        message="Usage of MockK&apos;s &apos;unmockkStatic&apos; for static mocking is discouraged. Refactor to use dependency injection."
-        errorLine1="        unmockkStatic(ShortcutManagerCompat::class)"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/test/java/org/mozilla/fenix/components/PrivateShortcutCreateManagerTest.kt"
-            line="40"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="NoStaticMocking"
-        message="Usage of MockK&apos;s &apos;unmockkStatic&apos; for static mocking is discouraged. Refactor to use dependency injection."
-        errorLine1="        unmockkStatic(PendingIntent::class)"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/test/java/org/mozilla/fenix/components/PrivateShortcutCreateManagerTest.kt"
-            line="41"
-            column="9"/>
     </issue>
 
     <issue
@@ -3342,17 +3278,6 @@
         <location
             file="src/test/java/org/mozilla/fenix/settings/advanced/LocaleSettingsControllerTest.kt"
             line="46"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="NoObjectMocking"
-        message="Usage of MockK&apos;s &apos;mockkObject&apos; for object/singleton mocking is discouraged. Consider providing dependencies explicitly."
-        errorLine1="        mockkObject(Config)"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/test/java/org/mozilla/fenix/ext/LogTest.kt"
-            line="25"
             column="9"/>
     </issue>
 
