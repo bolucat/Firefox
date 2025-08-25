@@ -319,6 +319,8 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
 
         if (context?.components?.appStore?.state?.searchState?.isSearchActive != true) {
             (activity as NavHostActivity).getSupportActionBarAndInflateIfNecessary().show()
+        } else {
+            handleShowingSearchUX()
         }
     }
 
@@ -494,13 +496,15 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
             }
         }
         val appStore = requireComponents.appStore
-        val historySearchEngine = requireComponents.core.store.state.search.searchEngines.firstOrNull {
-            it.id == HISTORY_SEARCH_ENGINE_ID
+        if (!appStore.state.searchState.isSearchActive) {
+            val historySearchEngine = requireComponents.core.store.state.search.searchEngines.firstOrNull {
+                it.id == HISTORY_SEARCH_ENGINE_ID
+            }
+            historySearchEngine?.let {
+                appStore.dispatch(AppAction.SearchAction.SearchEngineSelected(it, false))
+            }
+            appStore.dispatch(AppAction.SearchAction.SearchStarted())
         }
-        historySearchEngine?.let {
-            appStore.dispatch(AppAction.SearchAction.SearchEngineSelected(it, false))
-        }
-        appStore.dispatch(AppAction.SearchAction.SearchStarted())
 
         showSearchUx()
     }
@@ -522,7 +526,7 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
         focusManager.clearFocus()
         keyboardController?.hide()
 
-        (activity as? AppCompatActivity)?.supportActionBar?.show()
+        (activity as NavHostActivity).getSupportActionBarAndInflateIfNecessary().show()
         binding.historyLayout.updateLayoutParams {
             (this as? ViewGroup.MarginLayoutParams)?.topMargin = 0
         }
@@ -622,11 +626,12 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
     }
 
     private fun openRegularItem(item: History.Regular) = runIfFragmentIsAttached {
-        (activity as HomeActivity).openToBrowserAndLoad(
+        requireComponents.useCases.fenixBrowserUseCases.loadUrlOrSearch(
             searchTermOrURL = item.url,
-            newTab = true,
-            from = BrowserDirection.FromHistory,
+            newTab = requireComponents.settings.enableHomepageAsNewTab.not(),
+            private = (requireActivity() as HomeActivity).browsingModeManager.mode.isPrivate,
         )
+        findNavController().navigate(R.id.browserFragment)
     }
 
     private fun onDeleteInitiated(items: Set<History>) {

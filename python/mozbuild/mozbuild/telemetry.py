@@ -197,7 +197,7 @@ def _is_process_running(process_name: str) -> bool:
             check=False,
         )
         return result.returncode == 0
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         return False
 
 
@@ -217,7 +217,7 @@ def get_fleet_running() -> bool:
             for line in out.splitlines():
                 if "STATE" in line and "RUNNING" in line:
                     return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, FileNotFoundError):
             pass
     elif system == "Linux":
         try:
@@ -228,7 +228,7 @@ def get_fleet_running() -> bool:
             )
             if result.returncode == 0:
                 return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, FileNotFoundError):
             pass
         return _is_process_running("osqueryd")
     return False
@@ -251,7 +251,7 @@ def get_crowdstrike_running() -> bool:
                     and "activated enabled" in line.lower()
                 ):
                     return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, FileNotFoundError):
             pass
     elif system == "Windows":
         try:
@@ -261,7 +261,7 @@ def get_crowdstrike_running() -> bool:
             for line in out.splitlines():
                 if "STATE" in line and "RUNNING" in line:
                     return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, FileNotFoundError):
             pass
     elif system == "Linux":
         try:
@@ -272,7 +272,7 @@ def get_crowdstrike_running() -> bool:
             )
             if result.returncode == 0:
                 return True
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, FileNotFoundError):
             pass
         return _is_process_running("falcon-sensor")
 

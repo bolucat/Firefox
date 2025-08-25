@@ -52,6 +52,20 @@ internal fun loginsReducer(state: LoginsState, action: LoginsAction) = when (act
     is LoginsListBackClicked -> state.respondToLoginsListBackClick()
     is AddLoginBackClicked -> state.respondToAddLoginBackClick()
     is EditLoginBackClicked -> state.respondToEditLoginBackClick()
+    is BiometricAuthenticationAction.AuthenticationSucceeded -> state.copy(
+        biometricAuthenticationState = BiometricAuthenticationState.Authorized,
+    )
+    is BiometricAuthenticationAction.AuthenticationInProgress -> state.copy(
+        biometricAuthenticationState = BiometricAuthenticationState.InProgress,
+    )
+    is BiometricAuthenticationAction.AuthenticationFailed -> state.copy(
+        biometricAuthenticationState = BiometricAuthenticationState.NonAuthorized,
+    )
+    is BiometricAuthenticationDialogAction -> state.copy(
+        biometricAuthenticationDialogState = BiometricAuthenticationDialogState(
+            action.shouldShowDialog,
+        ),
+    )
     ViewDisposed,
     is Init, LearnMoreAboutSync,
     -> state
@@ -69,7 +83,10 @@ private fun LoginsState.handleSearchLogins(action: SearchLogins): LoginsState = 
     searchText = action.searchText,
     loginItems = action.loginItems.filter {
         it.url.contains(
-            action.searchText,
+            other = action.searchText,
+            ignoreCase = true,
+        ) || it.username.contains(
+            other = action.searchText,
             ignoreCase = true,
         )
     },
@@ -80,8 +97,12 @@ private fun LoginsState.handleLoginsLoadedAction(action: LoginsLoaded): LoginsSt
         loginItems = if (searchText.isNullOrEmpty()) {
             action.loginItems.sortedWith(sortOrder.comparator)
         } else {
-            action.loginItems.sortedWith(sortOrder.comparator)
-                .filter { it.url.contains(searchText, ignoreCase = true) }
+            action.loginItems.sortedWith(sortOrder.comparator).filter {
+                it.url.contains(
+                    other = searchText,
+                    ignoreCase = true,
+                ) || it.username.contains(other = searchText, ignoreCase = true)
+            }
         },
     )
 

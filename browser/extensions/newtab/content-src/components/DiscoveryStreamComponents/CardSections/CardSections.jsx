@@ -139,7 +139,6 @@ function CardSection({
   dispatch,
   type,
   firstVisibleTimestamp,
-  spocMessageVariant,
   ctaButtonVariant,
   ctaButtonSponsors,
   anySectionsFollowed,
@@ -172,7 +171,7 @@ function CardSection({
     prefs[PREF_SECTIONS_PERSONALIZATION_ENABLED];
 
   const { sectionKey, title, subtitle } = section;
-  const { responsiveLayouts } = section.layout;
+  const { responsiveLayouts, name: layoutName } = section.layout;
 
   const following = sectionPersonalization[sectionKey]?.isFollowed;
 
@@ -184,10 +183,11 @@ function CardSection({
           section: sectionKey,
           section_position: sectionPosition,
           is_section_followed: following,
+          layout_name: layoutName,
         },
       })
     );
-  }, [dispatch, sectionKey, sectionPosition, following]);
+  }, [dispatch, sectionKey, sectionPosition, following, layoutName]);
 
   // Ref to hold the section element
   const sectionRefs = useIntersectionObserver(handleIntersection);
@@ -395,12 +395,12 @@ function CardSection({
               availableTopics={availableTopics}
               ctaButtonSponsors={ctaButtonSponsors}
               ctaButtonVariant={ctaButtonVariant}
-              spocMessageVariant={spocMessageVariant}
               sectionsClassNames={classNames.join(" ")}
               sectionsCardImageSizes={imageSizes}
               section={sectionKey}
               sectionPosition={sectionPosition}
               sectionFollowed={following}
+              sectionLayoutName={layoutName}
               isTimeSensitive={rec.isTimeSensitive}
             />
           );
@@ -421,7 +421,6 @@ function CardSections({
   dispatch,
   type,
   firstVisibleTimestamp,
-  spocMessageVariant,
   ctaButtonVariant,
   ctaButtonSponsors,
 }) {
@@ -470,7 +469,6 @@ function CardSections({
       dispatch={dispatch}
       type={type}
       firstVisibleTimestamp={firstVisibleTimestamp}
-      spocMessageVariant={spocMessageVariant}
       ctaButtonVariant={ctaButtonVariant}
       ctaButtonSponsors={ctaButtonSponsors}
       anySectionsFollowed={anySectionsFollowed}

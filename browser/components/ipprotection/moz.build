@@ -14,7 +14,9 @@ EXTRA_JS_MODULES.ipprotection += [
     "IPPChannelFilter.sys.mjs",
     "IPProtection.sys.mjs",
     "IPProtectionPanel.sys.mjs",
+    "IPProtectionServerlist.sys.mjs",
     "IPProtectionService.sys.mjs",
+    "IPProtectionUsage.sys.mjs",
 ]
 
 BROWSER_CHROME_MANIFESTS += [

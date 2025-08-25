@@ -344,11 +344,16 @@
 
 /**
  * Display rules that don't match the current selected element and uneditable
- * user agent styles differently
+ * user agent styles differently.
+ * Use :where() to get a 0-specificity rule so the background-color can be overridden
+ * if needed (e.g. when highlighted by `.theme-bg-contrast`)
  */
-.ruleview-rule.unmatched,
-.ruleview-rule[unmatched="true"],
-.ruleview-rule[uneditable="true"] {
+/* prettier-ignore */
+:where(
+  .ruleview-rule.unmatched,
+  .ruleview-rule[unmatched="true"],
+  .ruleview-rule[uneditable="true"]
+) {
   background: var(--theme-tab-toolbar-background);
 }
 
@@ -586,6 +591,7 @@
 
 .ruleview-computedlist {
   list-style: none;
+  margin: 0;
   padding: 0;
 }
 
@@ -631,7 +637,8 @@
   margin-left: 0;
 }
 
-.ruleview-overridden {
+.ruleview-overridden,
+.ruleview-invalid {
   text-decoration: line-through solid var(--theme-text-color-inactive);
 }
 
@@ -784,7 +791,12 @@
 
 .ruleview-rule:is(.unmatched, [unmatched="true"]) .ruleview-selector,
 .ruleview-selector.unmatched,
-.ruleview-property:is(.inactive-css, .ruleview-overridden) :is(.ruleview-propertyname, .ruleview-propertyvalue) {
+/* prettier-ignore */
+.ruleview-property:is(
+  .inactive-css,
+  .ruleview-overridden,
+  .ruleview-invalid
+) :is(.ruleview-propertyname, .ruleview-propertyvalue) {
   color: var(--theme-text-color-inactive);
 }
 

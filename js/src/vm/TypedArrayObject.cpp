@@ -290,9 +290,10 @@ size_t FixedLengthTypedArrayObject::objectMoved(JSObject* obj, JSObject* old) {
   // Non-inline allocations are rounded up.
   nbytes = RoundUp(nbytes, sizeof(Value));
 
-  Nursery::WasBufferMoved result = nursery.maybeMoveBufferOnPromotion(
-      &buf, newObj, nbytes, nbytes, MemoryUse::TypedArrayElements,
-      ArrayBufferContentsArena);
+  Nursery::WasBufferMoved result =
+      nursery.maybeMoveNurseryOrMallocBufferOnPromotion(
+          &buf, newObj, nbytes, nbytes, MemoryUse::TypedArrayElements,
+          ArrayBufferContentsArena);
   if (result == Nursery::BufferMoved) {
     newObj->setReservedSlot(DATA_SLOT, PrivateValue(buf));
 
@@ -6826,7 +6827,7 @@ bool TypedArrayObject::sort(JSContext* cx, unsigned argc, Value* vp) {
         return true;
 
       case ArraySortResult::CallJS:
-      case ArraySortResult::CallJSSameRealmNoRectifier:
+      case ArraySortResult::CallJSSameRealmNoUnderflow:
         MOZ_ASSERT(data.get().comparatorThisValue().isUndefined());
         MOZ_ASSERT(&args[0].toObject() == data.get().comparator());
         callArgs[0].set(data.get().comparatorArg(0));

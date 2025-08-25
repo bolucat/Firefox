@@ -397,12 +397,19 @@ unsafe fn adapter_request_device(
     }
 
     if wgpu_parent_is_external_texture_enabled() {
-        if global
-            .adapter_features(self_id)
-            .contains(wgt::Features::EXTERNAL_TEXTURE)
-        {
-            desc.required_features
-                .insert(wgt::Features::EXTERNAL_TEXTURE);
+        // Enable features used for external texture support, if available. We
+        // avoid adding unsupported features to required_features so that we
+        // can still create a device in their absence, and will only fail when
+        // performing an operation that actually requires the feature.
+        for feature in [
+            wgt::Features::EXTERNAL_TEXTURE,
+            wgt::Features::TEXTURE_FORMAT_NV12,
+            wgt::Features::TEXTURE_FORMAT_P010,
+            wgt::Features::TEXTURE_FORMAT_16BIT_NORM,
+        ] {
+            if global.adapter_features(self_id).contains(feature) {
+                desc.required_features.insert(feature);
+            }
         }
     }
 
@@ -936,7 +943,7 @@ pub extern "C" fn wgpu_vkimage_create_with_dma_buf(
 
             instance.get_physical_device_format_properties2(
                 physical_device,
-                vk::Format::R8G8B8A8_UNORM,
+                vk::Format::B8G8R8A8_UNORM,
                 &mut format_properties_2,
             );
             drm_format_modifier_props_list.drm_format_modifier_count
@@ -958,7 +965,7 @@ pub extern "C" fn wgpu_vkimage_create_with_dma_buf(
 
         instance.get_physical_device_format_properties2(
             physical_device,
-            vk::Format::R8G8B8A8_UNORM,
+            vk::Format::B8G8R8A8_UNORM,
             &mut format_properties_2,
         );
 
@@ -969,7 +976,7 @@ pub extern "C" fn wgpu_vkimage_create_with_dma_buf(
             let support = is_dmabuf_supported(
                 instance,
                 physical_device,
-                vk::Format::R8G8B8A8_UNORM,
+                vk::Format::B8G8R8A8_UNORM,
                 modifier_prop.drm_format_modifier,
                 usage_flags,
             );
@@ -1007,7 +1014,10 @@ pub extern "C" fn wgpu_vkimage_create_with_dma_buf(
         let vk_info = vk::ImageCreateInfo::default()
             .flags(flags)
             .image_type(vk::ImageType::TYPE_2D)
-            .format(vk::Format::R8G8B8A8_UNORM)
+            // Bug 1971883: Rather than hard-coding this format, we should use
+            // whatever format was negotiated between `GPUCanvasContext.configure`
+            // and the GPU process.
+            .format(vk::Format::B8G8R8A8_UNORM)
             .extent(extent)
             .mip_levels(1)
             .array_layers(1)
@@ -1345,6 +1355,8 @@ extern "C" {
         command_buffer_ids_length: usize,
         texture_ids: *const id::TextureId,
         texture_ids_length: usize,
+        external_texture_source_ids: *const crate::ExternalTextureSourceId,
+        external_texture_source_ids_length: usize,
     );
     fn wgpu_parent_create_swap_chain(
         parent: WebGPUParentPtr,
@@ -1665,7 +1677,10 @@ impl Global {
             let vk_info = vk::ImageCreateInfo::default()
                 .flags(vk::ImageCreateFlags::ALIAS)
                 .image_type(vk::ImageType::TYPE_2D)
-                .format(vk::Format::R8G8B8A8_UNORM)
+                // Bug 1971883: Rather than hard-coding this format, we should use
+                // whatever format was negotiated between `GPUCanvasContext.configure`
+                // and the GPU process.
+                .format(vk::Format::B8G8R8A8_UNORM)
                 .extent(extent)
                 .mip_levels(1)
                 .array_layers(1)
@@ -2786,7 +2801,7 @@ unsafe fn process_message(
         Message::BufferUnmap(device_id, buffer_id, flush) => {
             wgpu_parent_buffer_unmap(global.owner, device_id, buffer_id, flush);
         }
-        Message::QueueSubmit(device_id, queue_id, command_buffer_ids, texture_ids) => {
+        Message::QueueSubmit(device_id, queue_id, command_buffer_ids, texture_ids, external_texture_source_ids) => {
             wgpu_parent_queue_submit(
                 global.owner,
                 device_id,
@@ -2795,6 +2810,8 @@ unsafe fn process_message(
                 command_buffer_ids.len(),
                 texture_ids.as_ptr(),
                 texture_ids.len(),
+                external_texture_source_ids.as_ptr(),
+                external_texture_source_ids.len(),
             )
         }
         Message::QueueOnSubmittedWorkDone(queue_id) => {
@@ -3120,4 +3137,87 @@ pub extern "C" fn wgpu_server_command_encoder_drop(global: &Global, self_id: id:
 #[no_mangle]
 pub extern "C" fn wgpu_server_command_buffer_drop(global: &Global, self_id: id::CommandBufferId) {
     global.command_buffer_drop(self_id);
+}
+
+/// Imports a Direct3D texture from a shared handle.
+#[cfg(target_os = "windows")]
+#[no_mangle]
+pub unsafe extern "C" fn wgpu_server_device_import_texture_from_shared_handle(
+    global: &Global,
+    device_id: id::DeviceId,
+    id_in: id::TextureId,
+    desc: &wgt::TextureDescriptor<Option<&nsACString>, crate::FfiSlice<wgt::TextureFormat>>,
+    handle: *mut core::ffi::c_void,
+    mut error_buf: ErrorBuffer,
+) {
+    let desc = desc.map_label_and_view_formats(|l| wgpu_string(*l), |v| v.as_slice().to_vec());
+
+    let Some(hal_device) = global.device_as_hal::<wgc::api::Dx12>(device_id) else {
+        emit_critical_invalid_note("dx12 device");
+        global.create_texture_error(Some(id_in), &desc);
+        return;
+    };
+    let dx12_device = hal_device.raw_device();
+
+    let mut resource: Option<Direct3D12::ID3D12Resource> = None;
+    let res = dx12_device.OpenSharedHandle(Foundation::HANDLE(handle), &mut resource);
+    if res.is_err() || resource.is_none() {
+        error_buf.init(
+            ErrMsg {
+                message: "Failed to import texture from shared handle".into(),
+                r#type: ErrorType::Internal,
+            },
+            device_id,
+        );
+        global.create_texture_error(Some(id_in), &desc);
+        return;
+    }
+
+    let hal_texture = <wgh::api::Dx12 as wgh::Api>::Device::texture_from_raw(
+        resource.unwrap(),
+        desc.format,
+        desc.dimension,
+        desc.size,
+        desc.mip_level_count,
+        desc.sample_count,
+    );
+
+    let (_, error) =
+        global.create_texture_from_hal(Box::new(hal_texture), device_id, &desc, Some(id_in));
+    if let Some(err) = error {
+        error_buf.init(err, device_id);
+    }
+}
+
+/// Imports a fence from a shared handle and queues a GPU-side wait on the
+/// specified queue for the fence to reach a specific value.
+#[cfg(target_os = "windows")]
+#[no_mangle]
+pub unsafe extern "C" fn wgpu_server_device_wait_fence_from_shared_handle(
+    global: &Global,
+    device_id: id::DeviceId,
+    queue_id: id::QueueId,
+    fence_handle: *mut core::ffi::c_void,
+    fence_value: wgh::FenceValue,
+) -> bool {
+    let Some(hal_device) = global.device_as_hal::<wgc::api::Dx12>(device_id) else {
+        emit_critical_invalid_note("dx12 device");
+        return false;
+    };
+    let Some(hal_queue) = global.queue_as_hal::<wgc::api::Dx12>(queue_id) else {
+        emit_critical_invalid_note("dx12 queue");
+        return false;
+    };
+
+    let mut fence: Option<Direct3D12::ID3D12Fence> = None;
+    let res = hal_device
+        .raw_device()
+        .OpenSharedHandle(Foundation::HANDLE(fence_handle), &mut fence);
+    let fence = match (res, fence) {
+        (Ok(_), Some(fence)) => fence,
+        _ => return false,
+    };
+
+    let res = hal_queue.as_raw().Wait(&fence, fence_value);
+    res.is_ok()
 }

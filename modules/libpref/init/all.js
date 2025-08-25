@@ -3340,6 +3340,11 @@ pref("privacy.trackingprotection.emailtracking.webapp.domains", "mail.163.com,ma
 // and baseline) for users in ETP "strict" and "custom" mode.
 pref("privacy.trackingprotection.allow_list.hasMigratedCategoryPrefs", false);
 
+// Indicates if the user has interacted with the ETP category, tracking protection baseline exceptions, 
+// or convenience exceptions by changing them in the prefs or in the UI. This is used to determine 
+// if we should show the ETP Strict exceptions onboarding message again.
+pref("privacy.trackingprotection.allow_list.hasUserInteractedWithETPSettings", false);
+
 // Number of random entries to send with a gethash request
 pref("urlclassifier.gethashnoise", 4);
 
@@ -3902,9 +3907,6 @@ pref("services.common.log.logger.tokenserverclient", "Debug");
   // Enable retrying to execute commands in the child process in case the
   // JSWindowActor gets destroyed.
   pref("remote.retry-on-abort", true);
-
-  // Enable the NavigationManager using parent process WebProgress listeners
-  pref("remote.parent-navigation.enabled", true);
 #endif
 
 // Enable the JSON View tool (an inspector for application/json documents).

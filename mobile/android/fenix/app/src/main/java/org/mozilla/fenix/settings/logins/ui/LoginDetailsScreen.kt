@@ -7,7 +7,6 @@ package org.mozilla.fenix.settings.logins.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,6 +20,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -51,16 +52,13 @@ import mozilla.components.compose.base.theme.AcornTheme
 import mozilla.components.lib.state.ext.observeAsState
 import org.mozilla.fenix.R
 import org.mozilla.fenix.compose.list.TextListItem
-import org.mozilla.fenix.compose.snackbar.AcornSnackbarHostState
-import org.mozilla.fenix.compose.snackbar.SnackbarHost
-import org.mozilla.fenix.compose.snackbar.SnackbarState
 import org.mozilla.fenix.theme.FirefoxTheme
 
 @Composable
 internal fun LoginDetailsScreen(store: LoginsStore) {
     val state by store.observeAsState(store.state) { it }
     val detailState = state.loginsLoginDetailState ?: return
-    val snackbarHostState = remember { AcornSnackbarHostState() }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val deletionDialogState = state.loginDeletionDialogState
     if (deletionDialogState is LoginDeletionDialogState.Presenting) {
@@ -81,30 +79,38 @@ internal fun LoginDetailsScreen(store: LoginsStore) {
         containerColor = FirefoxTheme.colors.layer1,
         snackbarHost = {
             SnackbarHost(
-                snackbarHostState = snackbarHostState,
+                hostState = snackbarHostState,
                 modifier = Modifier.imePadding(),
             )
         },
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .padding(paddingValues)
-                .width(FirefoxTheme.layout.size.containerMaxWidth),
-        ) {
-            Spacer(modifier = Modifier.height(FirefoxTheme.layout.space.static200))
-            LoginDetailsUrl(store = store, url = detailState.login.url)
-            Spacer(modifier = Modifier.height(8.dp))
-            LoginDetailsUsername(
-                store = store,
-                snackbarHostState = snackbarHostState,
-                username = detailState.login.username,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            LoginDetailsPassword(
-                store = store,
-                snackbarHostState = snackbarHostState,
-                password = detailState.login.password,
-            )
+
+        if (state.biometricAuthenticationDialogState.shouldShow) {
+            BiometricAuthenticationDialog(store = store)
+        }
+
+        if (state.biometricAuthenticationState == BiometricAuthenticationState.Authorized) {
+            Column(
+                modifier = Modifier
+                    .padding(paddingValues)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Spacer(modifier = Modifier.height(FirefoxTheme.layout.space.static200))
+                LoginDetailsUrl(store = store, url = detailState.login.url)
+                Spacer(modifier = Modifier.height(8.dp))
+                LoginDetailsUsername(
+                    store = store,
+                    snackbarHostState = snackbarHostState,
+                    username = detailState.login.username,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                LoginDetailsPassword(
+                    store = store,
+                    snackbarHostState = snackbarHostState,
+                    password = detailState.login.password,
+                )
+            }
         }
     }
 }
@@ -151,7 +157,7 @@ private fun LoginDetailTopBar(
                     ),
                     modifier = Modifier
                         .padding(horizontal = FirefoxTheme.layout.space.static50),
-                    ) {
+                ) {
                     Icon(
                         painter = painterResource(R.drawable.mozac_ic_ellipsis_vertical_24),
                         contentDescription = null,
@@ -210,17 +216,16 @@ private fun LoginDetailsUrl(store: LoginsStore, url: String) {
         style = TextFieldStyle.default().labelStyle,
         color = TextFieldColors.default().labelColor,
         modifier = Modifier
-            .padding(
-                horizontal = FirefoxTheme.layout.space.static200,
-            ),
+            .padding(horizontal = FirefoxTheme.layout.space.static200)
+            .width(FirefoxTheme.layout.size.containerMaxWidth),
     )
 
     TextListItem(
         label = url,
         modifier = Modifier
-            .fillMaxWidth()
             .padding(start = 16.dp)
-            .wrapContentHeight(),
+            .wrapContentHeight()
+            .width(FirefoxTheme.layout.size.containerMaxWidth),
         iconPainter = painterResource(R.drawable.ic_open_in_new),
         iconDescription = stringResource(R.string.saved_login_open_site),
         onIconClick = { store.dispatch(DetailLoginAction.GoToSiteClicked(url)) },
@@ -230,7 +235,7 @@ private fun LoginDetailsUrl(store: LoginsStore, url: String) {
 @Composable
 private fun LoginDetailsUsername(
     store: LoginsStore,
-    snackbarHostState: AcornSnackbarHostState,
+    snackbarHostState: SnackbarHostState,
     username: String,
 ) {
     val usernameSnackbarText = stringResource(R.string.logins_username_copied)
@@ -241,18 +246,16 @@ private fun LoginDetailsUsername(
         style = TextFieldStyle.default().labelStyle,
         color = TextFieldColors.default().labelColor,
         modifier = Modifier
-            .padding(
-                start = 16.dp,
-                end = 16.dp,
-            ),
+            .padding(start = 16.dp)
+            .width(FirefoxTheme.layout.size.containerMaxWidth),
     )
 
     TextListItem(
         label = username,
         modifier = Modifier
-            .fillMaxWidth()
             .padding(start = 16.dp)
-            .wrapContentHeight(),
+            .wrapContentHeight()
+            .width(FirefoxTheme.layout.size.containerMaxWidth),
         iconPainter = painterResource(R.drawable.ic_copy),
         iconDescription = stringResource(R.string.saved_login_copy_username),
         onIconClick = {
@@ -269,7 +272,7 @@ private fun LoginDetailsUsername(
 @Composable
 private fun LoginDetailsPassword(
     store: LoginsStore,
-    snackbarHostState: AcornSnackbarHostState,
+    snackbarHostState: SnackbarHostState,
     password: String,
 ) {
     var isPasswordVisible by remember { mutableStateOf(false) }
@@ -280,53 +283,51 @@ private fun LoginDetailsPassword(
         text = stringResource(R.string.preferences_passwords_saved_logins_password),
         style = TextFieldStyle.default().labelStyle,
         color = TextFieldColors.default().labelColor,
-        modifier = Modifier.padding(start = 16.dp),
+        modifier = Modifier
+            .padding(start = 16.dp)
+            .width(FirefoxTheme.layout.size.containerMaxWidth),
     )
-
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        TextField(
-            value = password,
-            onValueChange = {},
-            isEnabled = false,
-            placeholder = "",
-            errorText = "",
-            modifier = Modifier
-                .padding(start = 32.dp)
-                .weight(1f),
-            trailingIcons = {
-                EyePasswordIconButton(
-                    isPasswordVisible = isPasswordVisible,
-                    onTrailingIconClick = { isPasswordVisible = !isPasswordVisible },
-                )
-            },
-            visualTransformation = if (isPasswordVisible) {
-                VisualTransformation.None
-            } else {
-                PasswordVisualTransformation()
-            },
-        )
-
-        IconButton(
-            modifier = Modifier
-                .padding(horizontal = FirefoxTheme.layout.space.static50)
-                .size(48.dp),
-            onClick = {
-                store.dispatch(DetailLoginAction.CopyPasswordClicked(password))
-                showTextCopiedSnackbar(
-                    message = passwordSnackbarText,
-                    coroutineScope = coroutineScope,
-                    snackbarHostState = snackbarHostState,
-                )
-            },
-            contentDescription = stringResource(R.string.saved_logins_copy_password),
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_copy),
-                contentDescription = null,
-                tint = AcornTheme.colors.textPrimary,
+    TextField(
+        value = password,
+        onValueChange = {},
+        isEnabled = false,
+        placeholder = "",
+        errorText = "",
+        modifier = Modifier
+            .padding(start = 32.dp)
+            .width(FirefoxTheme.layout.size.containerMaxWidth),
+        trailingIcons = {
+            EyePasswordIconButton(
+                isPasswordVisible = isPasswordVisible,
+                onTrailingIconClick = { isPasswordVisible = !isPasswordVisible },
             )
-        }
-    }
+            IconButton(
+                modifier = Modifier
+                    .padding(horizontal = FirefoxTheme.layout.space.static50)
+                    .size(48.dp),
+                onClick = {
+                    store.dispatch(DetailLoginAction.CopyPasswordClicked(password))
+                    showTextCopiedSnackbar(
+                        message = passwordSnackbarText,
+                        coroutineScope = coroutineScope,
+                        snackbarHostState = snackbarHostState,
+                    )
+                },
+                contentDescription = stringResource(R.string.saved_logins_copy_password),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_copy),
+                    contentDescription = null,
+                    tint = AcornTheme.colors.textPrimary,
+                )
+            }
+        },
+        visualTransformation = if (isPasswordVisible) {
+            VisualTransformation.None
+        } else {
+            PasswordVisualTransformation()
+        },
+    )
 }
 
 @Composable
@@ -367,13 +368,11 @@ private fun LoginDeletionDialog(
 private fun showTextCopiedSnackbar(
     message: String,
     coroutineScope: CoroutineScope,
-    snackbarHostState: AcornSnackbarHostState,
+    snackbarHostState: SnackbarHostState,
 ) {
     coroutineScope.launch {
         snackbarHostState.showSnackbar(
-            snackbarState = SnackbarState(
-                message = message,
-            ),
+            message = message,
         )
     }
 }

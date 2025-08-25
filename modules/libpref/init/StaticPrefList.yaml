@@ -5549,7 +5549,11 @@
 # Whether WebGPU's GPUExternalTexture API is enabled.
 - name: dom.webgpu.external-texture.enabled
   type: bool
+#if defined(XP_WIN)
+  value: true
+#else
   value: false
+#endif
   mirror: once
 
 # For testing purposes, crash if we don't get a hardware adapter.
@@ -7773,6 +7777,10 @@
     type: RelaxedAtomicBool
     value: true
     mirror: always
+-   name: gfx.webrender.swap-chain-allow-tearing
+    type: bool
+    value: true
+    mirror: once
 #endif
 
 # Whether or not fallback to Software WebRender requires the GPU process.
@@ -10173,6 +10181,21 @@
 - name: layout.css.ruby.intercharacter.enabled
   type: bool
   value: false
+  mirror: always
+
+# Em-height scaling percentage used for ruby positioning:
+# 0 means use legacy behavior (based on line-box height);
+# 100 to use ascent/descent normalized to a total of 1em;
+# larger values will scale the em height accordingly.
+# The used value (if non-zero) is clamped to [100, 200] to
+# avoid sending annotations hugely far away from the base.
+- name: layout.css.ruby.normalize-metrics-factor
+  type: uint32_t
+#ifdef NIGHTLY_BUILD
+  value: 100
+#else
+  value: 0
+#endif
   mirror: always
 
 - name: layout.css.scroll-behavior.damping-ratio
@@ -13534,7 +13557,7 @@
 # See Bug 1889130
 - name: network.socket.ip_addr_any.disabled
   type: RelaxedAtomicBool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # Set true to allow resolving proxy for localhost
@@ -14930,6 +14953,13 @@
   value: false
   mirror: always
 
+# According to RFC 9113, the maximum stream ID is 0x80000000.
+# However, we've been using a smaller value since the beginning.
+- name: network.http.http2.max_stream_id
+  type: RelaxedAtomicInt32
+  value: 0x7800000
+  mirror: always
+
 - name: network.http.move_to_pending_list_after_network_change
   type: RelaxedAtomicBool
   value: true
@@ -15398,6 +15428,14 @@
 - name: network.standard_content_type_parsing.response_headers
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+
+# If true, it will include extra tags to be sniffed by nsUnknownDecoder
+# These tags were previously sniffed by Firefox for legacy/webcompat but
+# are not part of the MIME sniffing spec.
+- name: network.mimesniff.extra_moz_html_tags
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
 
 # The maximum count that we allow socket prrocess to crash. If this count is
@@ -16093,6 +16131,11 @@
 - name: privacy.fingerprintingProtection.remoteOverrides.enabled
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+
+- name: privacy.fingerprintingProtection.testing
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
 
 # Enable/Disable fingerprinting protections that are enabled in

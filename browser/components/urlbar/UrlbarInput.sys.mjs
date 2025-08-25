@@ -92,10 +92,10 @@ export class UrlbarInput {
   /**
    * @param {object} options
    *   The initial options for UrlbarInput.
-   * @param {object} options.textbox
+   * @param {HTMLDivElement} options.textbox
    *   The container element.
    */
-  constructor(options = {}) {
+  constructor(options) {
     this.textbox = options.textbox;
     this.window = this.textbox.ownerGlobal;
     this.document = this.window.document;
@@ -128,6 +128,8 @@ export class UrlbarInput {
     this._enableAutofillPlaceholder = true;
 
     // Forward certain methods and properties.
+    // Note if you are extending these, you'll also need to extend the inline
+    // type definitions.
     const CONTAINER_METHODS = [
       "getAttribute",
       "hasAttribute",
@@ -168,7 +170,9 @@ export class UrlbarInput {
       });
     }
 
-    this.inputField = this.querySelector(".urlbar-input");
+    this.inputField = /** @type {HTMLInputElement} */ (
+      this.querySelector(".urlbar-input")
+    );
     this._inputContainer = this.querySelector(".urlbar-input-container");
     this._identityBox = this.querySelector(".identity-box");
     this._revertButton = this.querySelector(".urlbar-revert-button");
@@ -181,14 +185,6 @@ export class UrlbarInput {
     this._searchModeIndicatorClose = this._searchModeIndicator.querySelector(
       "#urlbar-search-mode-indicator-close"
     );
-
-    ChromeUtils.defineLazyGetter(this, "valueFormatter", () => {
-      return new lazy.UrlbarValueFormatter(this);
-    });
-
-    ChromeUtils.defineLazyGetter(this, "addSearchEngineHelper", () => {
-      return new AddSearchEngineHelper(this);
-    });
 
     // If the toolbar is not visible in this window or the urlbar is readonly,
     // we'll stop here, so that most properties of the input object are valid,
@@ -302,6 +298,83 @@ export class UrlbarInput {
       Ci.nsIEditor.eNewlinesStripSurroundingWhitespace;
   }
 
+  #lazy = XPCOMUtils.declareLazy({
+    valueFormatter: () => new lazy.UrlbarValueFormatter(this),
+    addSearchEngineHelper: () => new AddSearchEngineHelper(this),
+  });
+
+  /**
+   * Manages the Add Search Engine contextual menu entries.
+   */
+  get addSearchEngineHelper() {
+    return this.#lazy.addSearchEngineHelper;
+  }
+
+  /**
+   * @type {typeof HTMLDivElement.prototype.getAttribute}
+   */
+  getAttribute;
+
+  /**
+   * @type {typeof HTMLDivElement.prototype.hasAttribute}
+   */
+  hasAttribute;
+
+  /**
+   * @type {typeof HTMLDivElement.prototype.querySelector}
+   */
+  querySelector;
+
+  /**
+   * @type {typeof HTMLDivElement.prototype.setAttribute}
+   */
+  setAttribute;
+
+  /**
+   * @type {typeof HTMLDivElement.prototype.removeAttribute}
+   */
+  removeAttribute;
+
+  /**
+   * @type {typeof HTMLDivElement.prototype.toggleAttribute}
+   */
+  toggleAttribute;
+
+  /**
+   * @type {typeof HTMLInputElement.prototype.addEventListener}
+   */
+  addEventListener;
+
+  /**
+   * @type {typeof HTMLInputElement.prototype.blur}
+   */
+  blur;
+
+  /**
+   * @type {typeof HTMLInputElement.prototype.removeEventListener}
+   */
+  removeEventListener;
+
+  /**
+   * @type {typeof HTMLInputElement.prototype.placeholder}
+   */
+  placeholder;
+
+  /**
+   * @type {typeof HTMLInputElement.prototype.readOnly}
+   */
+  readOnly;
+
+  /**
+   * @type {typeof HTMLInputElement.prototype.selectionStart}
+   */
+  selectionStart;
+
+  /**
+   * @type {typeof HTMLInputElement.prototype.selectionEnd}
+   */
+  selectionEnd;
+
   /**
    * Called when a urlbar or urlbar related pref changes.
    *
@@ -325,7 +398,7 @@ export class UrlbarInput {
   formatValue() {
     // The editor may not exist if the toolbar is not visible.
     if (this.editor) {
-      this.valueFormatter.update();
+      this.#lazy.valueFormatter.update();
     }
   }
 
@@ -1054,6 +1127,7 @@ export class UrlbarInput {
       });
       return;
     }
+
     // When a one-off is selected, we restyle heuristic results to look like
     // search results. In the unlikely event that they are clicked, instead of
     // picking the results as usual, we confirm search mode, same as if the user
@@ -1093,6 +1167,7 @@ export class UrlbarInput {
     let isCanonized = this.setValueFromResult({
       result,
       event,
+      element,
       urlOverride: resultUrl,
     });
     let where = this._whereToOpen(event);
@@ -1130,7 +1205,7 @@ export class UrlbarInput {
 
     let { url, postData } = resultUrl
       ? { url: resultUrl, postData: null }
-      : lazy.UrlbarUtils.getUrlFromResult(result);
+      : lazy.UrlbarUtils.getUrlFromResult(result, { element });
     openParams.postData = postData;
 
     switch (result.type) {
@@ -1491,11 +1566,20 @@ export class UrlbarInput {
    *   The event that picked the result.
    * @param {string} [options.urlOverride]
    *   Normally the URL is taken from `result.payload.url`, but if `urlOverride`
-   *   is specified, it's used instead.
+   *   is specified, it's used instead. See `#getValueFromResult()`.
+   * @param {Element} [options.element]
+   *   The element that was selected or picked, if available. For results that
+   *   have multiple selectable children, the value may be taken from a child
+   *   element rather than the result. See `#getValueFromResult()`.
    * @returns {boolean}
    *   Whether the value has been canonized
    */
-  setValueFromResult({ result = null, event = null, urlOverride = null } = {}) {
+  setValueFromResult({
+    result = null,
+    event = null,
+    urlOverride = null,
+    element = null,
+  } = {}) {
     // Usually this is set by a previous input event, but in certain cases, like
     // when opening Top Sites on a loaded page, it wouldn't happen. To avoid
     // confusing the user, we always enforce it when a result changes our value.
@@ -1579,7 +1663,8 @@ export class UrlbarInput {
     }
 
     if (!result.autofill) {
-      this._setValue(this.#getValueFromResult(result, urlOverride), {
+      let value = this.#getValueFromResult(result, { urlOverride, element });
+      this._setValue(value, {
         actionType: this.#getActionTypeFromResult(result),
       });
     }
@@ -2632,12 +2717,18 @@ export class UrlbarInput {
    *
    * @param {UrlbarResult} result
    *   The result to extract the value from.
-   * @param {string | null} urlOverride
+   * @param {object} options
+   *   Options object.
+   * @param {string} [options.urlOverride]
    *   For results normally returning a url string, this allows to override
    *   it. A blank string may passed-in to clear the input.
+   * @param {Element} [options.element]
+   *   The element that was selected or picked, if available. For results that
+   *   have multiple selectable children, the value may be taken from a child
+   *   element rather than the result.
    * @returns {string} The value.
    */
-  #getValueFromResult(result, urlOverride = null) {
+  #getValueFromResult(result, { urlOverride = null, element = null } = {}) {
     switch (result.type) {
       case lazy.UrlbarUtils.RESULT_TYPE.KEYWORD:
         return result.payload.input;
@@ -2652,9 +2743,21 @@ export class UrlbarInput {
       case lazy.UrlbarUtils.RESULT_TYPE.OMNIBOX:
         return result.payload.content;
       case lazy.UrlbarUtils.RESULT_TYPE.DYNAMIC:
-        return result.payload.input || "";
+        return (
+          element?.dataset.query ||
+          result.payload.input ||
+          result.payload.query ||
+          ""
+        );
       case lazy.UrlbarUtils.RESULT_TYPE.RESTRICT:
         return result.payload.autofillKeyword + " ";
+      case lazy.UrlbarUtils.RESULT_TYPE.TIP: {
+        let value = element?.dataset.url || element?.dataset.input;
+        if (value) {
+          return value;
+        }
+        break;
+      }
     }
 
     // Always respect a set urlOverride property.
@@ -3062,7 +3165,7 @@ export class UrlbarInput {
     // Only trim value if the directionality doesn't change to RTL and we're not
     // showing a strikeout https protocol.
     return lazy.UrlbarUtils.isTextDirectionRTL(trimmedValue, this.window) ||
-      this.valueFormatter.willShowFormattedMixedContentProtocol(val)
+      this.#lazy.valueFormatter.willShowFormattedMixedContentProtocol(val)
       ? val
       : trimmedValue;
   }
@@ -4236,7 +4339,7 @@ export class UrlbarInput {
   }
 
   _on_contextmenu(event) {
-    this.addSearchEngineHelper.refreshContextMenu(event);
+    this.#lazy.addSearchEngineHelper.refreshContextMenu(event);
 
     // Context menu opened via keyboard shortcut.
     if (!event.button) {

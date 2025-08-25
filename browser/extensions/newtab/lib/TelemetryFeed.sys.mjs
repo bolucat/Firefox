@@ -239,7 +239,9 @@ export class TelemetryFeed {
   }
 
   browserOpenNewtabStart() {
-    let now = ChromeUtils.now();
+    // This shim can be removed once Firefox 144 makes it to the release
+    // channel.
+    let now = ChromeUtils.now?.() || Cu.now();
     this._browserOpenNewtabStart = Math.round(this.processStartTs + now);
 
     ChromeUtils.addProfilerMarker(
@@ -731,6 +733,7 @@ export class TelemetryFeed {
           format,
           is_list_card,
           is_section_followed,
+          layout_name,
           matches_selected_topic,
           received_rank,
           recommendation_id,
@@ -768,6 +771,7 @@ export class TelemetryFeed {
                   section,
                   section_position,
                   is_section_followed,
+                  layout_name,
                 }
               : {}),
             matches_selected_topic,
@@ -1444,8 +1448,13 @@ export class TelemetryFeed {
   handleCardSectionUserEvent(action) {
     const session = this.sessions.get(au.getPortIdOfSender(action));
     if (session) {
-      const { section, section_position, event_source, is_section_followed } =
-        action.data;
+      const {
+        section,
+        section_position,
+        event_source,
+        is_section_followed,
+        layout_name,
+      } = action.data;
       const gleanDataForPrivatePing = {
         section,
         section_position,
@@ -1487,6 +1496,7 @@ export class TelemetryFeed {
               section,
               section_position,
               is_section_followed,
+              layout_name,
             })
           );
           if (this.privatePingEnabled) {
@@ -1812,6 +1822,7 @@ export class TelemetryFeed {
                 section: tile.section,
                 section_position: tile.section_position,
                 is_section_followed: tile.is_section_followed,
+                layout_name: tile.layout_name,
               }
             : {}),
           position: tile.pos,

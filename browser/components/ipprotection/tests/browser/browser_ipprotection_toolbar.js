@@ -13,7 +13,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
 
 /**
  * Tests that toolbar widget is added and removed based on
- * `browser.ipProtection.enabled`.
+ * `browser.ipProtection.enabled` controlled by Nimbus.
  */
 add_task(async function toolbar_added_and_removed() {
   let widget = document.getElementById(IPProtectionWidget.WIDGET_ID);
@@ -30,12 +30,12 @@ add_task(async function toolbar_added_and_removed() {
     "IP Protection widget added in the correct position"
   );
   // Disable the feature
-  Services.prefs.clearUserPref("browser.ipProtection.enabled");
+  await cleanupExperiment();
   widget = document.getElementById(IPProtectionWidget.WIDGET_ID);
   Assert.equal(widget, null, "IP Protection widget is removed");
 
   // Reenable the feature
-  Services.prefs.setBoolPref("browser.ipProtection.enabled", true);
+  await setupExperiment();
   widget = document.getElementById(IPProtectionWidget.WIDGET_ID);
   Assert.ok(
     BrowserTestUtils.isVisible(widget),
@@ -67,7 +67,14 @@ add_task(async function toolbar_icon_status() {
     IPProtectionWidget.PANEL_ID
   );
   let content = panelView.querySelector(IPProtectionPanel.CONTENT_TAGNAME);
+  setupService({
+    isSignedIn: true,
+    isEnrolled: true,
+  });
+  IPProtectionService.isEnrolled = true;
+  IPProtectionService.isEntitled = true;
   content.state.isSignedIn = true;
+  await putServerInRemoteSettings();
   content.requestUpdate();
   await content.updateComplete;
   lazy.IPProtectionService.isSignedIn = true;
@@ -99,10 +106,61 @@ add_task(async function toolbar_icon_status() {
     "Toolbar icon should now show disconnected status"
   );
 
+  cleanupService();
+  IPProtectionService.isEnrolled = false;
+  IPProtectionService.isEntitled = false;
+
   // Close the panel
   let panelHiddenPromise = waitForPanelEvent(document, "popuphidden");
   EventUtils.synthesizeKey("KEY_Escape");
   await panelHiddenPromise;
+});
+
+/**
+ * Tests that the toolbar icon in a new window has the previous status.
+ */
+add_task(async function toolbar_icon_status_new_window() {
+  setupService({
+    isSignedIn: true,
+    isEnrolled: true,
+  });
+  // Mock signing in
+  IPProtectionService.isSignedIn = false;
+  await IPProtectionService.updateSignInStatus();
+
+  let content = await openPanel({
+    isSignedIn: true,
+  });
+
+  let vpnOnPromise = BrowserTestUtils.waitForEvent(
+    lazy.IPProtectionService,
+    "IPProtectionService:Started"
+  );
+  // Toggle the VPN on
+  content.connectionToggleEl.click();
+  await vpnOnPromise;
+
+  let button = document.getElementById(IPProtectionWidget.WIDGET_ID);
+  Assert.ok(
+    button.classList.contains("ipprotection-on"),
+    "Toolbar icon should now show connected status"
+  );
+
+  // Check the icon status is set for new windows
+  let newWindow = await BrowserTestUtils.openNewBrowserWindow({
+    url: "about:newtab",
+  });
+  let newButton = newWindow.document.getElementById(
+    IPProtectionWidget.WIDGET_ID
+  );
+  Assert.ok(
+    newButton.classList.contains("ipprotection-on"),
+    "New toolbar icon should show connected status"
+  );
+  await BrowserTestUtils.closeWindow(newWindow);
+
+  await setPanelState();
+  cleanupService();
 });
 
 add_task(async function customize_toolbar_remove_widget() {

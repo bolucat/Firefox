@@ -108,16 +108,29 @@ struct NavigationAPIMethodTracker final : public nsISupports {
     CleanUp();
   }
 
+  // https://html.spec.whatwg.org/#navigation-api-method-tracker-derived-result
+  void CreateResult(NavigationResult& aResult) {
+    // A navigation API method tracker-derived result for a navigation API
+    // method tracker is a NavigationResult dictionary instance given by
+    // «[ "committed" → apiMethodTracker's committed promise,
+    //    "finished" → apiMethodTracker's finished promise ]».
+    aResult.mCommitted.Reset();
+    aResult.mCommitted.Construct(OwningNonNull<Promise>(*mCommittedPromise));
+    aResult.mFinished.Reset();
+    aResult.mFinished.Construct(OwningNonNull<Promise>(*mFinishedPromise));
+  }
+
   RefPtr<Navigation> mNavigationObject;
   Maybe<nsID> mKey;
   JS::Heap<JS::Value> mInfo;
+
+ private:
+  ~NavigationAPIMethodTracker() { mozilla::DropJSObjects(this); };
+
   RefPtr<nsIStructuredCloneContainer> mSerializedState;
   RefPtr<NavigationHistoryEntry> mCommittedToEntry;
   RefPtr<Promise> mCommittedPromise;
   RefPtr<Promise> mFinishedPromise;
-
- private:
-  ~NavigationAPIMethodTracker() { mozilla::DropJSObjects(this); };
 };
 
 NS_IMPL_CYCLE_COLLECTION_WITH_JS_MEMBERS(NavigationAPIMethodTracker,
@@ -336,40 +349,26 @@ void Navigation::UpdateEntriesForSameDocumentNavigation(
     AutoEntryScript aes(GetOwnerGlobal(),
                         "UpdateEntriesForSameDocumentNavigation");
 
-    ScheduleEventsFromNavigation(aNavigationType, oldCurrentEntry,
-                                 std::move(disposedEntries));
+    NavigationCurrentEntryChangeEventInit init;
+    init.mFrom = oldCurrentEntry;
+    init.mNavigationType.SetValue(aNavigationType);
+    RefPtr event = NavigationCurrentEntryChangeEvent::Constructor(
+        this, u"currententrychange"_ns, init);
+    DispatchEvent(*event);
+
+    for (const auto& entry : disposedEntries) {
+      RefPtr<Event> event = NS_NewDOMEvent(entry, nullptr, nullptr);
+      event->InitEvent(u"dispose"_ns, false, false);
+      event->SetTrusted(true);
+      event->SetTarget(entry);
+      entry->DispatchEvent(*event);
+    }
   }
 }
 
 // https://html.spec.whatwg.org/#update-the-navigation-api-entries-for-reactivation
 void Navigation::UpdateForReactivation(SessionHistoryInfo* aReactivatedEntry) {
   // NAV-TODO
-}
-
-void Navigation::ScheduleEventsFromNavigation(
-    NavigationType aType, const RefPtr<NavigationHistoryEntry>& aPreviousEntry,
-    nsTArray<RefPtr<NavigationHistoryEntry>>&& aDisposedEntries) {
-  nsContentUtils::AddScriptRunner(NS_NewRunnableFunction(
-      "mozilla::dom::Navigation::ScheduleEventsFromNavigation",
-      [self = RefPtr(this), previousEntry = RefPtr(aPreviousEntry),
-       disposedEntries = std::move(aDisposedEntries), aType]() {
-        if (previousEntry) {
-          NavigationCurrentEntryChangeEventInit init;
-          init.mFrom = previousEntry;
-          init.mNavigationType.SetValue(aType);
-          RefPtr event = NavigationCurrentEntryChangeEvent::Constructor(
-              self, u"currententrychange"_ns, init);
-          self->DispatchEvent(*event);
-        }
-
-        for (const auto& entry : disposedEntries) {
-          RefPtr<Event> event = NS_NewDOMEvent(entry, nullptr, nullptr);
-          event->InitEvent(u"dispose"_ns, false, false);
-          event->SetTrusted(true);
-          event->SetTarget(entry);
-          entry->DispatchEvent(*event);
-        }
-      }));
 }
 
 // https://html.spec.whatwg.org/#navigation-api-early-error-result
@@ -397,22 +396,6 @@ void Navigation::SetEarlyErrorResult(JSContext* aCx, NavigationResult& aResult,
   aResult.mFinished.Reset();
   aResult.mFinished.Construct(Promise::CreateInfallible(global));
   aResult.mFinished.Value()->MaybeReject(rootedExceptionValue);
-}
-
-// https://html.spec.whatwg.org/#navigation-api-method-tracker-derived-result
-static void CreateResultFromAPIMethodTracker(
-    NavigationAPIMethodTracker* aApiMethodTracker, NavigationResult& aResult) {
-  // A navigation API method tracker-derived result for a navigation API
-  // method tracker is a NavigationResult dictionary instance given by
-  // «[ "committed" → apiMethodTracker's committed promise,
-  //    "finished" → apiMethodTracker's finished promise ]».
-  MOZ_ASSERT(aApiMethodTracker);
-  aResult.mCommitted.Reset();
-  aResult.mCommitted.Construct(
-      OwningNonNull<Promise>(*aApiMethodTracker->mCommittedPromise));
-  aResult.mFinished.Reset();
-  aResult.mFinished.Construct(
-      OwningNonNull<Promise>(*aApiMethodTracker->mFinishedPromise));
 }
 
 bool Navigation::CheckIfDocumentIsFullyActiveAndMaybeSetEarlyErrorResult(
@@ -471,11 +454,12 @@ Navigation::CreateSerializedStateAndMaybeSetEarlyErrorResult(
 void Navigation::Navigate(JSContext* aCx, const nsAString& aUrl,
                           const NavigationNavigateOptions& aOptions,
                           NavigationResult& aResult) {
-  // 3. Let document be this's relevant global object's associated Document.
+  // 4. Let document be this's relevant global object's associated Document.
   const RefPtr<Document> document = GetAssociatedDocument();
   if (!document) {
     return;
   }
+
   // 1. Let urlRecord be the result of parsing a URL given url, relative to
   //    this's relevant settings object.
   RefPtr<nsIURI> urlRecord;
@@ -489,7 +473,17 @@ void Navigation::Navigate(JSContext* aCx, const nsAString& aUrl,
     SetEarlyErrorResult(aCx, aResult, std::move(rv));
     return;
   }
-  // 4. If options["history"] is "push", and the navigation must be a replace
+
+  // 3. If urlRecord's scheme is "javascript", then return an early error result
+  //    for a "NotSupportedError" DOMException.
+  if (urlRecord->SchemeIs("javascript")) {
+    ErrorResult rv;
+    rv.ThrowNotSupportedError("The javascript: protocol is not supported");
+    SetEarlyErrorResult(aCx, aResult, std::move(rv));
+    return;
+  }
+
+  // 5. If options["history"] is "push", and the navigation must be a replace
   //    given urlRecord and document, then return an early error result for a
   //    "NotSupportedError" DOMException.
   if (aOptions.mHistory == NavigationHistoryBehavior::Push &&
@@ -500,8 +494,8 @@ void Navigation::Navigate(JSContext* aCx, const nsAString& aUrl,
     return;
   }
 
-  // 5. Let state be options["state"], if it exists; otherwise, undefined.
-  // 6. Let serializedState be StructuredSerializeForStorage(state). If this
+  // 6. Let state be options["state"], if it exists; otherwise, undefined.
+  // 7. Let serializedState be StructuredSerializeForStorage(state). If this
   //    throws an exception, then return an early error result for that
   //    exception.
   nsCOMPtr<nsIStructuredCloneContainer> serializedState =
@@ -511,29 +505,30 @@ void Navigation::Navigate(JSContext* aCx, const nsAString& aUrl,
     return;
   }
 
-  // 7. If document is not fully active, then return an early error result for
+  // 8. If document is not fully active, then return an early error result for
   //    an "InvalidStateError" DOMException.
   if (!CheckIfDocumentIsFullyActiveAndMaybeSetEarlyErrorResult(aCx, document,
                                                                aResult)) {
     return;
   }
 
-  // 8. If document's unload counter is greater than 0, then return an early
+  // 9. If document's unload counter is greater than 0, then return an early
   //    error result for an "InvalidStateError" DOMException.
   if (!CheckDocumentUnloadCounterAndMaybeSetEarlyErrorResult(aCx, document,
                                                              aResult)) {
     return;
   }
 
-  // 9. Let info be options["info"], if it exists; otherwise, undefined.
-  // 10. Let apiMethodTracker be the result of maybe setting the upcoming
-  //    non-traverse API method tracker for this given info and serializedState.
+  // 10. Let info be options["info"], if it exists; otherwise, undefined.
+  // 11. Let apiMethodTracker be the result of maybe setting the upcoming
+  //     non-traverse API method tracker for this given info and
+  //     serializedState.
   JS::Rooted<JS::Value> info(aCx, aOptions.mInfo);
   RefPtr<NavigationAPIMethodTracker> apiMethodTracker =
       MaybeSetUpcomingNonTraverseAPIMethodTracker(info, serializedState);
   MOZ_ASSERT(apiMethodTracker);
 
-  // 11. Navigate document's node navigable to urlRecord using document, with
+  // 12. Navigate document's node navigable to urlRecord using document, with
   //     historyHandling set to options["history"] and navigationAPIState set to
   //     serializedState.
 
@@ -543,7 +538,7 @@ void Navigation::Navigate(JSContext* aCx, const nsAString& aUrl,
                /* per spec, error handling defaults to false */ IgnoreErrors(),
                aOptions.mHistory);
 
-  // 12. If this's upcoming non-traverse API method tracker is apiMethodTracker,
+  // 13. If this's upcoming non-traverse API method tracker is apiMethodTracker,
   //     then:
   if (mUpcomingNonTraverseAPIMethodTracker == apiMethodTracker) {
     // Note: If the upcoming non-traverse API method tracker is still
@@ -551,17 +546,18 @@ void Navigation::Navigate(JSContext* aCx, const nsAString& aUrl,
     //       before ever getting to the inner navigate event firing algorithm
     //       which would promote that upcoming API method tracker to ongoing.
     //
-    // 12.1 Set this's upcoming non-traverse API method tracker to null.
+    // 13.1 Set this's upcoming non-traverse API method tracker to null.
     mUpcomingNonTraverseAPIMethodTracker = nullptr;
-    // 12.2 Return an early error result for an "AbortError" DOMException.
+    // 13.2 Return an early error result for an "AbortError" DOMException.
     ErrorResult rv;
     rv.ThrowAbortError("Navigation aborted.");
     SetEarlyErrorResult(aCx, aResult, std::move(rv));
     return;
   }
-  // 13. Return a navigation API method tracker-derived result for
+
+  // 14. Return a navigation API method tracker-derived result for
   //     apiMethodTracker.
-  CreateResultFromAPIMethodTracker(apiMethodTracker, aResult);
+  apiMethodTracker->CreateResult(aResult);
 }
 
 // https://html.spec.whatwg.org/#dom-navigation-reload
@@ -624,7 +620,7 @@ void Navigation::Reload(JSContext* aCx, const NavigationReloadOptions& aOptions,
 
   // 10. Return a navigation API method tracker-derived result for
   //     apiMethodTracker.
-  CreateResultFromAPIMethodTracker(apiMethodTracker, aResult);
+  apiMethodTracker->CreateResult(aResult);
 }
 
 namespace {
@@ -1210,8 +1206,7 @@ bool Navigation::InnerFireNavigateEvent(
 
               // Step 8
               if (apiMethodTracker) {
-                apiMethodTracker->mFinishedPromise->MaybeReject(
-                    aRejectionReason);
+                apiMethodTracker->RejectFinishedPromise(aRejectionReason);
               }
 
               // Step 9

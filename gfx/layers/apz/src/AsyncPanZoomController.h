@@ -815,6 +815,21 @@ class AsyncPanZoomController {
   void ScrollByAndClamp(const CSSPoint& aOffset);
 
   /**
+   * A variant of ScrollByAndClamp() that can scroll either the visual
+   * or the layout viewport.
+   */
+  void ScrollByAndClamp(ViewportType aViewportToScroll,
+                        const CSSPoint& aOffset);
+
+  /**
+   * Similar to ScrollByAndClamp() but scrolls to a specified destination.
+   * Can also be thought of as a variant of ClampAndSetVisualScrollOffset()
+   * which can set either the layout or viewport viewport offse.
+   */
+  void ScrollToAndClamp(ViewportType aViewportToScroll,
+                        const CSSPoint& aDestination);
+
+  /**
    * Scales the viewport by an amount (note that it multiplies this scale in to
    * the current scale, it doesn't set it to |aScale|). Also considers a focus
    * point so that the page zooms inward/outward from that point.
@@ -1656,18 +1671,16 @@ class AsyncPanZoomController {
   void StartOverscrollAnimation(const ParentLayerPoint& aVelocity,
                                 SideBits aOverscrollSideBits);
 
-  // Start a smooth-scrolling animation to the given destination, with physics
-  // based on the prefs for the indicated origin.
+  // Start a smooth-scrolling animation to the given destination.
+  // |aAnimationKind| must be |Smooth| or |SmoothMsd|
+  // |aOrigin| is only used with |Smooth| (for |SmoothMsd|,
+  // |ScrollOrigin::NotSpecified| may be passed).
   void SmoothScrollTo(CSSSnapDestination&& aDestination,
                       ScrollTriggeredByScript aTriggeredByScript,
-                      const ScrollOrigin& aOrigin);
+                      ScrollAnimationKind aAnimationKind,
+                      ViewportType aViewportToScroll, ScrollOrigin aOrigin);
 
   ParentLayerPoint ConvertDestinationToDelta(CSSPoint& aDestination) const;
-
-  // Start a smooth-scrolling animation to the given destination, with MSD
-  // physics that is suited for scroll-snapping.
-  void SmoothMsdScrollTo(CSSSnapDestination&& aDestination,
-                         ScrollTriggeredByScript aTriggeredByScript);
 
   // Returns whether overscroll is allowed during an event.
   bool AllowScrollHandoffInCurrentBlock() const;

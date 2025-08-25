@@ -61,8 +61,13 @@ linux1804-64-nightlyasrelease-qr/opt:
 linux1804-64-tsan-qr/opt:
     build-platform: linux64-tsan/opt
     test-sets:
-        - linux-tests
-        - web-platform-tests
+        - 1804-tsan
+
+linux2404-64-tsan/opt:
+    build-platform: linux64-tsan/opt
+    test-sets:
+        - linux-2404-tsan-tests
+        - web-platform-tests-2404-tsan
 
 linux1804-64-clang-trunk-qr/opt:
     build-platform: linux64-plain-clang-trunk/opt
@@ -463,11 +468,6 @@ android-em-14-x86_64/debug-isolated-process:
     build-platform: android-x86_64/debug-isolated-process
     test-sets:
         - android14-x86_64-tests
-
-# android-em-14-x86/opt:
-#    build-platform: android-x86/opt
-#    test-sets:
-#        - android-x86-tests
 
 # android-hw test platforms execute on real devices attached to Autophone hosts.
 

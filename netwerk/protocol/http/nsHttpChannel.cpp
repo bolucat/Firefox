@@ -2743,20 +2743,6 @@ nsresult nsHttpChannel::ProcessResponse(nsHttpConnectionInfo* aConnInfo) {
   }
 
   if (Telemetry::CanRecordPrereleaseData()) {
-    // how often do we see something like Alt-Svc: "443:quic,p=1"
-    // and Alt-Svc: "h3-****"
-    nsAutoCString alt_service;
-    Unused << mResponseHead->GetHeader(nsHttp::Alternate_Service, alt_service);
-    uint32_t saw_quic = 0;
-    if (!alt_service.IsEmpty()) {
-      if (strstr(alt_service.get(), "h3-")) {
-        saw_quic = 1;
-      } else if (strstr(alt_service.get(), "quic")) {
-        saw_quic = 2;
-      }
-    }
-    glean::http::saw_quic_alt_protocol.AccumulateSingleSample(saw_quic);
-
     // Gather data on various response status to monitor any increased frequency
     // of auth failures due to Bug 1896350
     switch (httpStatus) {
@@ -8476,11 +8462,9 @@ nsHttpChannel::OnStartRequest(nsIRequest* request) {
       };
 
       if (nsCOMPtr<nsIURI> fallbackURI = GetFallbackURI(mURI)) {
-        rv = StartRedirectChannelToURI(
-            fallbackURI,
-            nsIChannelEventSink::REDIRECT_INTERNAL |
-                nsIChannelEventSink::REDIRECT_TRANSPARENT,
-            passDomainCategory);
+        rv = StartRedirectChannelToURI(fallbackURI,
+                                       nsIChannelEventSink::REDIRECT_INTERNAL,
+                                       passDomainCategory);
         if (NS_SUCCEEDED(rv)) {
           nsCOMPtr<nsIObserverService> obsService =
               services::GetObserverService();
@@ -8952,19 +8936,6 @@ static void RecordHTTPSUpgradeTelemetry(nsIURI* aURI, nsILoadInfo* aLoadInfo) {
 static void RecordIPAddressSpaceTelemetry(bool aLoadSuccess, nsIURI* aURI,
                                           nsILoadInfo* aLoadInfo,
                                           NetAddr& aPeerAddr) {
-  bool isIpAddrAny = false;
-
-  if (NS_SUCCEEDED(gIOService->HostnameIsIPAddressAny(aURI, &isIpAddrAny)) &&
-      isIpAddrAny) {
-    if (aLoadSuccess) {
-      mozilla::glean::networking::http_ip_addr_any_hostnames.Get("sucess"_ns)
-          .Add(1);
-    } else {
-      mozilla::glean::networking::http_ip_addr_any_hostnames.Get("failure"_ns)
-          .Add(1);
-    }
-  }
-
   // if the load was not successful, then there is nothing to record here
   if (!aLoadSuccess) {
     return;
@@ -10857,7 +10828,7 @@ void nsHttpChannel::SetOriginHeader() {
     return;
   }
 
-  // Step 1. Let serializedOrigin be the result of byte-serializing a request
+  // Step 2. Let serializedOrigin be the result of byte-serializing a request
   // origin with request.
   nsAutoCString serializedOrigin;
   nsCOMPtr<nsIURI> uri;
@@ -10882,7 +10853,7 @@ void nsHttpChannel::SetOriginHeader() {
     }
   }
 
-  // Step 2. If request’s response tainting is "cors" or request’s mode is
+  // Step 3. If request’s response tainting is "cors" or request’s mode is
   // "websocket", then append (`Origin`, serializedOrigin) to request’s header
   // list.
   //
@@ -10893,13 +10864,13 @@ void nsHttpChannel::SetOriginHeader() {
     return;
   }
 
-  // Step 3. Otherwise, if request’s method is neither `GET` nor `HEAD`, then:
+  // Step 4. Otherwise, if request’s method is neither `GET` nor `HEAD`, then:
   if (mRequestHead.IsGet() || mRequestHead.IsHead()) {
     return;
   }
 
   if (!serializedOrigin.EqualsLiteral("null")) {
-    // Step 3.1. (Implemented by ReferrerInfo::ShouldSetNullOriginHeader)
+    // Step 4.1. (Implemented by ReferrerInfo::ShouldSetNullOriginHeader)
     if (ReferrerInfo::ShouldSetNullOriginHeader(this, uri)) {
       serializedOrigin.AssignLiteral("null");
     } else if (StaticPrefs::network_http_sendOriginHeader() == 1) {
@@ -10913,7 +10884,7 @@ void nsHttpChannel::SetOriginHeader() {
     }
   }
 
-  // Step 3.2. Append (`Origin`, serializedOrigin) to request’s header list.
+  // Step 4.2. Append (`Origin`, serializedOrigin) to request’s header list.
   MOZ_ALWAYS_SUCCEEDS(mRequestHead.SetHeader(nsHttp::Origin, serializedOrigin,
                                              false /* merge */));
 }
@@ -10967,17 +10938,6 @@ void nsHttpChannel::ReportRcwnStats(bool isFromNet) {
       gIOService->IncrementNetWonRequestNumber();
       glean::network::race_cache_bandwidth_race_network_win.Accumulate(
           mTransferSize);
-      if (mRaceDelay) {
-        glean::network::race_cache_with_network_usage
-            .EnumGet(glean::network::RaceCacheWithNetworkUsageLabel::
-                         eNetworkdelayedrace)
-            .Add();
-      } else {
-        glean::network::race_cache_with_network_usage
-            .EnumGet(
-                glean::network::RaceCacheWithNetworkUsageLabel::eNetworkrace)
-            .Add();
-      }
     } else {
       PROFILER_MARKER_TEXT(
           "RCWN", NETWORK, {},
@@ -10985,10 +10945,6 @@ void nsHttpChannel::ReportRcwnStats(bool isFromNet) {
               "Cache won or was replaced, valid = %d, channel %p, URI %s",
               LoadCachedContentIsValid(), this, mSpec.get()));
       glean::network::race_cache_bandwidth_not_race.Accumulate(mTransferSize);
-      glean::network::race_cache_with_network_usage
-          .EnumGet(
-              glean::network::RaceCacheWithNetworkUsageLabel::eNetworknorace)
-          .Add();
     }
   } else {
     if (mRaceCacheWithNetwork || mRaceDelay) {
@@ -10999,21 +10955,8 @@ void nsHttpChannel::ReportRcwnStats(bool isFromNet) {
       gIOService->IncrementCacheWonRequestNumber();
       glean::network::race_cache_bandwidth_race_cache_win.Accumulate(
           mTransferSize);
-      if (mRaceDelay) {
-        glean::network::race_cache_with_network_usage
-            .EnumGet(glean::network::RaceCacheWithNetworkUsageLabel::
-                         eCachedelayedrace)
-            .Add();
-      } else {
-        glean::network::race_cache_with_network_usage
-            .EnumGet(glean::network::RaceCacheWithNetworkUsageLabel::eCacherace)
-            .Add();
-      }
     } else {
       glean::network::race_cache_bandwidth_not_race.Accumulate(mTransferSize);
-      glean::network::race_cache_with_network_usage
-          .EnumGet(glean::network::RaceCacheWithNetworkUsageLabel::eCachenorace)
-          .Add();
     }
   }
 

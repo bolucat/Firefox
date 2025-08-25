@@ -18,6 +18,7 @@ const {
   ADD_REQUEST,
   UPDATE_REQUEST,
   CLEAR_REQUESTS,
+  OPEN_STATISTICS,
 } = require("resource://devtools/client/netmonitor/src/constants.js");
 
 function initStatisticsData() {
@@ -48,6 +49,9 @@ function Statistics() {
       emptyCacheData: initStatisticsData(),
       primedCacheData: initStatisticsData(),
     },
+    // Tracks when the statistics panel is open so we only process requests
+    // for the reducer then.
+    statisticsPanelOpen: false,
   };
 }
 
@@ -56,11 +60,23 @@ function Statistics() {
  */
 function statisticsReducer(state = Statistics(), action) {
   switch (action.type) {
+    case OPEN_STATISTICS: {
+      if (state.statisticsPanelOpen !== action.open) {
+        state.statisticsPanelOpen = action.open;
+      }
+      return state;
+    }
     case ADD_REQUEST: {
+      if (!state.statisticsPanelOpen) {
+        return state;
+      }
       return addRequest(state, action);
     }
 
     case UPDATE_REQUEST: {
+      if (!state.statisticsPanelOpen) {
+        return state;
+      }
       const index = state.mutableRequests.findIndex(
         request => request.id === action.id
       );
@@ -80,6 +96,7 @@ function statisticsReducer(state = Statistics(), action) {
     case CLEAR_REQUESTS: {
       return {
         ...Statistics(),
+        statisticsPanelOpen: state.statisticsPanelOpen,
       };
     }
 
@@ -144,6 +161,7 @@ function updateStatisticsData(state, request) {
       emptyCacheData: newEmptyCacheData,
       primedCacheData: newPrimedCacheData,
     },
+    statisticsPanelOpen: state.statisticsPanelOpen,
   };
 }
 

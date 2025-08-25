@@ -26,6 +26,11 @@ ChromeUtils.defineESModuleGetters(lazy, {
 export class RealtimeSuggestProvider extends SuggestProvider {
   // The following methods must be overridden.
 
+  /**
+   * The type of the realtime suggestion provider.
+   *
+   * @type {string}
+   */
   get realtimeType() {
     throw new Error("Trying to access the base class, must be overridden");
   }
@@ -223,7 +228,7 @@ export class RealtimeSuggestProvider extends SuggestProvider {
       case "merino":
         return this.makeMerinoResult(queryContext, suggestion, searchString);
       case "rust":
-        return this.makeOptInResult(suggestion);
+        return this.makeOptInResult(queryContext, suggestion);
     }
     return null;
   }
@@ -255,33 +260,52 @@ export class RealtimeSuggestProvider extends SuggestProvider {
     );
   }
 
-  makeOptInResult(suggestion) {
+  makeOptInResult(queryContext, _suggestion) {
     let notNowTypes = lazy.UrlbarPrefs.get(
       "quicksuggest.realtimeOptIn.notNowTypes"
     );
     let splitButtonMain = notNowTypes.has(this.realtimeType)
       ? {
           command: "dismiss",
-          l10n: { id: "urlbar-result-realtime-opt-in-dismiss" },
+          l10n: {
+            id: "urlbar-result-realtime-opt-in-dismiss",
+            cacheable: true,
+          },
         }
       : {
           command: "not_now",
-          l10n: { id: "urlbar-result-realtime-opt-in-not-now" },
+          l10n: {
+            id: "urlbar-result-realtime-opt-in-not-now",
+            cacheable: true,
+          },
         };
-
-    let result = { ...suggestion.data.result };
-    delete result.payload;
 
     return Object.assign(
       new lazy.UrlbarResult(
         lazy.UrlbarUtils.RESULT_TYPE.TIP,
         lazy.UrlbarUtils.RESULT_SOURCE.OTHER_LOCAL,
         {
-          ...suggestion.data.result.payload,
+          // This `type` is the tip type, required for `TIP` results.
+          type: "realtime_opt_in",
+          icon: "chrome://browser/skin/illustrations/market-opt-in.svg",
+          titleL10n: {
+            id: "urlbar-result-market-opt-in-title",
+            cacheable: true,
+          },
+          descriptionL10n: {
+            id: "urlbar-result-market-opt-in-description",
+            cacheable: true,
+            parseMarkup: true,
+          },
+          descriptionLearnMoreTopic: lazy.QuickSuggest.HELP_TOPIC,
           buttons: [
             {
               command: "opt_in",
-              l10n: { id: "urlbar-result-realtime-opt-in-allow" },
+              l10n: {
+                id: "urlbar-result-realtime-opt-in-allow",
+                cacheable: true,
+              },
+              input: queryContext.searchString,
             },
             {
               ...splitButtonMain,
@@ -297,7 +321,10 @@ export class RealtimeSuggestProvider extends SuggestProvider {
           ],
         }
       ),
-      { ...result }
+      {
+        isBestMatch: true,
+        hideRowLabel: true,
+      }
     );
   }
 
@@ -307,6 +334,7 @@ export class RealtimeSuggestProvider extends SuggestProvider {
       return null;
     }
 
+    /** @type {UrlbarResultCommand[]} */
     let commands = [
       {
         name: "not_interested",
@@ -365,13 +393,13 @@ export class RealtimeSuggestProvider extends SuggestProvider {
       case "manage": {
         // "help" and "manage" are handled by UrlbarInput, no need to do
         // anything here.
-        return;
+        break;
       }
       case "not_interested": {
         lazy.UrlbarPrefs.set(this.suggestPref, false);
         result.acknowledgeDismissalL10n = this.acknowledgeDismissalL10n;
         controller.removeResult(result);
-        return;
+        break;
       }
       case "show_less_frequently": {
         controller.view.acknowledgeFeedback(result);
@@ -383,16 +411,9 @@ export class RealtimeSuggestProvider extends SuggestProvider {
           this.minKeywordLengthPref,
           searchString.length + 1
         );
-        return;
+        break;
       }
     }
-
-    let query = details.element.getAttribute("query");
-    let [url] = lazy.UrlbarUtils.getSearchQueryUrl(
-      Services.search.defaultEngine,
-      query
-    );
-    controller.browserWindow.openTrustedLinkIn(url, "current");
   }
 
   onOptInEngagement(queryContext, controller, details, _searchString) {

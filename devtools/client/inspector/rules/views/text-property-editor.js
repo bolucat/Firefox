@@ -207,10 +207,6 @@ class TextPropertyEditor {
 
     appendText(this.nameContainer, ": ");
 
-    if (this.#shouldShowComputedExpander) {
-      this.#createComputedExpander();
-    }
-
     // Create a span that will hold the property and semicolon.
     // Use this span to create a slightly larger click target
     // for the value.
@@ -232,6 +228,11 @@ class TextPropertyEditor {
     this.nameSpan.textProperty = this.prop;
 
     appendText(this.valueContainer, ";");
+
+    // This needs to be called after valueContainer, nameSpan and valueSpan are created.
+    if (this.#shouldShowComputedExpander) {
+      this.#createComputedExpander();
+    }
 
     if (this.#shouldShowWarning) {
       this.#createWarningIcon();
@@ -315,6 +316,32 @@ class TextPropertyEditor {
           // Forward clicks on valueContainer to the editable valueSpan
           if (event.target === this.valueContainer) {
             this.valueSpan.click();
+          }
+
+          if (event.target.classList.contains("ruleview-variable-link")) {
+            const isRuleInStartingStyle =
+              this.ruleEditor.rule.isInStartingStyle();
+            const rulePseudoElement = this.ruleEditor.rule.pseudoElement;
+            this.ruleView.highlightProperty(event.target.dataset.variableName, {
+              ruleValidator: rule => {
+                // If the associated rule is not in starting style, the variable
+                // definition can't be in a starting style rule.
+                // Note that if the rule is in starting style, then the variable
+                // definition might be in a starting style rule, or in a regular one.
+                if (!isRuleInStartingStyle && rule.isInStartingStyle()) {
+                  return false;
+                }
+
+                if (
+                  rule.pseudoElement &&
+                  rulePseudoElement !== rule.pseudoElement
+                ) {
+                  return false;
+                }
+
+                return true;
+              },
+            });
           }
         },
         { signal: this.abortController.signal }
@@ -825,18 +852,18 @@ class TextPropertyEditor {
   };
 
   #onStartEditing = () => {
-    this.element.classList.remove("ruleview-overridden");
+    this.element.classList.remove("ruleview-overridden", "ruleview-invalid");
     this.enable.style.visibility = "hidden";
     if (this.filterProperty) {
       this.filterProperty.hidden = true;
     }
     if (this.expander) {
-      this.expander.style.display = "none";
+      this.expander.hidden = true;
     }
   };
 
   get #shouldShowComputedExpander() {
-    if (this.prop.name.startsWith("--")) {
+    if (this.prop.name.startsWith("--") || this.editing) {
       return false;
     }
 
@@ -1000,6 +1027,8 @@ class TextPropertyEditor {
     this.enable.checked = this.prop.enabled;
 
     if (this.#shouldShowWarning) {
+      this.element.classList.add("ruleview-invalid");
+
       if (!this.warning) {
         this.#createWarningIcon();
       } else {
@@ -1008,8 +1037,11 @@ class TextPropertyEditor {
       this.warning.title = !this.#isNameValid()
         ? l10n("rule.warningName.title")
         : l10n("rule.warning.title");
-    } else if (this.warning) {
-      this.warning.hidden = true;
+    } else {
+      this.element.classList.remove("ruleview-invalid");
+      if (this.warning) {
+        this.warning.hidden = true;
+      }
     }
 
     if (!this.editing && this.#isInvalidAtComputedValueTime()) {
@@ -1026,16 +1058,21 @@ class TextPropertyEditor {
     }
 
     if (this.#shouldShowFilterProperty) {
-      this.#createFilterPropertyButton();
+      if (!this.filterProperty) {
+        this.#createFilterPropertyButton();
+      }
+      this.filterProperty.hidden = false;
     } else if (this.filterProperty) {
       this.filterProperty.hidden = true;
     }
 
-    if (this.#shouldShowComputedExpander && !this.expander) {
-      this.#createComputedExpander();
-    } else if (!this.#shouldShowComputedExpander && this.expander) {
-      this.expander.remove();
-      this.expander = null;
+    if (this.#shouldShowComputedExpander) {
+      if (!this.expander) {
+        this.#createComputedExpander();
+      }
+      this.expander.hidden = false;
+    } else if (this.expander) {
+      this.expander.hidden = true;
     }
 
     if (
@@ -1098,13 +1135,12 @@ class TextPropertyEditor {
       this.computed.replaceChildren();
     }
 
-    if (!this.editing && this.#shouldShowComputedExpander && !this.expander) {
-      this.#createComputedExpander();
-    } else if (
-      this.expander &&
-      !this.editing &&
-      !this.#shouldShowComputedExpander
-    ) {
+    if (this.#shouldShowComputedExpander) {
+      if (!this.expander) {
+        this.#createComputedExpander();
+      }
+      this.expander.hidden = false;
+    } else if (this.expander) {
       this.expander.hidden = true;
     }
 
@@ -1316,6 +1352,7 @@ class TextPropertyEditor {
       if (!this.expander) {
         this.#createComputedExpander();
       }
+      this.expander.hidden = false;
       this.expander.setAttribute("aria-expanded", "true");
 
       if (!this.computed) {

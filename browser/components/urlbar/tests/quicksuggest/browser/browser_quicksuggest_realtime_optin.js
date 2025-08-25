@@ -8,26 +8,6 @@ const OFFLINE_REMOTE_SETTINGS = [
     attachment: [
       {
         keywords: ["stock"],
-        data: {
-          result: {
-            isBestMatch: true,
-            hideRowLabel: true,
-            // The purpose of `testAttribute` is to make sure arbitrary `result`
-            // properties in the RS data get copied to the `UrlbarResult`.
-            testAttribute: "market-test",
-            payload: {
-              type: "realtime_opt_in",
-              icon: "chrome://browser/skin/illustrations/market-opt-in.svg",
-              titleL10n: {
-                id: "urlbar-result-market-opt-in-title",
-              },
-              descriptionL10n: {
-                id: "urlbar-result-market-opt-in-description",
-              },
-              descriptionLearnMoreTopic: "firefox-suggest",
-            },
-          },
-        },
       },
     ],
   },
@@ -70,7 +50,15 @@ add_setup(async function () {
   });
 });
 
-add_task(async function opt_in() {
+add_task(async function optIn_mouse() {
+  await doOptInTest(false);
+});
+
+add_task(async function optIn_keyboard() {
+  await doOptInTest(true);
+});
+
+async function doOptInTest(useKeyboard) {
   Assert.ok(
     QuickSuggest.getFeature("MarketSuggestions").isEnabled,
     "Sanity check: MarketSuggestions is enabled initially"
@@ -87,7 +75,6 @@ add_task(async function opt_in() {
   Assert.ok(result.isBestMatch);
   Assert.ok(result.hideRowLabel);
   Assert.equal(result.payload.suggestionType, "market");
-  Assert.equal(result.testAttribute, "market-test");
   Assert.equal(result.type, UrlbarUtils.RESULT_TYPE.TIP);
 
   Assert.ok(
@@ -98,8 +85,27 @@ add_task(async function opt_in() {
   info(
     "Click allow button that changes dataCollection pref and starts new query with same keyword"
   );
+
   let allowButton = element.row.querySelector(".urlbarView-button-0");
-  EventUtils.synthesizeMouseAtCenter(allowButton, {});
+  if (!useKeyboard) {
+    info("Picking allow button with mouse");
+    EventUtils.synthesizeMouseAtCenter(allowButton, {});
+  } else {
+    info("Picking allow button with keyboard");
+    EventUtils.synthesizeKey("KEY_ArrowDown");
+    Assert.equal(
+      UrlbarTestUtils.getSelectedElement(window),
+      allowButton,
+      "The allow button should be selected after pressing Down"
+    );
+    Assert.equal(
+      gURLBar.value,
+      "stock",
+      "Input value should be the query's search string"
+    );
+    EventUtils.synthesizeKey("KEY_Enter");
+  }
+
   await UrlbarTestUtils.promiseSearchComplete(window);
   let { result: merinoResult } = await UrlbarTestUtils.getDetailsOfResultAt(
     window,
@@ -124,7 +130,7 @@ add_task(async function opt_in() {
     QuickSuggest.getFeature("MarketSuggestions").isEnabled,
     "MarketSuggestions remains enabled after clearing quicksuggest.dataCollection.enabled"
   );
-});
+}
 
 add_task(async function dismiss() {
   Assert.ok(
@@ -147,10 +153,7 @@ add_task(async function dismiss() {
   let { element } = await openRealtimeSuggestion({ input: "stock" });
   let dismissButton = element.row.querySelector(".urlbarView-button-1");
   Assert.equal(dismissButton.dataset.command, "not_now");
-  Assert.equal(
-    dismissButton.dataset.l10nId,
-    "urlbar-result-realtime-opt-in-not-now"
-  );
+  Assert.equal(dismissButton.textContent, "Not now");
 
   info("Check 'Not now' button behavior");
   EventUtils.synthesizeMouseAtCenter(dismissButton, {});
@@ -213,10 +216,7 @@ add_task(async function dismiss() {
   element = (await openRealtimeSuggestion({ input: "stock" })).element;
   dismissButton = element.row.querySelector(".urlbarView-button-1");
   Assert.equal(dismissButton.dataset.command, "dismiss");
-  Assert.equal(
-    dismissButton.dataset.l10nId,
-    "urlbar-result-realtime-opt-in-dismiss"
-  );
+  Assert.equal(dismissButton.textContent, "Dismiss");
 
   info("Check 'Dismiss' button behavior");
   EventUtils.synthesizeMouseAtCenter(dismissButton, {});
@@ -304,10 +304,7 @@ add_task(async function dismiss_with_another_type() {
     ".urlbarView-button-1"
   );
   Assert.equal(marketDismissButton.dataset.command, "not_now");
-  Assert.equal(
-    marketDismissButton.dataset.l10nId,
-    "urlbar-result-realtime-opt-in-not-now"
-  );
+  Assert.equal(marketDismissButton.textContent, "Not now");
   await UrlbarTestUtils.promisePopupClose(window);
 
   info("Simulate user clicks 'Dismiss' for sports suggestion");

@@ -39,9 +39,9 @@ XPCOMUtils.defineLazyServiceGetter(
 );
 
 // Query selector for selectable elements in results.
-const SELECTABLE_ELEMENT_SELECTOR = "[role=button], [selectable]";
+const SELECTABLE_ELEMENT_SELECTOR = "[role=button], [selectable], a";
 const KEYBOARD_SELECTABLE_ELEMENT_SELECTOR =
-  "[role=button]:not([keyboard-inaccessible]), [selectable]";
+  "[role=button]:not([keyboard-inaccessible]), [selectable], a";
 
 const RESULT_MENU_COMMANDS = {
   DISMISS: "dismiss",
@@ -482,7 +482,8 @@ export class UrlbarView {
         }
       ),
       {
-        rowLabel: this.#rowLabel(row),
+        rowLabel: !result.hideRowLabel && this.#rowLabel(row),
+        hideRowLabel: result.hideRowLabel,
         richSuggestionIconSize: 32,
       }
     );
@@ -1477,41 +1478,78 @@ export class UrlbarView {
   }
 
   /**
-   * @param {Element} node
-   *   The element to set attributes on.
-   * @param {object} attributes
-   *   Attribute names to values mapping.  For each name-value pair, an
-   *   attribute is set on the element, except for `null` as a value which
-   *   signals an attribute should be removed, and `undefined` in which case
-   *   the attribute won't be set nor removed. The `id` attribute is reserved
-   *   and cannot be set here.
+   * Updates different aspects of an element given an update object. This method
+   * is designed to be used for elements in dynamic result type rows, but it can
+   * can be used for any element.
+   *
+   * @param {Element} element
+   *   The element to update.
+   * @param {object} update
+   *   An object that describes how the element should be updated. It can have
+   *   the following optional properties:
+   *
+   *   {object} attributes
+   *     Attribute names to values mapping. For each name-value pair, an
+   *     attribute is set on the element, except for `null` as a value which
+   *     signals an attribute should be removed, and `undefined` in which case
+   *     the attribute won't be set nor removed. The `id` attribute is reserved
+   *     and cannot be set here.
+   *   {object} dataset
+   *     Maps element dataset keys to values. Values should be strings with the
+   *     following exceptions: `undefined` is ignored, and `null` causes the key
+   *     to be removed from the dataset.
+   *   {Array} classList
+   *     An array of CSS classes to set on the element. If this is defined, the
+   *     element's previous classes will be cleared first!
+   *
    * @param {UrlbarResult} result
    *   The UrlbarResult displayed to the node. This is optional.
    */
-  #setDynamicAttributes(node, attributes, result) {
-    if (!attributes) {
-      return;
+  #updateElementForDynamicType(element, update, result = null) {
+    if (update.attributes) {
+      for (let [name, value] of Object.entries(update.attributes)) {
+        if (name == "id") {
+          // IDs are managed externally to ensure they are unique.
+          console.error(
+            `Not setting id="${value}", as dynamic attributes may not include IDs.`
+          );
+          continue;
+        }
+        if (value === undefined) {
+          continue;
+        }
+        if (value === null) {
+          element.removeAttribute(name);
+        } else if (typeof value == "boolean") {
+          element.toggleAttribute(name, value);
+        } else if (Blob.isInstance(value) && result) {
+          element.setAttribute(name, this.#getBlobUrlForResult(result, value));
+        } else {
+          element.setAttribute(name, value);
+        }
+      }
     }
-    for (let [name, value] of Object.entries(attributes)) {
-      if (name == "id") {
-        // IDs are managed externally to ensure they are unique.
-        console.error(
-          `Not setting id="${value}", as dynamic attributes may not include IDs.`
-        );
-        continue;
+
+    if (update.dataset) {
+      for (let [name, value] of Object.entries(update.dataset)) {
+        if (value === null) {
+          delete element.dataset[name];
+        } else if (value !== undefined) {
+          if (typeof value != "string") {
+            console.error(
+              `Trying to set a dataset value that is not a string`,
+              { element, value }
+            );
+          } else {
+            element.dataset[name] = value;
+          }
+        }
       }
-      if (value === undefined) {
-        continue;
-      }
-      if (value === null) {
-        node.removeAttribute(name);
-      } else if (typeof value == "boolean") {
-        node.toggleAttribute(name, value);
-      } else if (Blob.isInstance(value) && result) {
-        node.setAttribute(name, this.#getBlobUrlForResult(result, value));
-      } else {
-        node.setAttribute(name, value);
-      }
+    }
+
+    if (update.classList) {
+      element.classList = "";
+      element.classList.add(...update.classList);
     }
   }
 
@@ -1564,12 +1602,9 @@ export class UrlbarView {
     template,
     classes = new Set()
   ) {
-    // Set attributes on parentNode.
-    this.#setDynamicAttributes(parentNode, template.attributes);
+    this.#updateElementForDynamicType(parentNode, template);
 
-    // Add classes to parentNode's classList.
     if (template.classList) {
-      parentNode.classList.add(...template.classList);
       for (let c of template.classList) {
         classes.add(c);
       }
@@ -1577,6 +1612,7 @@ export class UrlbarView {
     if (template.overflowable) {
       parentNode.classList.add("urlbarView-overflowable");
     }
+
     if (template.name) {
       parentNode.setAttribute("name", template.name);
       parentNode.classList.add(`urlbarView-dynamic-${type}-${template.name}`);
@@ -1647,11 +1683,7 @@ export class UrlbarView {
 
     if (result.payload.descriptionLearnMoreTopic) {
       let learnMoreLink = this.#createElement("a");
-      learnMoreLink.dataset.url = this.window.getHelpLinkURL(
-        result.payload.descriptionLearnMoreTopic
-      );
       learnMoreLink.setAttribute("data-l10n-name", "learn-more-link");
-      learnMoreLink.toggleAttribute("selectable");
       description.appendChild(learnMoreLink);
     }
 
@@ -1706,27 +1738,41 @@ export class UrlbarView {
 
   #addRowButton(
     item,
-    { name, command, l10n, url, attributes, menu, classList = [] }
+    {
+      name,
+      command,
+      l10n,
+      url,
+      classList = [],
+      attributes = {},
+      menu = null,
+      input = null,
+    }
   ) {
     let button = this.#createElement("span");
-    this.#setDynamicAttributes(button, attributes);
+    this.#updateElementForDynamicType(button, {
+      attributes: {
+        ...attributes,
+        role: "button",
+      },
+      classList: [
+        ...classList,
+        "urlbarView-button",
+        "urlbarView-button-" + name,
+      ],
+      dataset: {
+        name,
+        command,
+        url,
+        input,
+      },
+    });
+
     button.id = `${item.id}-button-${name}`;
-    button.classList.add(
-      "urlbarView-button",
-      "urlbarView-button-" + name,
-      ...classList
-    );
-    button.setAttribute("role", "button");
-    button.dataset.name = name;
     if (l10n) {
       this.#l10nCache.setElementL10n(button, l10n);
     }
-    if (command) {
-      button.dataset.command = command;
-    }
-    if (url) {
-      button.dataset.url = url;
-    }
+
     item._buttons.set(name, button);
 
     if (!menu) {
@@ -1832,8 +1878,6 @@ export class UrlbarView {
           oldResult.payload.userContextId
         ) &&
         result.type != oldResultType) ||
-      !!result.payload.descriptionLearnMoreTopic !=
-        !!oldResult.payload.descriptionLearnMoreTopic ||
       result.testForceNewContent;
 
     if (needsNewContent) {
@@ -2244,8 +2288,11 @@ export class UrlbarView {
 
     // Update each node in the view by name.
     for (let [nodeName, update] of Object.entries(viewUpdate)) {
+      if (!update) {
+        continue;
+      }
       let node = item.querySelector(`#${item.id}-${nodeName}`);
-      this.#setDynamicAttributes(node, update.attributes, result);
+      this.#updateElementForDynamicType(node, update, result);
       if (update.style) {
         for (let [styleName, value] of Object.entries(update.style)) {
           node.style[styleName] = value;
@@ -2293,6 +2340,19 @@ export class UrlbarView {
         description,
         result.payload.descriptionL10n
       );
+
+      if (result.payload.descriptionLearnMoreTopic) {
+        let learnMoreLink = description.querySelector(
+          "[data-l10n-name=learn-more-link]"
+        );
+        if (learnMoreLink) {
+          learnMoreLink.dataset.url = this.window.getHelpLinkURL(
+            result.payload.descriptionLearnMoreTopic
+          );
+        } else {
+          console.warn("learn-more-link was not found");
+        }
+      }
     } else {
       this.#l10nCache.removeElementL10n(description);
       if (result.payload.description) {
@@ -2317,33 +2377,44 @@ export class UrlbarView {
   #updateIndices() {
     this.visibleResults = [];
 
-    // `currentLabel` is the last-seen row label as we iterate through the rows.
-    // When we encounter a label that's different from `currentLabel`, we add it
-    // to the row and set it to `currentLabel`; we remove the labels for all
-    // other rows, and therefore no label will appear adjacent to itself. (A
-    // label may appear more than once, but there will be at least one different
-    // label in between.) Each row's label is determined by `#rowLabel()`.
-    let currentLabel;
+    // `lastVisibleLabel` is the l10n object of the last-seen visible row label
+    // as we iterate through the rows. When we encounter a row whose label is
+    // different from `lastVisibleLabel`, we make that row's label visible and
+    // it becomes the new `lastVisibleLabel`. We hide the labels for all other
+    // rows, so no label will appear adjacent to itself. (A label may appear
+    // more than once, but there will be at least one different label in
+    // between.) Each row's label is determined by `#rowLabel()`.
+    let lastVisibleLabel = null;
+
+    // Keeps track of whether we've seen only the heuristic or search suggestions.
+    let seenOnlyHeuristicOrSearchSuggestions = true;
 
     for (let i = 0; i < this.#rows.children.length; i++) {
       let item = this.#rows.children[i];
-      item.result.rowIndex = i;
+      let { result } = item;
+      result.rowIndex = i;
 
       let visible = this.#isElementVisible(item);
       if (visible) {
-        if (item.result.exposureTelemetry) {
+        this.visibleResults.push(result);
+        seenOnlyHeuristicOrSearchSuggestions &&=
+          result.heuristic ||
+          (result.type == lazy.UrlbarUtils.RESULT_TYPE.SEARCH &&
+            result.payload.suggestion);
+        if (result.exposureTelemetry) {
           this.controller.engagementEvent.addExposure(
-            item.result,
+            result,
             this.#queryContext
           );
         }
-        this.visibleResults.push(item.result);
       }
 
-      let newLabel = this.#updateRowLabel(item, visible, currentLabel);
-      if (newLabel) {
-        currentLabel = newLabel;
-      }
+      lastVisibleLabel = this.#updateRowLabel(
+        item,
+        visible,
+        lastVisibleLabel,
+        seenOnlyHeuristicOrSearchSuggestions
+      );
     }
 
     let selectableElement = this.getFirstSelectableElement();
@@ -2366,18 +2437,37 @@ export class UrlbarView {
    *
    * @param {Element} item
    *   A row in the view.
-   * @param {boolean} isVisible
+   * @param {boolean} isItemVisible
    *   Whether the row is visible. This can be computed by the method itself,
    *   but it's a parameter as an optimization since the caller is expected to
    *   know it.
-   * @param {object} currentLabel
-   *   The current group label during row iteration.
+   * @param {object} lastVisibleLabel
+   *   The last-seen visible group label during row iteration.
+   * @param {boolean} seenOnlyHeuristicOrSearchSuggestions
+   *   Whether the iteration has encountered only the heuristic or search
+   *   suggestions so far.
    * @returns {object}
-   *   If the given row should not have a label, returns null. Otherwise returns
-   *   an l10n object for the label's l10n string: `{ id, args }`
+   *   The l10n object for the new last-visible label. If the row's label should
+   *   be visible, this will be that label. Otherwise it will be the passed-in
+   *   `lastVisibleLabel`.
    */
-  #updateRowLabel(item, isVisible, currentLabel) {
-    let label = isVisible ? this.#rowLabel(item, currentLabel) : null;
+  #updateRowLabel(
+    item,
+    isItemVisible,
+    lastVisibleLabel,
+    seenOnlyHeuristicOrSearchSuggestions
+  ) {
+    let label = null;
+    if (
+      isItemVisible &&
+      // Show the search suggestions label only if there are other visible
+      // results before this one that aren't the heuristic or suggestions.
+      (item.result.type != lazy.UrlbarUtils.RESULT_TYPE.SEARCH ||
+        !item.result.payload.suggestion ||
+        !seenOnlyHeuristicOrSearchSuggestions)
+    ) {
+      label = this.#rowLabel(item);
+    }
 
     // When the row-inner is selected, screen readers won't naturally read the
     // label because it's a pseudo-element of the row, not the row-inner. To
@@ -2389,14 +2479,14 @@ export class UrlbarView {
     if (
       !label ||
       item.result.hideRowLabel ||
-      lazy.ObjectUtils.deepEqual(label, currentLabel)
+      lazy.ObjectUtils.deepEqual(label, lastVisibleLabel)
     ) {
       this.#l10nCache.removeElementL10n(item, { attribute: "label" });
       if (groupAriaLabel) {
         groupAriaLabel.remove();
         item._elements.delete("groupAriaLabel");
       }
-      return label;
+      return lastVisibleLabel;
     }
 
     this.#l10nCache.setElementL10n(item, {
@@ -2429,13 +2519,11 @@ export class UrlbarView {
    *
    * @param {Element} row
    *   A row in the view.
-   * @param {object} currentLabel
-   *   The current group label during row iteration.
    * @returns {object}
    *   If the current row should not have a label, returns null. Otherwise
    *   returns an l10n object for the label's l10n string: `{ id, args }`
    */
-  #rowLabel(row, currentLabel) {
+  #rowLabel(row) {
     if (!lazy.UrlbarPrefs.get("groupLabels.enabled")) {
       return null;
     }
@@ -2511,14 +2599,10 @@ export class UrlbarView {
       case lazy.UrlbarUtils.RESULT_TYPE.URL:
         return { id: "urlbar-group-firefox-suggest" };
       case lazy.UrlbarUtils.RESULT_TYPE.SEARCH:
-        // Show "{ $engine } suggestions" if it's not the first label.
-        if (currentLabel && row.result.payload.suggestion) {
-          return {
-            id: "urlbar-group-search-suggestions",
-            args: { engine: engineName },
-          };
-        }
-        break;
+        return {
+          id: "urlbar-group-search-suggestions",
+          args: { engine: engineName },
+        };
       case lazy.UrlbarUtils.RESULT_TYPE.DYNAMIC:
         if (row.result.providerName == "quickactions") {
           return { id: "urlbar-group-quickactions" };
@@ -2650,7 +2734,7 @@ export class UrlbarView {
         // Clear the input when a button is selected.
         urlOverride = "";
       }
-      this.input.setValueFromResult({ result, urlOverride });
+      this.input.setValueFromResult({ result, urlOverride, element });
     } else {
       this.input.setResultForCurrentValue(result);
     }
@@ -2752,9 +2836,7 @@ export class UrlbarView {
     }
 
     let next = row.nextElementSibling;
-    let selectables = [
-      ...row.querySelectorAll(KEYBOARD_SELECTABLE_ELEMENT_SELECTOR),
-    ];
+    let selectables = this.#getKeyboardSelectablesInRow(row);
     if (selectables.length) {
       let index = selectables.indexOf(element);
       if (index < selectables.length - 1) {
@@ -2786,9 +2868,7 @@ export class UrlbarView {
     }
 
     let previous = row.previousElementSibling;
-    let selectables = [
-      ...row.querySelectorAll(KEYBOARD_SELECTABLE_ELEMENT_SELECTOR),
-    ];
+    let selectables = this.#getKeyboardSelectablesInRow(row);
     if (selectables.length) {
       let index = selectables.indexOf(element);
       if (index < 0) {
@@ -2803,6 +2883,21 @@ export class UrlbarView {
     }
 
     return previous;
+  }
+
+  #getKeyboardSelectablesInRow(row) {
+    let selectables = [
+      ...row.querySelectorAll(KEYBOARD_SELECTABLE_ELEMENT_SELECTOR),
+    ];
+
+    // Sort links last. This assumes that any links in the row are informational
+    // and should be deprioritized with regard to selection compared to buttons
+    // and other elements.
+    selectables.sort(
+      (a, b) => Number(a.localName == "a") - Number(b.localName == "a")
+    );
+
+    return selectables;
   }
 
   /**
@@ -3309,6 +3404,9 @@ export class UrlbarView {
       return this.#resultMenuCommands.get(result);
     }
 
+    /**
+     * @type {?UrlbarResultCommand[]}
+     */
     let commands = lazy.UrlbarProvidersManager.getProvider(
       result.providerName
     )?.tryMethod("getResultCommands", result);
@@ -3348,7 +3446,14 @@ export class UrlbarView {
     return rv;
   }
 
-  #populateResultMenu({ menupopup = this.resultMenu, commands } = {}) {
+  /**
+   * Popuplates the result menu with commands.
+   *
+   * @param {object} options
+   * @param {XULTextElement} options.menupopup
+   * @param {UrlbarResultCommand[]} options.commands
+   */
+  #populateResultMenu({ menupopup = this.resultMenu, commands }) {
     menupopup.textContent = "";
     for (let data of commands) {
       if (data.children) {

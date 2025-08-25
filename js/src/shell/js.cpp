@@ -3076,7 +3076,13 @@ static bool Evaluate(JSContext* cx, unsigned argc, Value* vp) {
     // Serialize the encoded bytecode, recorded before the execution, into a
     // buffer which can be deserialized linearly.
     if (saveBytecodeWithDelazifications) {
-      if (!FinishCollectingDelazifications(cx, script, saveBuffer)) {
+      RefPtr<JS::Stencil> stencil;
+      if (!FinishCollectingDelazifications(cx, script,
+                                           getter_AddRefs(stencil))) {
+        return false;
+      }
+      JS::TranscodeResult result = JS::EncodeStencil(cx, stencil, saveBuffer);
+      if (result != JS::TranscodeResult::Ok) {
         return false;
       }
     }
@@ -13355,7 +13361,7 @@ bool SetGlobalOptionsPreJSInit(const OptionParser& op) {
 #if defined(JS_CODEGEN_ARM64)
   if (op.getBoolOption("no-fjcvtzs")) {
     vixl::CPUFeatures fjcvtzs(vixl::CPUFeatures::kJSCVT);
-    fjcvtzs.DisableGlobally();
+    jit::ARM64Flags::DisableCPUFeatures(fjcvtzs);
   }
 #endif
 #ifndef __wasi__

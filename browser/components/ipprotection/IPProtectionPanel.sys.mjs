@@ -10,7 +10,10 @@ ChromeUtils.defineESModuleGetters(lazy, {
   IPProtection: "resource:///modules/ipprotection/IPProtection.sys.mjs",
 });
 
-import { LINKS } from "chrome://browser/content/ipprotection/ipprotection-constants.mjs";
+import {
+  LINKS,
+  ERRORS,
+} from "chrome://browser/content/ipprotection/ipprotection-constants.mjs";
 
 let hasCustomElements = new WeakSet();
 
@@ -65,7 +68,9 @@ export class IPProtectionPanel {
    * @property {"generic" | ""} error
    *  The error type as a string if an error occurred, or empty string if there are no errors.
    * @property {"alpha"} variant
-   * The feature variant type as a string.
+   *  The feature variant type as a string.
+   * @property {boolean} hasUpgraded
+   *  True if a Mozilla VPN subscription is linked to the user's Mozilla account.
    */
 
   /**
@@ -73,6 +78,7 @@ export class IPProtectionPanel {
    */
   state = {};
   panel = null;
+  initiatedUpgrade = false;
 
   /**
    * Check the state of the enclosing panel to see if
@@ -103,6 +109,7 @@ export class IPProtectionPanel {
       isSignedIn,
       isActive: isProtectionEnabled,
       activatedAt: protectionEnabledSince,
+      hasUpgraded,
     } = lazy.IPProtectionService;
 
     this.state = {
@@ -115,6 +122,7 @@ export class IPProtectionPanel {
       },
       error: "",
       variant,
+      hasUpgraded,
     };
 
     if (window) {
@@ -190,6 +198,13 @@ export class IPProtectionPanel {
    *   The panelView element from the CustomizableUI widget callback.
    */
   showing(panelView) {
+    if (this.initiatedUpgrade) {
+      lazy.IPProtectionService.updateHasUpgradedStatus(
+        true /* refetchEntitlement */
+      );
+      this.initiatedUpgrade = false;
+    }
+
     if (this.panel) {
       this.updateState();
     } else {
@@ -258,6 +273,11 @@ export class IPProtectionPanel {
       this.panel.remove();
       this.#removePanelListeners(this.panel.ownerDocument);
       this.panel = null;
+      if (this.state.error) {
+        this.setState({
+          error: "",
+        });
+      }
     }
   }
 
@@ -268,6 +288,7 @@ export class IPProtectionPanel {
 
   #addPanelListeners(doc) {
     doc.addEventListener("IPProtection:Init", this.handleEvent);
+    doc.addEventListener("IPProtection:ClickUpgrade", this.handleEvent);
     doc.addEventListener("IPProtection:Close", this.handleEvent);
     doc.addEventListener("IPProtection:UserEnable", this.handleEvent);
     doc.addEventListener("IPProtection:UserDisable", this.handleEvent);
@@ -277,6 +298,7 @@ export class IPProtectionPanel {
 
   #removePanelListeners(doc) {
     doc.removeEventListener("IPProtection:Init", this.handleEvent);
+    doc.removeEventListener("IPProtection:ClickUpgrade", this.handleEvent);
     doc.removeEventListener("IPProtection:Close", this.handleEvent);
     doc.removeEventListener("IPProtection:UserEnable", this.handleEvent);
     doc.removeEventListener("IPProtection:UserDisable", this.handleEvent);
@@ -301,6 +323,14 @@ export class IPProtectionPanel {
       "IPProtectionService:Stopped",
       this.handleEvent
     );
+    lazy.IPProtectionService.addEventListener(
+      "IPProtectionService:UpdateHasUpgraded",
+      this.handleEvent
+    );
+    lazy.IPProtectionService.addEventListener(
+      "IPProtectionService:Error",
+      this.handleEvent
+    );
   }
 
   #removeProxyListeners() {
@@ -320,6 +350,14 @@ export class IPProtectionPanel {
       "IPProtectionService:Stopped",
       this.handleEvent
     );
+    lazy.IPProtectionService.removeEventListener(
+      "IPProtectionService:UpdateHasUpgraded",
+      this.handleEvent
+    );
+    lazy.IPProtectionService.removeEventListener(
+      "IPProtectionService:Error",
+      this.handleEvent
+    );
   }
 
   #handleEvent(event) {
@@ -333,6 +371,10 @@ export class IPProtectionPanel {
       this.#stopProxy();
     } else if (event.type == "IPProtection:ShowHelpPage") {
       this.showHelpPage();
+    } else if (event.type == "IPProtection:ClickUpgrade") {
+      // Let the service know that we tried upgrading at least once
+      this.initiatedUpgrade = true;
+      this.close();
     } else if (event.type == "IPProtectionService:SignedIn") {
       this.setState({
         isSignedIn: true,
@@ -345,14 +387,26 @@ export class IPProtectionPanel {
       this.setState({
         isProtectionEnabled: true,
         protectionEnabledSince: event.detail?.activatedAt,
+        error: "",
       });
     } else if (event.type == "IPProtectionService:Stopped") {
       this.setState({
         isProtectionEnabled: false,
         protectionEnabledSince: null,
       });
+    } else if (event.type == "IPProtectionService:UpdateHasUpgraded") {
+      this.setState({
+        hasUpgraded: event.detail?.hasUpgraded,
+      });
     } else if (event.type == "IPProtection:SignIn") {
       this.startLoginFlow();
+    } else if (
+      event.type == "IPProtectionService:Error" &&
+      event.detail?.error == ERRORS.GENERIC
+    ) {
+      this.setState({
+        error: event.detail.error,
+      });
     }
   }
 }
