@@ -124,52 +124,6 @@ NS_IMETHODIMP
 TRRLoadInfo::GetSandboxFlags(uint32_t* aResult) {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
-NS_IMETHODIMP
-TRRLoadInfo::GetTriggeringSandboxFlags(uint32_t* aResult) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-NS_IMETHODIMP
-TRRLoadInfo::SetTriggeringSandboxFlags(uint32_t aResult) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-TRRLoadInfo::GetTriggeringWindowId(uint64_t* aResult) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-NS_IMETHODIMP
-TRRLoadInfo::SetTriggeringWindowId(uint64_t aResult) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-TRRLoadInfo::GetTriggeringStorageAccess(bool* aResult) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-NS_IMETHODIMP
-TRRLoadInfo::SetTriggeringStorageAccess(bool aResult) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-TRRLoadInfo::GetTriggeringFirstPartyClassificationFlags(uint32_t* aResult) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-TRRLoadInfo::SetTriggeringFirstPartyClassificationFlags(uint32_t aResult) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-TRRLoadInfo::GetTriggeringThirdPartyClassificationFlags(uint32_t* aResult) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-TRRLoadInfo::SetTriggeringThirdPartyClassificationFlags(uint32_t aResult) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
 
 NS_IMETHODIMP
 TRRLoadInfo::GetSecurityMode(uint32_t* aFlags) {
@@ -210,40 +164,6 @@ TRRLoadInfo::GetCookieJarSettings(nsICookieJarSettings** aCookieJarSettings) {
 
 NS_IMETHODIMP
 TRRLoadInfo::SetCookieJarSettings(nsICookieJarSettings* aCookieJarSettings) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-TRRLoadInfo::GetStoragePermission(
-    nsILoadInfo::StoragePermissionState* aHasStoragePermission) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-TRRLoadInfo::SetStoragePermission(
-    nsILoadInfo::StoragePermissionState aHasStoragePermission) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-TRRLoadInfo::GetParentIpAddressSpace(
-    nsILoadInfo::IPAddressSpace* aIPAddressSpace) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-TRRLoadInfo::SetParentIpAddressSpace(
-    nsILoadInfo::IPAddressSpace aIPAddressSpace) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-TRRLoadInfo::GetIpAddressSpace(nsILoadInfo::IPAddressSpace* aIPAddressSpace) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-TRRLoadInfo::SetIpAddressSpace(nsILoadInfo::IPAddressSpace aIPAddressSpace) {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -604,30 +524,6 @@ TRRLoadInfo::SetIsUserTriggeredSave(bool aIsUserTriggeredSave) {
 }
 
 NS_IMETHODIMP
-TRRLoadInfo::GetLoadingEmbedderPolicy(
-    nsILoadInfo::CrossOriginEmbedderPolicy* aOutPolicy) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-TRRLoadInfo::SetLoadingEmbedderPolicy(
-    nsILoadInfo::CrossOriginEmbedderPolicy aPolicy) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-TRRLoadInfo::GetIsOriginTrialCoepCredentiallessEnabledForTopLevel(
-    bool* aIsOriginTrialCoepCredentiallessEnabledForTopLevel) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-TRRLoadInfo::SetIsOriginTrialCoepCredentiallessEnabledForTopLevel(
-    bool aIsOriginTrialCoepCredentiallessEnabledForTopLevel) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
 TRRLoadInfo::GetUnstrippedURI(nsIURI** aURI) {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -639,18 +535,6 @@ nsIInterceptionInfo* TRRLoadInfo::InterceptionInfo() { return nullptr; }
 void TRRLoadInfo::SetInterceptionInfo(nsIInterceptionInfo* aPrincipla) {}
 
 NS_IMETHODIMP
-TRRLoadInfo::GetHasInjectedCookieForCookieBannerHandling(
-    bool* aHasInjectedCookieForCookieBannerHandling) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-TRRLoadInfo::SetHasInjectedCookieForCookieBannerHandling(
-    bool aHasInjectedCookieForCookieBannerHandling) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
 TRRLoadInfo::GetSchemelessInput(
     nsILoadInfo::SchemelessInputType* aSchemelessInput) {
   *aSchemelessInput = nsILoadInfo::SchemelessInputTypeUnset;
@@ -660,28 +544,6 @@ TRRLoadInfo::GetSchemelessInput(
 NS_IMETHODIMP
 TRRLoadInfo::SetSchemelessInput(
     nsILoadInfo::SchemelessInputType aSchemelessInput) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-TRRLoadInfo::GetHttpsUpgradeTelemetry(
-    nsILoadInfo::HTTPSUpgradeTelemetryType* aOutHttpsTelemetry) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-TRRLoadInfo::SetHttpsUpgradeTelemetry(
-    nsILoadInfo::HTTPSUpgradeTelemetryType aHttpsTelemetry) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-TRRLoadInfo::GetIsNewWindowTarget(bool* aIsNewWindowTarget) {
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-TRRLoadInfo::SetIsNewWindowTarget(bool aIsNewWindowTarget) {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 

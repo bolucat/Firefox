@@ -38,6 +38,7 @@ struct FeaturePolicyInfo;
 class PerformanceStorage;
 class ServiceWorkerDescriptor;
 enum class RequestMode : uint8_t;
+enum class ForceMediaDocument : uint8_t;
 } // namespace dom
 } // namespace mozilla
 %}
@@ -64,6 +65,7 @@ native OriginAttributes(mozilla::OriginAttributes);
       native MaybeFeaturePolicyInfo(mozilla::Maybe<mozilla::dom::FeaturePolicyInfo>);
 [ref] native const_FeaturePolicyInfoRef(const mozilla::dom::FeaturePolicyInfo);
       native MaybeRequestMode(mozilla::Maybe<mozilla::dom::RequestMode>);
+      native ForceMediaDocument(mozilla::dom::ForceMediaDocument);
 
 typedef unsigned long nsSecurityFlags;
 
@@ -908,6 +910,20 @@ interface nsILoadInfo : nsISupports
   [infallible] attribute boolean allowInsecureRedirectToDataURI;
 
   /**
+   * If not NONE, force the resulting document to load as specific kind of MediaDocument.
+   */
+  [noscript] attribute ForceMediaDocument forceMediaDocument;
+
+%{ C++
+  mozilla::dom::ForceMediaDocument GetForceMediaDocument()
+  {
+    mozilla::dom::ForceMediaDocument forceMediaDocument;
+    MOZ_ALWAYS_SUCCEEDS(GetForceMediaDocument(&forceMediaDocument));
+    return forceMediaDocument;
+  }
+%}
+
+  /**
    * If true, the content policy security check is excluded from web requests.
    */
   [infallible] attribute boolean skipContentPolicyCheckForWebRequest;
@@ -1579,6 +1595,10 @@ interface nsILoadInfo : nsISupports
    * innerWindowIID in the nsILoadInfo.
    * It also could be set by workers when fetch is called under
    * the workers' scope.
+   *
+   * If the value is nsILoadInfo::EMBEDDER_POLICY_REQUIRE_CORP, CORP checking
+   * must be performed for the loading.
+   * See https://wicg.github.io/cross-origin-embedder-policy/#corp-check.
    */
   [infallible] attribute nsILoadInfo_CrossOriginEmbedderPolicy
         loadingEmbedderPolicy;

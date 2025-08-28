@@ -8096,7 +8096,6 @@ function DiscoveryStream(prevState = INITIAL_STATE.DiscoveryStream, action) {
     case actionTypes.DISCOVERY_STREAM_PREFS_SETUP:
       return {
         ...prevState,
-        pocketButtonEnabled: action.data.pocketButtonEnabled,
         hideDescriptions: action.data.hideDescriptions,
         compactImages: action.data.compactImages,
         imageGradient: action.data.imageGradient,
@@ -13515,15 +13514,7 @@ class _DiscoveryStreamBase extends (external_React_default()).PureComponent {
           properties: component.properties
         });
       case "Widgets":
-        {
-          // Nimbus experiment override
-          const nimbusWidgetsEnabled = this.props.Prefs.values.widgetsConfig?.enabled;
-          const widgetsEnabled = this.props.Prefs.values["widgets.system.enabled"];
-          if (widgetsEnabled || nimbusWidgetsEnabled) {
-            return /*#__PURE__*/external_React_default().createElement(Widgets, null);
-          }
-          return null;
-        }
+        return /*#__PURE__*/external_React_default().createElement(Widgets, null);
       default:
         return /*#__PURE__*/external_React_default().createElement("div", null, component.type);
     }
@@ -13594,7 +13585,12 @@ class _DiscoveryStreamBase extends (external_React_default()).PureComponent {
 
     // Extract TopSites to render before the rest and Message to use for header
     const topSites = extractComponent("TopSites");
-    const widgets = extractComponent("Widgets");
+
+    // There are two ways to enable widgets:
+    // Via `widgets.system.*` prefs or Nimbus experiment
+    const widgetsNimbusEnabled = this.props.Prefs.values.widgetsConfig?.enabled;
+    const widgetsSystemPrefsEnabled = this.props.Prefs.values["widgets.system.enabled"];
+    const widgets = widgetsNimbusEnabled || widgetsSystemPrefsEnabled;
     const message = extractComponent("Message") || {
       header: {
         link_text: topStories.learnMore.link.message,
@@ -13622,7 +13618,9 @@ class _DiscoveryStreamBase extends (external_React_default()).PureComponent {
       sectionType: "topsites"
     }]), widgets && this.renderLayout([{
       width: 12,
-      components: [widgets],
+      components: [{
+        type: "Widgets"
+      }],
       sectionType: "widgets"
     }]), !!layoutRender.length && /*#__PURE__*/external_React_default().createElement(CollapsibleSection, {
       className: "ds-layout",
@@ -14469,7 +14467,7 @@ class ContentSection extends (external_React_default()).PureComponent {
     }));
   }
   onPreferenceSelect(e) {
-    // eventSource: WEATHER | TOP_SITES | TOP_STORIES
+    // eventSource: WEATHER | TOP_SITES | TOP_STORIES | WIDGET_LISTS | WIDGET_TIMER | TRENDING_SEARCH
     const {
       preference,
       eventSource
@@ -16526,9 +16524,14 @@ class BaseContent extends (external_React_default()).PureComponent {
     const supportUrl = prefs["support.url"];
 
     // Widgets experiment pref check
-    const mayHaveWidgets = prefs["widgets.system.enabled"];
-    const mayHaveListsWidget = prefs["widgets.system.lists.enabled"];
-    const mayHaveTimerWidget = prefs["widgets.system.focusTimer.enabled"];
+    const nimbusWidgetsEnabled = prefs.widgetsConfig?.enabled;
+    const nimbusListsEnabled = prefs.widgetsConfig?.listsEnabled;
+    const nimbusTimerEnabled = prefs.widgetsConfig?.timerEnabled;
+    const mayHaveWidgets = prefs["widgets.system.enabled"] || nimbusWidgetsEnabled;
+    const mayHaveListsWidget = prefs["widgets.system.lists.enabled"] || nimbusListsEnabled;
+    const mayHaveTimerWidget = prefs["widgets.system.focusTimer.enabled"] || nimbusTimerEnabled;
+
+    // These prefs set the initial values on the Customize panel toggle switches
     const enabledWidgets = {
       listsEnabled: prefs["widgets.lists.enabled"],
       timerEnabled: prefs["widgets.focusTimer.enabled"],

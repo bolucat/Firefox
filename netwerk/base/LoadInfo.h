@@ -57,6 +57,23 @@ nsresult LoadInfoArgsToLoadInfo(const mozilla::net::LoadInfoArgs& aLoadInfoArgs,
 
 #define LOADINFO_FOR_EACH_FIELD(GETTER, SETTER)                                \
   /*     Type  Name                  LoadInfoArgs Name     Default         */  \
+  GETTER(uint32_t, TriggeringSandboxFlags, triggeringSandboxFlags, 0)          \
+  SETTER(uint32_t, TriggeringSandboxFlags)                                     \
+                                                                               \
+  GETTER(uint64_t, TriggeringWindowId, triggeringWindowId, 0)                  \
+  SETTER(uint64_t, TriggeringWindowId)                                         \
+                                                                               \
+  GETTER(bool, TriggeringStorageAccess, triggeringStorageAccess, false)        \
+  SETTER(bool, TriggeringStorageAccess)                                        \
+                                                                               \
+  GETTER(uint32_t, TriggeringFirstPartyClassificationFlags,                    \
+         triggeringFirstPartyClassificationFlags, 0)                           \
+  SETTER(uint32_t, TriggeringFirstPartyClassificationFlags)                    \
+                                                                               \
+  GETTER(uint32_t, TriggeringThirdPartyClassificationFlags,                    \
+         triggeringThirdPartyClassificationFlags, 0)                           \
+  SETTER(uint32_t, TriggeringThirdPartyClassificationFlags)                    \
+                                                                               \
   GETTER(bool, BlockAllMixedContent, blockAllMixedContent, false)              \
                                                                                \
   GETTER(bool, UpgradeInsecureRequests, upgradeInsecureRequests, false)        \
@@ -77,6 +94,10 @@ nsresult LoadInfoArgsToLoadInfo(const mozilla::net::LoadInfoArgs& aLoadInfoArgs,
   GETTER(bool, AllowInsecureRedirectToDataURI, allowInsecureRedirectToDataURI, \
          false)                                                                \
   SETTER(bool, AllowInsecureRedirectToDataURI)                                 \
+                                                                               \
+  GETTER(dom::ForceMediaDocument, ForceMediaDocument, forceMediaDocument,      \
+         /* ForceMediaDocument::None */ dom::ForceMediaDocument(0))            \
+  SETTER(dom::ForceMediaDocument, ForceMediaDocument)                          \
                                                                                \
   GETTER(bool, SkipContentPolicyCheckForWebRequest,                            \
          skipContentPolicyCheckForWebRequest, false)                           \
@@ -159,6 +180,18 @@ nsresult LoadInfoArgsToLoadInfo(const mozilla::net::LoadInfoArgs& aLoadInfoArgs,
   GETTER(Maybe<dom::RequestMode>, RequestMode, requestMode, Nothing())         \
   SETTER(Maybe<dom::RequestMode>, RequestMode)                                 \
                                                                                \
+  GETTER(nsILoadInfo::StoragePermissionState, StoragePermission,               \
+         storagePermission, nsILoadInfo::NoStoragePermission)                  \
+  SETTER(nsILoadInfo::StoragePermissionState, StoragePermission)               \
+                                                                               \
+  GETTER(nsILoadInfo::IPAddressSpace, ParentIpAddressSpace,                    \
+         parentIPAddressSpace, nsILoadInfo::Unknown)                           \
+  SETTER(nsILoadInfo::IPAddressSpace, ParentIpAddressSpace)                    \
+                                                                               \
+  GETTER(nsILoadInfo::IPAddressSpace, IpAddressSpace, ipAddressSpace,          \
+         nsILoadInfo::Unknown)                                                 \
+  SETTER(nsILoadInfo::IPAddressSpace, IpAddressSpace)                          \
+                                                                               \
   GETTER(bool, IsMetaRefresh, isMetaRefresh, false)                            \
   SETTER(bool, IsMetaRefresh)                                                  \
                                                                                \
@@ -172,7 +205,26 @@ nsresult LoadInfoArgsToLoadInfo(const mozilla::net::LoadInfoArgs& aLoadInfoArgs,
   SETTER(bool, IsMediaInitialRequest)                                          \
                                                                                \
   GETTER(bool, IsFromObjectOrEmbed, isFromObjectOrEmbed, false)                \
-  SETTER(bool, IsFromObjectOrEmbed)
+  SETTER(bool, IsFromObjectOrEmbed)                                            \
+                                                                               \
+  GETTER(nsILoadInfo::CrossOriginEmbedderPolicy, LoadingEmbedderPolicy,        \
+         loadingEmbedderPolicy, nsILoadInfo::EMBEDDER_POLICY_NULL)             \
+  SETTER(nsILoadInfo::CrossOriginEmbedderPolicy, LoadingEmbedderPolicy)        \
+                                                                               \
+  GETTER(bool, IsOriginTrialCoepCredentiallessEnabledForTopLevel,              \
+         originTrialCoepCredentiallessEnabledForTopLevel, false)               \
+  SETTER(bool, IsOriginTrialCoepCredentiallessEnabledForTopLevel)              \
+                                                                               \
+  GETTER(bool, HasInjectedCookieForCookieBannerHandling,                       \
+         hasInjectedCookieForCookieBannerHandling, false)                      \
+  SETTER(bool, HasInjectedCookieForCookieBannerHandling)                       \
+                                                                               \
+  GETTER(nsILoadInfo::HTTPSUpgradeTelemetryType, HttpsUpgradeTelemetry,        \
+         httpsUpgradeTelemetry, nsILoadInfo::NOT_INITIALIZED)                  \
+  SETTER(nsILoadInfo::HTTPSUpgradeTelemetryType, HttpsUpgradeTelemetry)        \
+                                                                               \
+  GETTER(bool, IsNewWindowTarget, isNewWindowTarget, false)                    \
+  SETTER(bool, IsNewWindowTarget)
 
 // Heads-up: LoadInfoToLoadInfoArgs still needs to be manually updated.
 
@@ -358,10 +410,6 @@ class LoadInfo final : public nsILoadInfo {
            const Maybe<mozilla::dom::ClientInfo>& aInitialClientInfo,
            const Maybe<mozilla::dom::ServiceWorkerDescriptor>& aController,
            nsSecurityFlags aSecurityFlags, uint32_t aSandboxFlags,
-           uint32_t aTriggeringSandboxFlags, uint64_t aTriggeringWindowId,
-           bool aTriggeringStorageAccess,
-           uint32_t aTriggeringFirstPartyClassificationFlags,
-           uint32_t aTriggeringThirdPartyClassificationFlags,
            nsContentPolicyType aContentPolicyType, LoadTainting aTainting,
 
 #define DEFINE_PARAMETER(type, name, _n, _d) type a##name,
@@ -379,18 +427,10 @@ class LoadInfo final : public nsILoadInfo {
            const nsTArray<nsCString>& aCorsUnsafeHeaders,
            bool aLoadTriggeredFromExternal, const nsAString& aCspNonce,
            const nsAString& aIntegrityMetadata, bool aIsSameDocumentNavigation,
-           nsILoadInfo::StoragePermissionState aStoragePermission,
-           nsILoadInfo::IPAddressSpace aParentIPAddressSpace,
-           nsILoadInfo::IPAddressSpace aIPAddressSpace,
            const Maybe<RFPTargetSet>& aOverriddenFingerprintingSettings,
-           nsINode* aLoadingContext,
-           nsILoadInfo::CrossOriginEmbedderPolicy aLoadingEmbedderPolicy,
-           bool aIsOriginTrialCoepCredentiallessEnabledForTopLevel,
-           nsIURI* aUnstrippedURI, nsIInterceptionInfo* aInterceptionInfo,
-           bool aHasInjectedCookieForCookieBannerHandling,
+           nsINode* aLoadingContext, nsIURI* aUnstrippedURI,
+           nsIInterceptionInfo* aInterceptionInfo,
            nsILoadInfo::SchemelessInputType aSchemelessInput,
-           nsILoadInfo::HTTPSUpgradeTelemetryType aHttpsUpgradeTelemetry,
-           bool aIsNewWindowTarget,
            dom::UserNavigationInvolvement aUserNavigationInvolvement);
 
   LoadInfo(const LoadInfo& rhs);
@@ -458,11 +498,6 @@ class LoadInfo final : public nsILoadInfo {
   nsWeakPtr mContextForTopLevelLoad;
   nsSecurityFlags mSecurityFlags;
   uint32_t mSandboxFlags;
-  uint32_t mTriggeringSandboxFlags = 0;
-  uint64_t mTriggeringWindowId = 0;
-  bool mTriggeringStorageAccess = false;
-  uint32_t mTriggeringFirstPartyClassificationFlags = 0;
-  uint32_t mTriggeringThirdPartyClassificationFlags = 0;
   nsContentPolicyType mInternalContentPolicyType;
   LoadTainting mTainting = LoadTainting::Basic;
 
@@ -486,11 +521,6 @@ class LoadInfo final : public nsILoadInfo {
   nsString mIntegrityMetadata;
   bool mIsSameDocumentNavigation = false;
   bool mIsUserTriggeredSave = false;
-  nsILoadInfo::StoragePermissionState mStoragePermission =
-      nsILoadInfo::NoStoragePermission;
-  // IP Address space of the parent browsing context.
-  nsILoadInfo::IPAddressSpace mParentIPAddressSpace = nsILoadInfo::Unknown;
-  nsILoadInfo::IPAddressSpace mIPAddressSpace = nsILoadInfo::Unknown;
 
   Maybe<RFPTargetSet> mOverriddenFingerprintingSettings;
 #ifdef DEBUG
@@ -499,30 +529,16 @@ class LoadInfo final : public nsILoadInfo {
   bool mOverriddenFingerprintingSettingsIsSet = false;
 #endif
 
-  // The cross origin embedder policy that the loading need to respect.
-  // If the value is nsILoadInfo::EMBEDDER_POLICY_REQUIRE_CORP, CORP checking
-  // must be performed for the loading.
-  // See https://wicg.github.io/cross-origin-embedder-policy/#corp-check.
-  nsILoadInfo::CrossOriginEmbedderPolicy mLoadingEmbedderPolicy =
-      nsILoadInfo::EMBEDDER_POLICY_NULL;
-
-  bool mIsOriginTrialCoepCredentiallessEnabledForTopLevel = false;
-
   nsCOMPtr<nsIURI> mUnstrippedURI;
 
   nsCOMPtr<nsIInterceptionInfo> mInterceptionInfo;
 
-  bool mHasInjectedCookieForCookieBannerHandling = false;
   nsILoadInfo::SchemelessInputType mSchemelessInput =
       nsILoadInfo::SchemelessInputTypeUnset;
-
-  nsILoadInfo::HTTPSUpgradeTelemetryType mHttpsUpgradeTelemetry =
-      nsILoadInfo::NOT_INITIALIZED;
 
   dom::UserNavigationInvolvement mUserNavigationInvolvement =
       dom::UserNavigationInvolvement::None;
 
-  bool mIsNewWindowTarget = false;
   bool mSkipHTTPSUpgrade = false;
 };
 // This is exposed solely for testing purposes and should not be used outside of

@@ -15,14 +15,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
   ObjectUtils: "resource://gre/modules/ObjectUtils.sys.mjs",
   UrlbarProviderOpenTabs: "resource:///modules/UrlbarProviderOpenTabs.sys.mjs",
   UrlbarPrefs: "resource:///modules/UrlbarPrefs.sys.mjs",
-  UrlbarProviderGlobalActions:
-    "resource:///modules/UrlbarProviderGlobalActions.sys.mjs",
   UrlbarProviderQuickSuggest:
     "resource:///modules/UrlbarProviderQuickSuggest.sys.mjs",
-  UrlbarProviderQuickSuggestContextualOptIn:
-    "resource:///modules/UrlbarProviderQuickSuggestContextualOptIn.sys.mjs",
-  UrlbarProviderRecentSearches:
-    "resource:///modules/UrlbarProviderRecentSearches.sys.mjs",
   UrlbarProviderTopSites: "resource:///modules/UrlbarProviderTopSites.sys.mjs",
   UrlbarProvidersManager: "resource:///modules/UrlbarProvidersManager.sys.mjs",
   UrlbarResult: "resource:///modules/UrlbarResult.sys.mjs",
@@ -112,6 +106,9 @@ export class UrlbarView {
   }
 
   get oneOffSearchButtons() {
+    if (!this.input.isAddressbar) {
+      return null;
+    }
     if (!this.#oneOffSearchButtons) {
       this.#oneOffSearchButtons = new lazy.UrlbarSearchOneOffs(this);
       this.#oneOffSearchButtons.addEventListener(
@@ -345,7 +342,7 @@ export class UrlbarView {
       // global actions.
       if (
         this.#rows.children[index]?.result.providerName ==
-          lazy.UrlbarProviderGlobalActions.name &&
+          "UrlbarProviderGlobalActions" &&
         this.#rows.children.length > 2
       ) {
         index = index + (reverse ? -1 : 1);
@@ -365,7 +362,7 @@ export class UrlbarView {
     const isSkippableTabToSearchAnnounce = selectedElt => {
       let result = this.getResultFromElement(selectedElt);
       let skipAnnouncement =
-        result?.providerName == "TabToSearch" &&
+        result?.providerName == "UrlbarProviderTabToSearch" &&
         !this.#announceTabToSearchOnSelection &&
         lazy.UrlbarPrefs.get("accessibility.tabToSearch.announceResults");
       if (skipAnnouncement) {
@@ -759,7 +756,7 @@ export class UrlbarView {
     // Search mode is active.  If the one-offs should be shown, make sure they
     // are enabled and show the view.
     let openPanelInstance = (this.#openPanelInstance = {});
-    this.oneOffSearchButtons.willHide().then(willHide => {
+    this.oneOffSearchButtons?.willHide().then(willHide => {
       if (!willHide && openPanelInstance == this.#openPanelInstance) {
         this.oneOffSearchButtons.enable(true);
         this.#openPanel();
@@ -800,7 +797,7 @@ export class UrlbarView {
       //  * The search string is empty
       //  * The search string starts with an `@` or a search restriction
       //    character
-      this.oneOffSearchButtons.enable(
+      this.oneOffSearchButtons?.enable(
         (firstResult.providerName != "UrlbarProviderSearchTips" ||
           queryContext.trimmedSearchString) &&
           queryContext.trimmedSearchString[0] != "@" &&
@@ -810,7 +807,7 @@ export class UrlbarView {
       );
     }
 
-    if (!this.#selectedElement && !this.oneOffSearchButtons.selectedButton) {
+    if (!this.#selectedElement && !this.oneOffSearchButtons?.selectedButton) {
       if (firstResult.heuristic) {
         // Select the heuristic result.  The heuristic may not be the first
         // result added, which is why we do this check here when each result is
@@ -841,7 +838,7 @@ export class UrlbarView {
     // a row.
     let secondResult = queryContext.results[1];
     if (
-      secondResult?.providerName == "TabToSearch" &&
+      secondResult?.providerName == "UrlbarProviderTabToSearch" &&
       lazy.UrlbarPrefs.get("accessibility.tabToSearch.announceResults") &&
       this.#previousTabToSearchEngine != secondResult.payload.engine
     ) {
@@ -860,7 +857,7 @@ export class UrlbarView {
 
     // If we update the selected element, a new unique ID is generated for it.
     // We need to ensure that aria-activedescendant reflects this new ID.
-    if (this.#selectedElement && !this.oneOffSearchButtons.selectedButton) {
+    if (this.#selectedElement && !this.oneOffSearchButtons?.selectedButton) {
       let aadID = this.input.inputField.getAttribute("aria-activedescendant");
       if (aadID && !this.document.getElementById(aadID)) {
         this.#setAccessibleFocus(this.#selectedElement);
@@ -1971,11 +1968,11 @@ export class UrlbarView {
       item.setAttribute("type", "dynamic");
       this.#updateRowForDynamicType(item, result);
       return;
-    } else if (result.providerName == "TabToSearch") {
+    } else if (result.providerName == "UrlbarProviderTabToSearch") {
       item.setAttribute("type", "tabtosearch");
-    } else if (result.providerName == "SemanticHistorySearch") {
+    } else if (result.providerName == "UrlbarProviderSemanticHistorySearch") {
       item.setAttribute("type", "semantic-history");
-    } else if (result.providerName == "InputHistory") {
+    } else if (result.providerName == "UrlbarProviderInputHistory") {
       item.setAttribute("type", "adaptive-history");
     } else {
       item.setAttribute(
@@ -2043,6 +2040,14 @@ export class UrlbarView {
         setURL = true;
         break;
       case lazy.UrlbarUtils.RESULT_TYPE.SEARCH:
+        if (
+          result.payload.suggestionObject?.suggestionType == "important_dates"
+        ) {
+          // Don't show action for important date results because clicking them
+          // searches for the name of the event which is in the description and
+          // not the title.
+          break;
+        }
         if (result.payload.inPrivateWindow) {
           if (result.payload.isPrivateEngine) {
             actionSetter = () => {
@@ -2058,7 +2063,7 @@ export class UrlbarView {
               });
             };
           }
-        } else if (result.providerName == "TabToSearch") {
+        } else if (result.providerName == "UrlbarProviderTabToSearch") {
           actionSetter = () => {
             this.#l10nCache.setElementL10n(action, {
               id: result.payload.isGeneralPurposeEngine
@@ -2126,7 +2131,10 @@ export class UrlbarView {
 
     this.#setRowSelectable(item, isRowSelectable);
 
-    action.toggleAttribute("slide-in", result.providerName == "TabToSearch");
+    action.toggleAttribute(
+      "slide-in",
+      result.providerName == "UrlbarProviderTabToSearch"
+    );
 
     item.toggleAttribute("pinned", !!result.payload.isPinned);
 
@@ -2542,7 +2550,7 @@ export class UrlbarView {
       };
     }
 
-    if (row.result.providerName == lazy.UrlbarProviderRecentSearches.name) {
+    if (row.result.providerName == "UrlbarProviderRecentSearches") {
       return { id: "urlbar-group-recent-searches" };
     }
 
@@ -2571,9 +2579,8 @@ export class UrlbarView {
 
     // Show "Shortcuts" if there's another result before that group.
     if (
-      row.result.providerName == lazy.UrlbarProviderTopSites.name &&
-      this.#queryContext.results[0].providerName !=
-        lazy.UrlbarProviderTopSites.name
+      row.result.providerName == "UrlbarProviderTopSites" &&
+      this.#queryContext.results[0].providerName != "UrlbarProviderTopSites"
     ) {
       return { id: "urlbar-group-shortcuts" };
     }
@@ -2971,7 +2978,7 @@ export class UrlbarView {
           },
         });
       } else if (
-        result.providerName == "TokenAliasEngines" &&
+        result.providerName == "UrlbarProviderTokenAliasEngines" &&
         lazy.UrlbarPrefs.getScotchBonnetPref(
           "searchRestrictKeywords.featureGate"
         )
@@ -3197,7 +3204,7 @@ export class UrlbarView {
   #enableOrDisableRowWrap() {
     let wrap = getBoundsWithoutFlushing(this.input.textbox).width < 650;
     this.#rows.toggleAttribute("wrap", wrap);
-    this.oneOffSearchButtons.container.toggleAttribute("wrap", wrap);
+    this.oneOffSearchButtons?.container.toggleAttribute("wrap", wrap);
   }
 
   /**
@@ -3871,12 +3878,10 @@ class QueryContextCache {
       // for a moment.
       if (
         queryContext.results?.some(
-          r => r.providerName == lazy.UrlbarProviderTopSites.name
+          r => r.providerName == "UrlbarProviderTopSites"
         ) &&
         !queryContext.results.some(
-          r =>
-            r.providerName ==
-            lazy.UrlbarProviderQuickSuggestContextualOptIn.name
+          r => r.providerName == "UrlbarProviderQuickSuggestContextualOptIn"
         )
       ) {
         this.#topSitesContext = queryContext;

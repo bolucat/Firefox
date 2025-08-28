@@ -22,7 +22,7 @@ task-defaults:
                     default: 2
             default:
                 by-test-platform:
-                    android-em.*/debug-isolated-process: 3
+                    android-em.*/debug-isolated-process: 1
                     default: default
     mozharness:
         script:
@@ -952,7 +952,7 @@ mochitest-media:
             default:
                 by-test-platform:
                     .*-ccov.*: 2
-                    android-em.*/debug-isolated-process: 3
+                    android-em.*/debug-isolated-process: 1
                     android-em.*: 1
                     android-hw.*: 1
                     default: default
@@ -1260,16 +1260,14 @@ mochitest-browser-newtab-trainhop-beta:
         name: mochitest-browser-chrome
     run-on-projects:
         by-test-platform:
-            linux(?!.*shippable).*: []
-            macosx(?!.*shippable).*: []
-            windows(?!.*shippable).*: []
-            default: [trunk]
-    when:
-        files-changed:
-            - "browser/extensions/newtab/**"
+            linux.*64(-shippable)?(-qr)?/.*: ['trunk']
+            macosx.*64(-shippable)?(-qr)?/.*: ['trunk']
+            windows1.*-64.*(-shippable)?/.*: ['trunk']
+            default: []
     treeherder-symbol: nt-trainhop(Mbc-beta)
     tier: 3
     loopback-video: true
+    test-manifest-loader: null  # don't load tests in the taskgraph
     mozharness:
         mochitest-flavor: browser
         chunked: false
@@ -1312,16 +1310,14 @@ mochitest-browser-newtab-trainhop-release:
         name: mochitest-browser-chrome
     run-on-projects:
         by-test-platform:
-            linux(?!.*shippable).*: []
-            macosx(?!.*shippable).*: []
-            windows(?!.*shippable).*: []
-            default: [trunk]
-    when:
-        files-changed:
-            - "browser/extensions/newtab/**"
+            linux.*64(-shippable)?(-qr)?/.*: ['trunk']
+            macosx.*64(-shippable)?(-qr)?/.*: ['trunk']
+            windows1.*-64.*(-shippable)?/.*: ['trunk']
+            default: []
     treeherder-symbol: nt-trainhop(Mbc-release)
     tier: 3
     loopback-video: true
+    test-manifest-loader: null  # don't load tests in the taskgraph
     mozharness:
         mochitest-flavor: browser
         chunked: false

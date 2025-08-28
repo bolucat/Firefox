@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.SheetValue
@@ -19,11 +18,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -173,8 +170,6 @@ private fun BottomSheetContent(
         TextButton(
             modifier = Modifier.fillMaxWidth(),
             text = stringResource(R.string.terms_of_use_prompt_postpone),
-            upperCaseText = false,
-            textColor = MaterialTheme.colorScheme.primary,
             onClick = {
                 onRemindMeLaterClicked()
 
@@ -247,14 +242,7 @@ private fun BottomSheetMessage(
 @FlexibleWindowLightDarkPreview
 @Composable
 private fun TermsOfUseBottomSheetPreview() {
-    val density = LocalDensity.current
-    val sheetState = remember {
-        SheetState(
-            initialValue = SheetValue.Expanded,
-            density = density,
-            skipPartiallyExpanded = false,
-        )
-    }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     FirefoxTheme {
         BottomSheet(sheetState = sheetState)

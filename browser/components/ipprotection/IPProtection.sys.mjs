@@ -22,6 +22,14 @@ ChromeUtils.defineESModuleGetters(lazy, {
 const FXA_WIDGET_ID = "fxa-toolbar-menu-button";
 const EXT_WIDGET_ID = "unified-extensions-button";
 
+const REGISTERED_EVENTS = [
+  "IPProtectionService:Started",
+  "IPProtectionService:Stopped",
+  "IPProtectionService:Error",
+  "IPProtectionService:SignedIn",
+  "IPProtectionService:SignedOut",
+];
+
 /**
  * IPProtectionWidget is the class for the singleton IPProtection.
  *
@@ -77,6 +85,13 @@ class IPProtectionWidget {
     lazy.CustomizableUI.removeListener(this);
 
     this.#inited = false;
+  }
+
+  /**
+   * Returns the initialization status
+   */
+  get isInitialized() {
+    return this.#inited;
   }
 
   /**
@@ -151,16 +166,24 @@ class IPProtectionWidget {
    * Places the widget in the nav bar, next to the FxA widget.
    */
   #placeWidget() {
-    let prevWidget = lazy.CustomizableUI.getPlacementOfWidget(FXA_WIDGET_ID);
-    if (!prevWidget) {
-      // Fallback to unremovable extensions button if fxa button isn't available.
-      prevWidget = lazy.CustomizableUI.getPlacementOfWidget(EXT_WIDGET_ID);
+    let alreadyPlaced = lazy.CustomizableUI.getPlacementOfWidget(
+      IPProtectionWidget.WIDGET_ID,
+      false,
+      true
+    );
+    if (alreadyPlaced) {
+      return;
     }
+
+    let prevWidget =
+      lazy.CustomizableUI.getPlacementOfWidget(FXA_WIDGET_ID) ||
+      lazy.CustomizableUI.getPlacementOfWidget(EXT_WIDGET_ID);
+    let pos = prevWidget ? prevWidget.position - 1 : null;
 
     lazy.CustomizableUI.addWidgetToArea(
       IPProtectionWidget.WIDGET_ID,
       lazy.CustomizableUI.AREA_NAVBAR,
-      prevWidget.position - 1
+      pos
     );
   }
 
@@ -279,40 +302,27 @@ class IPProtectionWidget {
       this.sendReadyTrigger
     );
 
-    lazy.IPProtectionService.addEventListener(
-      "IPProtectionService:Started",
-      this.handleEvent
-    );
-
-    lazy.IPProtectionService.addEventListener(
-      "IPProtectionService:Stopped",
-      this.handleEvent
-    );
-
-    lazy.IPProtectionService.addEventListener(
-      "IPProtectionService:Error",
-      this.handleEvent
-    );
+    for (const evt of REGISTERED_EVENTS) {
+      lazy.IPProtectionService.addEventListener(evt, this.handleEvent);
+    }
   }
 
   #onDestroyed() {
-    lazy.IPProtectionService.removeEventListener(
-      "IPProtectionService:Started",
-      this.handleEvent
-    );
-    lazy.IPProtectionService.removeEventListener(
-      "IPProtectionService:Stopped",
-      this.handleEvent
-    );
-    lazy.IPProtectionService.removeEventListener(
-      "IPProtectionService:Error",
-      this.handleEvent
-    );
+    for (const evt of REGISTERED_EVENTS) {
+      lazy.IPProtectionService.removeEventListener(evt, this.handleEvent);
+    }
   }
 
-  onWidgetRemoved(widgetId) {
-    // Shut down VPN connection when widget is removed
-    if (widgetId == IPProtectionWidget.WIDGET_ID) {
+  async onWidgetRemoved(widgetId) {
+    if (widgetId != IPProtectionWidget.WIDGET_ID) {
+      return;
+    }
+
+    // Shut down VPN connection when widget is removed,
+    // but wait to check if it has been moved.
+    await Promise.resolve();
+    let moved = !!lazy.CustomizableUI.getPlacementOfWidget(widgetId);
+    if (!moved) {
       lazy.IPProtectionService.stop();
     }
   }
@@ -331,14 +341,17 @@ class IPProtectionWidget {
     if (
       event.type == "IPProtectionService:Started" ||
       event.type == "IPProtectionService:Stopped" ||
-      event.type == "IPProtectionService:Error"
+      event.type == "IPProtectionService:Error" ||
+      event.type == "IPProtectionService:SignedIn" ||
+      event.type == "IPProtectionService:SignedOut"
     ) {
-      let isError =
-        lazy.IPProtectionService.hasError &&
-        lazy.IPProtectionService.errors.includes(ERRORS.GENERIC);
       let status = {
-        isActive: lazy.IPProtectionService.isActive,
-        isError,
+        isActive:
+          lazy.IPProtectionService.isSignedIn &&
+          lazy.IPProtectionService.isActive,
+        isError:
+          lazy.IPProtectionService.hasError &&
+          lazy.IPProtectionService.errors.includes(ERRORS.GENERIC),
       };
 
       let widget = lazy.CustomizableUI.getWidget(IPProtectionWidget.WIDGET_ID);

@@ -73,13 +73,13 @@ private const val DROPDOWN_TEXT_WIDTH_FRACTION = 0.5f
 internal fun ProtectionPanel(
     icon: Bitmap?,
     isTrackingProtectionEnabled: Boolean,
+    isLocalPdf: Boolean,
     numberOfTrackersBlocked: Int,
     websiteInfoState: WebsiteInfoState,
     websitePermissions: List<WebsitePermission>,
     onTrackerBlockedMenuClick: () -> Unit,
     onTrackingProtectionToggleClick: () -> Unit,
     onClearSiteDataMenuClick: () -> Unit,
-    onConnectionSecurityClick: () -> Unit,
     onPrivacySecuritySettingsClick: () -> Unit,
     onAutoplayValueClick: (AutoplayValue) -> Unit,
     onToggleablePermissionClick: (WebsitePermission.Toggleable) -> Unit,
@@ -94,46 +94,59 @@ internal fun ProtectionPanel(
     ) {
         MenuGroup {
             ProtectionPanelBanner(
-                isSecured = websiteInfoState.isSecured,
-                isTrackingProtectionEnabled = isTrackingProtectionEnabled,
+                isSecured = websiteInfoState.isSecured || isLocalPdf,
+                isTrackingProtectionEnabled = isTrackingProtectionEnabled || isLocalPdf,
             )
 
-            MenuBadgeItem(
-                label = stringResource(id = R.string.protection_panel_etp_toggle_label),
-                checked = isTrackingProtectionEnabled,
-                description = if (isTrackingProtectionEnabled) {
-                    stringResource(id = R.string.protection_panel_etp_toggle_enabled_description_2)
-                } else {
-                    stringResource(id = R.string.protection_panel_etp_toggle_disabled_description_2)
-                },
-                badgeText = if (isTrackingProtectionEnabled) {
-                    stringResource(id = R.string.protection_panel_etp_toggle_on)
-                } else {
-                    stringResource(id = R.string.protection_panel_etp_toggle_off)
-                },
-                onClick = onTrackingProtectionToggleClick,
-            )
+            if (!isLocalPdf) {
+                MenuBadgeItem(
+                    label = stringResource(id = R.string.protection_panel_etp_toggle_label),
+                    checked = isTrackingProtectionEnabled,
+                    description = if (isTrackingProtectionEnabled) {
+                        stringResource(id = R.string.protection_panel_etp_toggle_enabled_description_2)
+                    } else {
+                        stringResource(id = R.string.protection_panel_etp_toggle_disabled_description_2)
+                    },
+                    badgeText = if (isTrackingProtectionEnabled) {
+                        stringResource(id = R.string.protection_panel_etp_toggle_on)
+                    } else {
+                        stringResource(id = R.string.protection_panel_etp_toggle_off)
+                    },
+                    onClick = onTrackingProtectionToggleClick,
+                )
 
-            if (numberOfTrackersBlocked == 0) {
-                MenuItem(
-                    label = stringResource(id = R.string.protection_panel_no_trackers_blocked),
-                    beforeIconPainter = painterResource(id = R.drawable.mozac_ic_shield_24),
-                )
-            } else {
-                MenuItem(
-                    label = stringResource(
-                        id = R.string.protection_panel_num_trackers_blocked,
-                        numberOfTrackersBlocked,
-                    ),
-                    beforeIconPainter = painterResource(id = R.drawable.mozac_ic_shield_24),
-                    onClick = onTrackerBlockedMenuClick,
-                    afterIconPainter = painterResource(id = R.drawable.mozac_ic_chevron_right_24),
-                )
+                if (!isTrackingProtectionEnabled) {
+                    MenuItem(
+                        label = stringResource(id = R.string.protection_panel_etp_disabled_no_trackers_blocked),
+                        beforeIconPainter = painterResource(id = R.drawable.mozac_ic_shield_slash_critical_24),
+                        state = MenuItemState.CRITICAL,
+                    )
+                } else if (numberOfTrackersBlocked == 0) {
+                    MenuItem(
+                        label = stringResource(id = R.string.protection_panel_no_trackers_blocked),
+                        beforeIconPainter = painterResource(id = R.drawable.mozac_ic_shield_checkmark_24),
+                    )
+                } else {
+                    MenuItem(
+                        label = stringResource(
+                            id = R.string.protection_panel_num_trackers_blocked,
+                            numberOfTrackersBlocked,
+                        ),
+                        beforeIconPainter = painterResource(id = R.drawable.mozac_ic_shield_checkmark_24),
+                        onClick = onTrackerBlockedMenuClick,
+                        afterIconPainter = painterResource(id = R.drawable.mozac_ic_chevron_right_24),
+                    )
+                }
             }
         }
 
         MenuGroup {
-            if (websiteInfoState.isSecured) {
+            if (isLocalPdf) {
+                MenuItem(
+                    label = stringResource(id = R.string.connection_security_panel_local_pdf),
+                    beforeIconPainter = painterResource(id = R.drawable.mozac_ic_save_file_24),
+                )
+            } else if (websiteInfoState.isSecured) {
                 MenuItem(
                     label = stringResource(id = R.string.connection_security_panel_secure),
                     beforeIconPainter = painterResource(id = R.drawable.mozac_ic_lock_24),
@@ -141,23 +154,24 @@ internal fun ProtectionPanel(
                         id = R.string.connection_security_panel_verified_by,
                         websiteInfoState.certificateName,
                     ),
-                    onClick = onConnectionSecurityClick,
+                    maxDescriptionLines = 2,
                 )
             } else {
                 MenuItem(
                     label = stringResource(id = R.string.connection_security_panel_not_secure),
                     beforeIconPainter = painterResource(id = R.drawable.mozac_ic_lock_slash_critical_24),
                     state = MenuItemState.CRITICAL,
-                    onClick = onConnectionSecurityClick,
                 )
             }
         }
 
-        MenuGroup {
-            MenuTextItem(
-                label = stringResource(id = R.string.clear_site_data),
-                onClick = onClearSiteDataMenuClick,
-            )
+        if (!isLocalPdf) {
+            MenuGroup {
+                MenuTextItem(
+                    label = stringResource(id = R.string.clear_site_data),
+                    onClick = onClearSiteDataMenuClick,
+                )
+            }
         }
 
         if (websitePermissions.isNotEmpty()) {
@@ -420,6 +434,7 @@ private fun ProtectionPanelPreview() {
                     certificateName = "",
                 ),
                 isTrackingProtectionEnabled = true,
+                isLocalPdf = false,
                 numberOfTrackersBlocked = 5,
                 websitePermissions = listOf(
                     WebsitePermission.Autoplay(
@@ -431,7 +446,6 @@ private fun ProtectionPanelPreview() {
                 onTrackerBlockedMenuClick = {},
                 onTrackingProtectionToggleClick = {},
                 onClearSiteDataMenuClick = {},
-                onConnectionSecurityClick = {},
                 onPrivacySecuritySettingsClick = {},
                 onAutoplayValueClick = {},
                 onToggleablePermissionClick = {},

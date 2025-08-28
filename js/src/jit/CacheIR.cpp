@@ -5952,29 +5952,31 @@ AttachDecision SetPropIRGenerator::tryAttachAddSlotStub(
   DebugOnly<uint32_t> index;
   MOZ_ASSERT_IF(obj->is<ArrayObject>(), !IdIsIndex(id, &index));
   bool mustCallAddPropertyHook =
-      !obj->is<ArrayObject>() &&
-      (obj->getClass()->getAddProperty() ||
-       (obj->getClass()->preservesWrapper() &&
-        !oldShape->hasObjectFlag(ObjectFlag::HasPreservedWrapper)));
+      !obj->is<ArrayObject>() && obj->getClass()->getAddProperty();
+  bool preserveWrapper =
+      obj->getClass()->preservesWrapper() &&
+      !oldShape->hasObjectFlag(ObjectFlag::HasPreservedWrapper);
 
   if (mustCallAddPropertyHook) {
     writer.addSlotAndCallAddPropHook(objId, rhsValId, newShape);
     trackAttached("SetProp.AddSlotWithAddPropertyHook");
   } else if (holder->isFixedSlot(propInfo.slot())) {
     size_t offset = NativeObject::getFixedSlotOffset(propInfo.slot());
-    writer.addAndStoreFixedSlot(objId, offset, rhsValId, newShape);
+    writer.addAndStoreFixedSlot(objId, offset, rhsValId, newShape,
+                                preserveWrapper);
     trackAttached("SetProp.AddSlotFixed");
   } else {
     size_t offset = holder->dynamicSlotIndex(propInfo.slot()) * sizeof(Value);
     uint32_t numOldSlots = NativeObject::calculateDynamicSlots(oldSharedShape);
     uint32_t numNewSlots = holder->numDynamicSlots();
     if (numOldSlots == numNewSlots) {
-      writer.addAndStoreDynamicSlot(objId, offset, rhsValId, newShape);
+      writer.addAndStoreDynamicSlot(objId, offset, rhsValId, newShape,
+                                    preserveWrapper);
       trackAttached("SetProp.AddSlotDynamic");
     } else {
       MOZ_ASSERT(numNewSlots > numOldSlots);
       writer.allocateAndStoreDynamicSlot(objId, offset, rhsValId, newShape,
-                                         numNewSlots);
+                                         numNewSlots, preserveWrapper);
       trackAttached("SetProp.AllocateSlot");
     }
   }
@@ -11134,8 +11136,8 @@ AttachDecision InlinableNativeIRGenerator::tryAttachDateGet(
     return AttachDecision::NoAction;
   }
 
-  // Can't check DateTime cache when time zone is forced to UTC.
-  if (cx_->realm()->creationOptions().forceUTC()) {
+  // Can't check DateTime cache when not using the default time zone.
+  if (cx_->realm()->behaviors().timeZone()) {
     return AttachDecision::NoAction;
   }
 

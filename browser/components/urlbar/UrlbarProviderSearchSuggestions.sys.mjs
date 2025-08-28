@@ -58,18 +58,9 @@ function looksLikeUrl(str, ignoreAlphanumericHosts = false) {
 /**
  * Class used to create the provider.
  */
-class ProviderSearchSuggestions extends UrlbarProvider {
+export class UrlbarProviderSearchSuggestions extends UrlbarProvider {
   constructor() {
     super();
-  }
-
-  /**
-   * Returns the name of this provider.
-   *
-   * @returns {string} the name of this provider.
-   */
-  get name() {
-    return "SearchSuggestions";
   }
 
   /**
@@ -417,7 +408,9 @@ class ProviderSearchSuggestions extends UrlbarProvider {
       }
     }
 
-    this._suggestionsFetchCompletePromise = this._suggestionsController.fetch(
+    // See `SearchSuggestionsController.fetch` documentation for a description
+    // of `fetchData`.
+    let fetchData = await this._suggestionsController.fetch(
       searchString,
       queryContext.isPrivate,
       engine,
@@ -427,9 +420,6 @@ class ProviderSearchSuggestions extends UrlbarProvider {
       this.#shouldFetchTrending(queryContext)
     );
 
-    // See `SearchSuggestionsController.fetch` documentation for a description
-    // of `fetchData`.
-    let fetchData = await this._suggestionsFetchCompletePromise;
     // The fetch was canceled.
     if (!fetchData) {
       return null;
@@ -649,5 +639,3 @@ function makeFormHistoryResult(queryContext, engine, entry) {
     })
   );
 }
-
-export var UrlbarProviderSearchSuggestions = new ProviderSearchSuggestions();

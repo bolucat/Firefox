@@ -37,10 +37,11 @@ class CallbackHelper : public webrtc::VideoSinkInterface<webrtc::VideoFrame> {
       : mCapEngine(aCapEng),
         mStreamId(aStreamId),
         mTrackingId(CaptureEngineToTrackingSourceStr(aCapEng), aStreamId),
-        mParent(aParent) {};
+        mParent(aParent),
+        mConfiguration("CallbackHelper::mConfiguration") {};
 
-  // These callbacks end up running on the VideoCapture thread.
-  // From  VideoCaptureCallback
+  void SetConfiguration(const webrtc::VideoCaptureCapability& aCapability);
+
   void OnCaptureEnded();
   void OnFrame(const webrtc::VideoFrame& aVideoFrame) override;
 
@@ -53,12 +54,14 @@ class CallbackHelper : public webrtc::VideoSinkInterface<webrtc::VideoFrame> {
   CamerasParent* const mParent;
   MediaEventListener mCaptureEndedListener;
   bool mConnectedToCaptureEnded = false;
+  DataMutex<webrtc::VideoCaptureCapability> mConfiguration;
+  // Capture thread only.
+  media::TimeUnit mLastFrameTime = media::TimeUnit::FromNegativeInfinity();
 };
 
 class DeliverFrameRunnable;
 
-class CamerasParent final : public PCamerasParent,
-                            private webrtc::VideoInputFeedBack {
+class CamerasParent final : public PCamerasParent {
  public:
   using ShutdownMozPromise = media::ShutdownBlockingTicket::ShutdownMozPromise;
 
@@ -141,8 +144,7 @@ class CamerasParent final : public PCamerasParent,
   void StopCapture(const CaptureEngine& aCapEngine, int aCaptureId);
   int ReleaseCapture(const CaptureEngine& aCapEngine, int aCaptureId);
 
-  // VideoInputFeedBack
-  void OnDeviceChange() override;
+  void OnDeviceChange();
 
   // Creates a new DeviceInfo or returns an existing DeviceInfo for given
   // capture engine. Returns a nullptr in case capture engine failed to be
@@ -157,7 +159,7 @@ class CamerasParent final : public PCamerasParent,
 
   void OnShutdown();
 
-  nsTArray<CallbackHelper*> mCallbacks;
+  nsTArray<UniquePtr<CallbackHelper>> mCallbacks;
   // If existent, blocks xpcom shutdown while alive.
   // Note that this makes a reference cycle that gets broken in ActorDestroy().
   const UniquePtr<media::ShutdownBlockingTicket> mShutdownBlocker;
@@ -185,6 +187,11 @@ class CamerasParent final : public PCamerasParent,
 
   std::map<nsCString, std::map<uint32_t, webrtc::VideoCaptureCapability>>
       mAllCandidateCapabilities;
+
+  // Listener for the camera VideoEngine::DeviceChangeEvent(). Video capture
+  // thread only.
+  MediaEventListener mDeviceChangeEventListener;
+  bool mDeviceChangeEventListenerConnected = false;
 
   // While alive, ensure webrtc logging is hooked up to MOZ_LOG. Main thread
   // only.

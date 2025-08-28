@@ -167,6 +167,9 @@ bool LoadInfo::IsDocumentMissingClientInfo() {
       aContentPolicyType, aSecurityFlags, aSandboxFlags);
 }
 
+static_assert(uint8_t(ForceMediaDocument::None) == 0,
+              "The default value of mForceMediaDocument depends on this.");
+
 LoadInfo::LoadInfo(
     nsIPrincipal* aLoadingPrincipal, nsIPrincipal* aTriggeringPrincipal,
     nsINode* aLoadingContext, nsSecurityFlags aSecurityFlags,
@@ -717,13 +720,6 @@ LoadInfo::LoadInfo(const LoadInfo& rhs)
       mContextForTopLevelLoad(rhs.mContextForTopLevelLoad),
       mSecurityFlags(rhs.mSecurityFlags),
       mSandboxFlags(rhs.mSandboxFlags),
-      mTriggeringSandboxFlags(rhs.mTriggeringSandboxFlags),
-      mTriggeringWindowId(rhs.mTriggeringWindowId),
-      mTriggeringStorageAccess(rhs.mTriggeringStorageAccess),
-      mTriggeringFirstPartyClassificationFlags(
-          rhs.mTriggeringFirstPartyClassificationFlags),
-      mTriggeringThirdPartyClassificationFlags(
-          rhs.mTriggeringThirdPartyClassificationFlags),
       mInternalContentPolicyType(rhs.mInternalContentPolicyType),
       mTainting(rhs.mTainting),
 #define DEFINE_INIT(_t, name, _n, _d) m##name(rhs.m##name),
@@ -745,24 +741,16 @@ LoadInfo::LoadInfo(const LoadInfo& rhs)
       mLoadTriggeredFromExternal(rhs.mLoadTriggeredFromExternal),
       mCspNonce(rhs.mCspNonce),
       mIntegrityMetadata(rhs.mIntegrityMetadata),
-      mStoragePermission(rhs.mStoragePermission),
-      mParentIPAddressSpace(rhs.mParentIPAddressSpace),
-      mIPAddressSpace(rhs.mIPAddressSpace),
       mOverriddenFingerprintingSettings(rhs.mOverriddenFingerprintingSettings),
 #ifdef DEBUG
       mOverriddenFingerprintingSettingsIsSet(
           rhs.mOverriddenFingerprintingSettingsIsSet),
 #endif
-      mLoadingEmbedderPolicy(rhs.mLoadingEmbedderPolicy),
-      mIsOriginTrialCoepCredentiallessEnabledForTopLevel(
-          rhs.mIsOriginTrialCoepCredentiallessEnabledForTopLevel),
       mUnstrippedURI(rhs.mUnstrippedURI),
       mInterceptionInfo(rhs.mInterceptionInfo),
-      mHasInjectedCookieForCookieBannerHandling(
-          rhs.mHasInjectedCookieForCookieBannerHandling),
       mSchemelessInput(rhs.mSchemelessInput),
-      mHttpsUpgradeTelemetry(rhs.mHttpsUpgradeTelemetry),
-      mIsNewWindowTarget(rhs.mIsNewWindowTarget) {
+      mUserNavigationInvolvement(rhs.mUserNavigationInvolvement),
+      mSkipHTTPSUpgrade(rhs.mSkipHTTPSUpgrade) {
 }
 
 LoadInfo::LoadInfo(
@@ -776,10 +764,6 @@ LoadInfo::LoadInfo(
     const Maybe<ClientInfo>& aInitialClientInfo,
     const Maybe<ServiceWorkerDescriptor>& aController,
     nsSecurityFlags aSecurityFlags, uint32_t aSandboxFlags,
-    uint32_t aTriggeringSandboxFlags, uint64_t aTriggeringWindowId,
-    bool aTriggeringStorageAccess,
-    uint32_t aTriggeringFirstPartyClassificationFlags,
-    uint32_t aTriggeringThirdPartyClassificationFlags,
     nsContentPolicyType aContentPolicyType, LoadTainting aTainting,
 #define DEFINE_PARAMETER(type, name, _n, _d) type a##name,
     LOADINFO_FOR_EACH_FIELD(DEFINE_PARAMETER, LOADINFO_DUMMY_SETTER)
@@ -796,18 +780,10 @@ LoadInfo::LoadInfo(
     const nsTArray<nsCString>& aCorsUnsafeHeaders,
     bool aLoadTriggeredFromExternal, const nsAString& aCspNonce,
     const nsAString& aIntegrityMetadata, bool aIsSameDocumentNavigation,
-    nsILoadInfo::StoragePermissionState aStoragePermission,
-    nsILoadInfo::IPAddressSpace aParentIPAddressSpace,
-    nsILoadInfo::IPAddressSpace aIPAddressSpace,
     const Maybe<RFPTargetSet>& aOverriddenFingerprintingSettings,
-    nsINode* aLoadingContext,
-    nsILoadInfo::CrossOriginEmbedderPolicy aLoadingEmbedderPolicy,
-    bool aIsOriginTrialCoepCredentiallessEnabledForTopLevel,
-    nsIURI* aUnstrippedURI, nsIInterceptionInfo* aInterceptionInfo,
-    bool aHasInjectedCookieForCookieBannerHandling,
+    nsINode* aLoadingContext, nsIURI* aUnstrippedURI,
+    nsIInterceptionInfo* aInterceptionInfo,
     nsILoadInfo::SchemelessInputType aSchemelessInput,
-    nsILoadInfo::HTTPSUpgradeTelemetryType aHttpsUpgradeTelemetry,
-    bool aIsNewWindowTarget,
     dom::UserNavigationInvolvement aUserNavigationInvolvement)
     : mLoadingPrincipal(aLoadingPrincipal),
       mTriggeringPrincipal(aTriggeringPrincipal),
@@ -825,13 +801,6 @@ LoadInfo::LoadInfo(
       mLoadingContext(do_GetWeakReference(aLoadingContext)),
       mSecurityFlags(aSecurityFlags),
       mSandboxFlags(aSandboxFlags),
-      mTriggeringSandboxFlags(aTriggeringSandboxFlags),
-      mTriggeringWindowId(aTriggeringWindowId),
-      mTriggeringStorageAccess(aTriggeringStorageAccess),
-      mTriggeringFirstPartyClassificationFlags(
-          aTriggeringFirstPartyClassificationFlags),
-      mTriggeringThirdPartyClassificationFlags(
-          aTriggeringThirdPartyClassificationFlags),
       mInternalContentPolicyType(aContentPolicyType),
       mTainting(aTainting),
 
@@ -853,21 +822,11 @@ LoadInfo::LoadInfo(
       mCspNonce(aCspNonce),
       mIntegrityMetadata(aIntegrityMetadata),
       mIsSameDocumentNavigation(aIsSameDocumentNavigation),
-      mStoragePermission(aStoragePermission),
-      mParentIPAddressSpace(aParentIPAddressSpace),
-      mIPAddressSpace(aIPAddressSpace),
       mOverriddenFingerprintingSettings(aOverriddenFingerprintingSettings),
-      mLoadingEmbedderPolicy(aLoadingEmbedderPolicy),
-      mIsOriginTrialCoepCredentiallessEnabledForTopLevel(
-          aIsOriginTrialCoepCredentiallessEnabledForTopLevel),
       mUnstrippedURI(aUnstrippedURI),
       mInterceptionInfo(aInterceptionInfo),
-      mHasInjectedCookieForCookieBannerHandling(
-          aHasInjectedCookieForCookieBannerHandling),
       mSchemelessInput(aSchemelessInput),
-      mHttpsUpgradeTelemetry(aHttpsUpgradeTelemetry),
-      mUserNavigationInvolvement(aUserNavigationInvolvement),
-      mIsNewWindowTarget(aIsNewWindowTarget) {
+      mUserNavigationInvolvement(aUserNavigationInvolvement) {
   // Only top level TYPE_DOCUMENT loads can have a null loadingPrincipal
   MOZ_ASSERT(mLoadingPrincipal ||
              aContentPolicyType == nsIContentPolicy::TYPE_DOCUMENT);
@@ -1095,66 +1054,6 @@ LoadInfo::GetSandboxFlags(uint32_t* aResult) {
 }
 
 NS_IMETHODIMP
-LoadInfo::GetTriggeringSandboxFlags(uint32_t* aResult) {
-  *aResult = mTriggeringSandboxFlags;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadInfo::SetTriggeringSandboxFlags(uint32_t aFlags) {
-  mTriggeringSandboxFlags = aFlags;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadInfo::GetTriggeringWindowId(uint64_t* aResult) {
-  *aResult = mTriggeringWindowId;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadInfo::SetTriggeringWindowId(uint64_t aFlags) {
-  mTriggeringWindowId = aFlags;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadInfo::GetTriggeringStorageAccess(bool* aResult) {
-  *aResult = mTriggeringStorageAccess;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadInfo::SetTriggeringStorageAccess(bool aFlags) {
-  mTriggeringStorageAccess = aFlags;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadInfo::GetTriggeringFirstPartyClassificationFlags(uint32_t* aResult) {
-  *aResult = mTriggeringFirstPartyClassificationFlags;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadInfo::SetTriggeringFirstPartyClassificationFlags(uint32_t aFlags) {
-  mTriggeringFirstPartyClassificationFlags = aFlags;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadInfo::GetTriggeringThirdPartyClassificationFlags(uint32_t* aResult) {
-  *aResult = mTriggeringThirdPartyClassificationFlags;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadInfo::SetTriggeringThirdPartyClassificationFlags(uint32_t aFlags) {
-  mTriggeringThirdPartyClassificationFlags = aFlags;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 LoadInfo::GetSecurityMode(uint32_t* aFlags) {
   *aFlags = nsContentSecurityManager::ComputeSecurityMode(mSecurityFlags);
 
@@ -1273,45 +1172,6 @@ LoadInfo::SetCookieJarSettings(nsICookieJarSettings* aCookieJarSettings) {
   MOZ_ASSERT(aCookieJarSettings);
   // We allow the overwrite of CookieJarSettings.
   mCookieJarSettings = aCookieJarSettings;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadInfo::GetStoragePermission(
-    nsILoadInfo::StoragePermissionState* aStoragePermission) {
-  *aStoragePermission = mStoragePermission;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadInfo::SetStoragePermission(
-    nsILoadInfo::StoragePermissionState aStoragePermission) {
-  mStoragePermission = aStoragePermission;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadInfo::GetIpAddressSpace(nsILoadInfo::IPAddressSpace* aIPAddressSpace) {
-  *aIPAddressSpace = mIPAddressSpace;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadInfo::SetIpAddressSpace(nsILoadInfo::IPAddressSpace aIPAddressSpace) {
-  mIPAddressSpace = aIPAddressSpace;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadInfo::GetParentIpAddressSpace(
-    nsILoadInfo::IPAddressSpace* aIPAddressSpace) {
-  *aIPAddressSpace = mParentIPAddressSpace;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadInfo::SetParentIpAddressSpace(nsILoadInfo::IPAddressSpace aIPAddressSpace) {
-  mParentIPAddressSpace = aIPAddressSpace;
   return NS_OK;
 }
 
@@ -2078,36 +1938,6 @@ LoadInfo::GetFetchDestination(nsACString& aDestination) {
   return NS_OK;
 }
 
-NS_IMETHODIMP
-LoadInfo::GetLoadingEmbedderPolicy(
-    nsILoadInfo::CrossOriginEmbedderPolicy* aOutPolicy) {
-  *aOutPolicy = mLoadingEmbedderPolicy;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadInfo::SetLoadingEmbedderPolicy(
-    nsILoadInfo::CrossOriginEmbedderPolicy aPolicy) {
-  mLoadingEmbedderPolicy = aPolicy;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadInfo::GetIsOriginTrialCoepCredentiallessEnabledForTopLevel(
-    bool* aIsOriginTrialCoepCredentiallessEnabledForTopLevel) {
-  *aIsOriginTrialCoepCredentiallessEnabledForTopLevel =
-      mIsOriginTrialCoepCredentiallessEnabledForTopLevel;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadInfo::SetIsOriginTrialCoepCredentiallessEnabledForTopLevel(
-    bool aIsOriginTrialCoepCredentiallessEnabledForTopLevel) {
-  mIsOriginTrialCoepCredentiallessEnabledForTopLevel =
-      aIsOriginTrialCoepCredentiallessEnabledForTopLevel;
-  return NS_OK;
-}
-
 already_AddRefed<nsIContentSecurityPolicy> LoadInfo::GetPreloadCsp() {
   if (mClientInfo.isNothing()) {
     return nullptr;
@@ -2207,22 +2037,6 @@ void LoadInfo::SetInterceptionInfo(nsIInterceptionInfo* aInfo) {
 }
 
 NS_IMETHODIMP
-LoadInfo::GetHasInjectedCookieForCookieBannerHandling(
-    bool* aHasInjectedCookieForCookieBannerHandling) {
-  *aHasInjectedCookieForCookieBannerHandling =
-      mHasInjectedCookieForCookieBannerHandling;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadInfo::SetHasInjectedCookieForCookieBannerHandling(
-    bool aHasInjectedCookieForCookieBannerHandling) {
-  mHasInjectedCookieForCookieBannerHandling =
-      aHasInjectedCookieForCookieBannerHandling;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 LoadInfo::GetSchemelessInput(
     nsILoadInfo::SchemelessInputType* aSchemelessInput) {
   *aSchemelessInput = mSchemelessInput;
@@ -2233,32 +2047,6 @@ NS_IMETHODIMP
 LoadInfo::SetSchemelessInput(
     nsILoadInfo::SchemelessInputType aSchemelessInput) {
   mSchemelessInput = aSchemelessInput;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadInfo::GetHttpsUpgradeTelemetry(
-    nsILoadInfo::HTTPSUpgradeTelemetryType* aOutHttpsUpgradeTelemetry) {
-  *aOutHttpsUpgradeTelemetry = mHttpsUpgradeTelemetry;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadInfo::SetHttpsUpgradeTelemetry(
-    nsILoadInfo::HTTPSUpgradeTelemetryType aHttpsUpgradeTelemetry) {
-  mHttpsUpgradeTelemetry = aHttpsUpgradeTelemetry;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadInfo::GetIsNewWindowTarget(bool* aIsNewWindowTarget) {
-  *aIsNewWindowTarget = mIsNewWindowTarget;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadInfo::SetIsNewWindowTarget(bool aIsNewWindowTarget) {
-  mIsNewWindowTarget = aIsNewWindowTarget;
   return NS_OK;
 }
 
@@ -2284,7 +2072,7 @@ void LoadInfo::UpdateParentAddressSpaceInfo() {
   RefPtr<mozilla::dom::BrowsingContext> bc;
   GetBrowsingContext(getter_AddRefs(bc));
   if (!bc) {
-    mParentIPAddressSpace = nsILoadInfo::Local;
+    mParentIpAddressSpace = nsILoadInfo::Local;
     return;
   }
   // if this main or sub document then we need to assign IPAddressSpace of
@@ -2292,9 +2080,9 @@ void LoadInfo::UpdateParentAddressSpaceInfo() {
   if (externalType == ExtContentPolicy::TYPE_DOCUMENT ||
       externalType == ExtContentPolicy::TYPE_SUBDOCUMENT) {
     if (bc->GetParent()) {
-      mParentIPAddressSpace = bc->GetParent()->GetCurrentIPAddressSpace();
+      mParentIpAddressSpace = bc->GetParent()->GetCurrentIPAddressSpace();
     } else if (RefPtr<dom::BrowsingContext> opener = bc->GetOpener()) {
-      mParentIPAddressSpace = opener->GetCurrentIPAddressSpace();
+      mParentIpAddressSpace = opener->GetCurrentIPAddressSpace();
     } else {
       // XXX (sunil): add if this was loaded from about:blank. In that case we
       // need to give assign local IPAddress
@@ -2302,7 +2090,7 @@ void LoadInfo::UpdateParentAddressSpaceInfo() {
   } else {
     // For non-document loads, we need to set the parent IPAddressSpace to
     // IPAddress space of the browsing context
-    mParentIPAddressSpace = bc->GetCurrentIPAddressSpace();
+    mParentIpAddressSpace = bc->GetCurrentIPAddressSpace();
   }
 }
 

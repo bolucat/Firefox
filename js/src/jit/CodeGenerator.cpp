@@ -349,7 +349,7 @@ void CodeGenerator::callVMInternal(VMFunctionId id, LInstruction* ins) {
 #endif
 
   // Push an exit frame descriptor.
-  masm.PushFrameDescriptor(FrameType::IonJS);
+  masm.Push(FrameDescriptor(FrameType::IonJS));
 
   // Call the wrapper function.  The wrapper is in charge to unwind the stack
   // when returning from the call.  Failures are handled with exceptions based
@@ -6446,7 +6446,7 @@ void JitRuntime::generateIonGenericCallStub(MacroAssembler& masm,
   Label invokeFunctionVMEntry;
   bindLabelToOffset(&invokeFunctionVMEntry, invokeFunctionOffset);
 
-  masm.pushFrameDescriptor(FrameType::IonJS);
+  masm.push(FrameDescriptor(FrameType::IonJS));
 #ifndef JS_USE_LINK_REGISTER
   masm.push(returnAddrReg);
 #endif
@@ -6619,7 +6619,7 @@ void JitRuntime::generateIonGenericCallNativeFunction(MacroAssembler& masm,
 
   // Construct native exit frame. Note that unlike other cases in this
   // trampoline, this code does not use a tail call.
-  masm.pushFrameDescriptor(FrameType::IonJS);
+  masm.push(FrameDescriptor(FrameType::IonJS));
 #ifdef JS_USE_LINK_REGISTER
   masm.pushReturnAddress();
 #else
@@ -6863,7 +6863,7 @@ void CodeGenerator::visitCallKnown(LCallKnown* call) {
 
   // Construct the JitFrameLayout.
   masm.PushCalleeToken(calleereg, call->mir()->isConstructing());
-  masm.PushFrameDescriptorForJitCall(FrameType::IonJS, call->numActualArgs());
+  masm.Push(FrameDescriptor(FrameType::IonJS, call->numActualArgs()));
 
   // Finally call the function in objreg.
   ensureOsiSpace();
@@ -17814,6 +17814,8 @@ void CodeGenerator::visitLoadDynamicSlotUnboxAndAtomize(
 }
 
 void CodeGenerator::visitAddAndStoreSlot(LAddAndStoreSlot* ins) {
+  MOZ_ASSERT(!ins->mir()->preserveWrapper());
+
   Register obj = ToRegister(ins->object());
   ValueOperand value = ToValue(ins->value());
   Register maybeTemp = ToTempRegisterOrInvalid(ins->temp0());
@@ -17837,11 +17839,53 @@ void CodeGenerator::visitAddAndStoreSlot(LAddAndStoreSlot* ins) {
   }
 }
 
+void CodeGenerator::visitAddAndStoreSlotPreserveWrapper(
+    LAddAndStoreSlotPreserveWrapper* ins) {
+  MOZ_ASSERT(ins->mir()->preserveWrapper());
+
+  Register obj = ToRegister(ins->object());
+  ValueOperand value = ToValue(ins->value());
+  Register temp0 = ToTempRegisterOrInvalid(ins->temp0());
+  Register temp1 = ToTempRegisterOrInvalid(ins->temp1());
+
+  LiveRegisterSet liveRegs = liveVolatileRegs(ins);
+  liveRegs.takeUnchecked(temp0);
+  liveRegs.takeUnchecked(temp1);
+  masm.preserveWrapper(obj, temp0, temp1, liveRegs);
+  bailoutIfFalseBool(temp0, ins->snapshot());
+
+  Shape* shape = ins->mir()->shape();
+  masm.storeObjShape(shape, obj, [](MacroAssembler& masm, const Address& addr) {
+    EmitPreBarrier(masm, addr, MIRType::Shape);
+  });
+
+  // Perform the store. No pre-barrier required since this is a new
+  // initialization.
+
+  uint32_t offset = ins->mir()->slotOffset();
+  if (ins->mir()->kind() == MAddAndStoreSlot::Kind::FixedSlot) {
+    Address slot(obj, offset);
+    masm.storeValue(value, slot);
+  } else {
+    masm.loadPtr(Address(obj, NativeObject::offsetOfSlots()), temp0);
+    Address slot(temp0, offset);
+    masm.storeValue(value, slot);
+  }
+}
+
 void CodeGenerator::visitAllocateAndStoreSlot(LAllocateAndStoreSlot* ins) {
   Register obj = ToRegister(ins->object());
   ValueOperand value = ToValue(ins->value());
   Register temp0 = ToRegister(ins->temp0());
   Register temp1 = ToRegister(ins->temp1());
+
+  if (ins->mir()->preserveWrapper()) {
+    LiveRegisterSet liveRegs;
+    liveRegs.addUnchecked(obj);
+    liveRegs.addUnchecked(value);
+    masm.preserveWrapper(obj, temp0, temp1, liveRegs);
+    bailoutIfFalseBool(temp0, ins->snapshot());
+  }
 
   masm.Push(obj);
   masm.Push(value);

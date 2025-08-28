@@ -64,7 +64,8 @@ bool MoofParser::RebuildFragmentedIndex(BoxContext& aContext) {
                                            : mTrackParseMode.as<uint32_t>());
   bool foundValidMoof = false;
 
-  for (Box box(&aContext, mOffset); box.IsAvailable(); box = box.Next()) {
+  for (Box box(&aContext, mOffset); box.IsAvailable();
+       mOffset = box.NextOffset(), box = box.Next()) {
     if (box.IsType("moov") && mInitRange.IsEmpty()) {
       mInitRange = MediaByteRange(0, box.Range().mEnd);
       ParseMoov(box);
@@ -73,14 +74,7 @@ bool MoofParser::RebuildFragmentedIndex(BoxContext& aContext) {
                 &mLastDecodeTime, mIsAudio, mTracksEndCts);
 
       if (!moof.IsValid()) {
-        if (!box.Next().IsAvailable()) {
-          // Abort search for now, without advancing mOffset so that parsing
-          // can be attempted again when more of the resource is available.
-          LOG_WARN(Moof, "Invalid moof. moof may not be complete yet.");
-          break;
-        }
-        // moof is complete but invalid.  Skip to next box.
-        continue;
+        continue;  // Skip to next box.
       }
 
       if (!mMoofs.IsEmpty()) {
@@ -103,7 +97,6 @@ bool MoofParser::RebuildFragmentedIndex(BoxContext& aContext) {
             mMediaRanges.LastElement().Span(box.Range());
       }
     }
-    mOffset = box.NextOffset();
   }
   MOZ_ASSERT(mTrackParseMode.is<ParseAllTracks>() ||
                  mTrex.mTrackId == mTrackParseMode.as<uint32_t>(),
@@ -155,7 +148,7 @@ class BlockingStream : public ByteStream,
   RefPtr<ByteStream> mStream;
 };
 
-bool MoofParser::BlockingReadNextMoof() {
+nsresult MoofParser::BlockingReadNextMoof() {
   LOG_DEBUG(Moof, "Starting.");
   int64_t length = std::numeric_limits<int64_t>::max();
   mSource->Length(&length);
@@ -163,19 +156,23 @@ bool MoofParser::BlockingReadNextMoof() {
   MediaByteRangeSet byteRanges(MediaByteRange(0, length));
 
   BoxContext context(stream, byteRanges);
-  for (Box box(&context, mOffset); box.IsAvailable(); box = box.Next()) {
+  Box box(&context, mOffset);
+  for (; box.IsAvailable(); box = box.Next()) {
     if (box.IsType("moof")) {
       MediaByteRangeSet parseByteRanges(
           MediaByteRange(mOffset, box.Range().mEnd));
       BoxContext parseContext(stream, parseByteRanges);
       if (RebuildFragmentedIndex(parseContext)) {
-        LOG_DEBUG(Moof, "Succeeded on RebuildFragmentedIndex, returning true.");
-        return true;
+        LOG_DEBUG(Moof, "Succeeded on RebuildFragmentedIndex, returning NS_OK");
+        return NS_OK;
       }
     }
   }
-  LOG_DEBUG(Moof, "Couldn't read next moof, returning false.");
-  return false;
+  nsresult rv = box.Offset() == length ? NS_ERROR_DOM_MEDIA_END_OF_STREAM
+                                       : box.InitStatus();
+  LOG_DEBUG(Moof, "Couldn't read next moof, returning %s",
+            GetStaticErrorName(rv));
+  return rv;
 }
 
 void MoofParser::ScanForMetadata(mozilla::MediaByteRange& aMoov) {
@@ -591,7 +588,7 @@ bool Moof::GetAuxInfo(AtomType aType,
       LOG_ERROR(Moof, "OOM");
       return false;
     }
-    uint64_t offset = mRange.mStart + saio->mOffsets[0];
+    uint64_t offset = mTfhd.mBaseDataOffset + saio->mOffsets[0];
     for (size_t i = 0; i < saiz->mSampleInfoSize.Length(); i++) {
       if (!aByteRanges->AppendElement(
               MediaByteRange(offset, offset + saiz->mSampleInfoSize[i]),

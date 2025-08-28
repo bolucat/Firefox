@@ -427,7 +427,36 @@ abstract class BaseBrowserFragment :
         // DO NOT ADD ANYTHING ABOVE THIS getProfilerTime CALL!
         val profilerStartTime = requireComponents.core.engine.profiler?.getProfilerTime()
 
+        browserScreenStore = buildBrowserScreenStore()
+
         initializeUI(view)
+
+        appLinksFeature.set(
+            feature = AppLinksFeature(
+                context = requireContext(),
+                store = requireComponents.core.store,
+                sessionId = customTabSessionId,
+                fragmentManager = parentFragmentManager,
+                launchInApp = { requireContext().settings().shouldOpenLinksInApp(customTabSessionId != null) },
+                loadUrlUseCase = requireComponents.useCases.sessionUseCases.loadUrl,
+                shouldPrompt = { requireContext().settings().shouldPromptOpenLinksInApp() },
+                alwaysOpenCheckboxAction = {
+                    requireContext().settings().openLinksInExternalApp =
+                        requireContext().getString(R.string.pref_key_open_links_in_apps_always)
+                },
+                failedToLaunchAction = { fallbackUrl ->
+                    fallbackUrl?.let {
+                        val appLinksUseCases = requireComponents.useCases.appLinksUseCases
+                        val getRedirect = appLinksUseCases.appLinkRedirect
+                        val redirect = getRedirect.invoke(fallbackUrl)
+                        redirect.appIntent?.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        appLinksUseCases.openAppLink.invoke(redirect.appIntent)
+                    }
+                },
+            ),
+            owner = this,
+            view = binding.root,
+        )
 
         if (customTabSessionId == null) {
             // We currently only need this observer to navigate to home
@@ -441,18 +470,13 @@ abstract class BaseBrowserFragment :
             isCustomTabSession = customTabSessionId != null,
         )
 
-        observePrivateModeLock(
-            viewLifecycleOwner = viewLifecycleOwner,
-            scope = viewLifecycleOwner.lifecycleScope,
-            appStore = requireComponents.appStore,
-            onPrivateModeLocked = {
-                findNavController().navigate(
-                    NavGraphDirections.actionGlobalUnlockPrivateTabsFragment(
-                        if (customTabSessionId != null) NavigationOrigin.CUSTOM_TAB else NavigationOrigin.TAB,
-                    ),
-                )
-            },
-        )
+        observePrivateModeLock {
+            findNavController().navigate(
+                NavGraphDirections.actionGlobalUnlockPrivateTabsFragment(
+                    if (customTabSessionId != null) NavigationOrigin.CUSTOM_TAB else NavigationOrigin.TAB,
+                ),
+            )
+        }
 
         if (!requireComponents.fenixOnboarding.userHasBeenOnboarded()) {
             observeTabSource(requireComponents.core.store)
@@ -948,33 +972,6 @@ abstract class BaseBrowserFragment :
             onHide = ::onAutocompleteBarHide,
         )
 
-        appLinksFeature.set(
-            feature = AppLinksFeature(
-                context = requireContext(),
-                store = store,
-                sessionId = tab.id,
-                fragmentManager = parentFragmentManager,
-                launchInApp = { context.settings().shouldOpenLinksInApp(customTabSessionId != null) },
-                loadUrlUseCase = requireComponents.useCases.sessionUseCases.loadUrl,
-                shouldPrompt = { context.settings().shouldPromptOpenLinksInApp() },
-                alwaysOpenCheckboxAction = {
-                    context.settings().openLinksInExternalApp =
-                        context.getString(R.string.pref_key_open_links_in_apps_always)
-                },
-                failedToLaunchAction = { fallbackUrl ->
-                    fallbackUrl?.let {
-                        val appLinksUseCases = requireComponents.useCases.appLinksUseCases
-                        val getRedirect = appLinksUseCases.appLinkRedirect
-                        val redirect = getRedirect.invoke(fallbackUrl)
-                        redirect.appIntent?.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                        appLinksUseCases.openAppLink.invoke(redirect.appIntent)
-                    }
-                },
-            ),
-            owner = this,
-            view = binding.root,
-        )
-
         promptsFeature.set(
             feature = PromptFeature(
                 activity = activity,
@@ -1304,7 +1301,6 @@ abstract class BaseBrowserFragment :
         store: BrowserStore,
         readerModeController: DefaultReaderModeController,
     ): BrowserToolbarComposable {
-        browserScreenStore = buildBrowserScreenStore()
         val toolbarStore = buildToolbarStore(activity, readerModeController)
 
         browserNavigationBar =

@@ -414,6 +414,9 @@ dictionary SynthesizeMouseEventData {
 dictionary SynthesizeMouseEventOptions {
   // Indicates whether the event should ignore viewport bounds during dispatch.
   boolean ignoreRootScrollFrame = false;
+  // If true the event is dispatched to the parent process through APZ,
+  // without being injected into the OS event queue.
+  boolean isAsyncEnabled = false;
   // Controls Event.isSynthesized value that helps identifying test related events.
   boolean isDOMEventSynthesized = true;
   // Controls WidgetMouseEvent.mReason value.
@@ -666,6 +669,16 @@ partial interface Window {
 
   [Func="nsGlobalWindowInner::IsPrivilegedChromeWindow"]
   readonly attribute boolean isFullyOccluded;
+
+  /**
+   * On Windows, returns whether the window is cloaked, presumably
+   * because it is on another virtual desktop. Per Microsoft, we
+   * should not automatically switch to this window if we are looking
+   * for an existing window to focus, and instead open a new window.
+   * On non-Windows platforms, this is always false.
+   */
+  [Func="nsGlobalWindowInner::IsPrivilegedChromeWindow"]
+  readonly attribute boolean isCloaked;
 
   /**
    * browserDOMWindow provides access to yet another layer of

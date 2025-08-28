@@ -24,6 +24,8 @@
 #include "mozilla/dom/NavigationHistoryEntry.h"
 #include "mozilla/dom/NavigationTransition.h"
 #include "mozilla/dom/NavigationUtils.h"
+#include "mozilla/dom/Promise-inl.h"
+#include "mozilla/dom/Promise.h"
 #include "mozilla/dom/RootedDictionary.h"
 #include "mozilla/dom/SessionHistoryEntry.h"
 #include "mozilla/dom/WindowContext.h"
@@ -118,6 +120,12 @@ struct NavigationAPIMethodTracker final : public nsISupports {
     aResult.mCommitted.Construct(OwningNonNull<Promise>(*mCommittedPromise));
     aResult.mFinished.Reset();
     aResult.mFinished.Construct(OwningNonNull<Promise>(*mFinishedPromise));
+  }
+
+  Promise* CommittedPromise() { return mCommittedPromise; }
+
+  bool NeedsToWaitForCommittedPromise() const {
+    return mCommittedPromise->State() == Promise::PromiseState::Pending;
   }
 
   RefPtr<Navigation> mNavigationObject;
@@ -806,7 +814,8 @@ static bool HasIdenticalFragment(nsIURI* aURI, nsIURI* aOtherURI) {
   return ref.Equals(otherRef);
 }
 
-static void LogEvent(Event* aEvent, NavigateEvent* aOngoingEvent) {
+static void LogEvent(Event* aEvent, NavigateEvent* aOngoingEvent,
+                     const nsACString& aReason) {
   if (!MOZ_LOG_TEST(gNavigationLog, LogLevel::Debug)) {
     return;
   }
@@ -815,7 +824,7 @@ static void LogEvent(Event* aEvent, NavigateEvent* aOngoingEvent) {
       aOngoingEvent ? aOngoingEvent->Destination() : nullptr;
   nsAutoString eventType;
   aEvent->GetType(eventType);
-  LOG_FMT("Fire {} {}", NS_ConvertUTF16toUTF8(eventType),
+  LOG_FMT("{} {} {}", aReason, NS_ConvertUTF16toUTF8(eventType),
           destination ? destination->GetURI()->GetSpecOrDefault() : ""_ns);
 }
 
@@ -825,7 +834,7 @@ nsresult Navigation::FireEvent(const nsAString& aName) {
   event->InitEvent(aName, false, false);
   event->SetTrusted(true);
   ErrorResult rv;
-  LogEvent(event, mOngoingNavigateEvent);
+  LogEvent(event, mOngoingNavigateEvent, "Fire"_ns);
   DispatchEvent(*event, rv);
   return rv.StealNSResult();
 }
@@ -846,7 +855,7 @@ nsresult Navigation::FireErrorEvent(const nsAString& aName,
   RefPtr<Event> event = ErrorEvent::Constructor(this, aName, aEventInitDict);
   ErrorResult rv;
 
-  LogEvent(event, mOngoingNavigateEvent);
+  LogEvent(event, mOngoingNavigateEvent, "Fire"_ns);
   DispatchEvent(*event, rv);
   return rv.StealNSResult();
 }
@@ -1012,7 +1021,7 @@ bool Navigation::InnerFireNavigateEvent(
   mSuppressNormalScrollRestorationDuringOngoingNavigation = false;
 
   // Step 29 and step 30
-  LogEvent(event, mOngoingNavigateEvent);
+  LogEvent(event, mOngoingNavigateEvent, "Fire"_ns);
   if (!DispatchEvent(*event, CallerType::NonSystem, IgnoreErrors())) {
     // Step 30.1
     if (aNavigationType == NavigationType::Traverse) {
@@ -1113,8 +1122,7 @@ bool Navigation::InnerFireNavigateEvent(
     // the scope as a weak reference.
     RefPtr scope =
         MakeRefPtr<NavigationWaitForAllScope>(this, apiMethodTracker, event);
-    Promise::WaitForAll(
-        globalObject, promiseList,
+    auto successSteps =
         [weakScope = WeakPtr(scope)](const Span<JS::Heap<JS::Value>>&)
             MOZ_CAN_RUN_SCRIPT_BOUNDARY_LAMBDA {
               // If weakScope is null we've been cycle collected
@@ -1161,7 +1169,8 @@ bool Navigation::InnerFireNavigateEvent(
 
               // Step 9
               self->mTransition = nullptr;
-            },
+            };
+    auto failureSteps =
         [weakScope = WeakPtr(scope)](JS::Handle<JS::Value> aRejectionReason)
             MOZ_CAN_RUN_SCRIPT_BOUNDARY_LAMBDA {
               // If weakScope is null we've been cycle collected
@@ -1216,9 +1225,48 @@ bool Navigation::InnerFireNavigateEvent(
 
               // Step 10
               self->mTransition = nullptr;
+            };
+    Promise::WaitForAll(
+        globalObject, promiseList,
+        [weakScope = WeakPtr(scope), successSteps,
+         failureSteps](const Span<JS::Heap<JS::Value>>& aValue)
+            MOZ_CAN_RUN_SCRIPT_BOUNDARY_LAMBDA {
+              // If weakScope is null we've been cycle collected
+              if (!weakScope) {
+                return;
+              }
+
+              // If the committed promise in the api method tracker hasn't
+              // resolved yet, we can't run success steps. To handle that we set
+              // up a callback for when that resolves. This differs from how
+              // spec performs these steps, since spec can perform more of
+              // #apply-the-history-steps in a synchronous way.
+              RefPtr apiMethodTracker = weakScope->mAPIMethodTracker;
+              if (apiMethodTracker &&
+                  apiMethodTracker->NeedsToWaitForCommittedPromise()) {
+                // If we reach failure steps here it is because we've called
+                // NavigationAPIMethodTracker::RejectFinishedPromise by
+                // Navigation::AbortOngoingNavigation. That performs cleaup
+                // steps on its own, so we can safely ignore the reject handler
+                // here.
+                apiMethodTracker->CommittedPromise()
+                    ->AddCallbacksWithCycleCollectedArgs(
+                        [successSteps](JSContext*, JS::Handle<JS::Value>,
+                                       ErrorResult&) {
+                          successSteps(nsTArray<JS::Heap<JS::Value>>());
+                        },
+                        [](JSContext*, JS::Handle<JS::Value>, ErrorResult&) {});
+              } else {
+                // If the committed promise has resolved we can run the success
+                // steps immediately.
+                successSteps(aValue);
+              }
             },
-        scope);
-  } else if (apiMethodTracker) {
+        failureSteps, scope);
+  } else if (apiMethodTracker && mOngoingAPIMethodTracker) {
+    // In contrast to spec we add a check that we're still the ongoing tracker.
+    // If we're not, then we've already been cleaned up.
+    MOZ_DIAGNOSTIC_ASSERT(apiMethodTracker == mOngoingAPIMethodTracker);
     // Step 35
     apiMethodTracker->CleanUp();
   }
@@ -1291,6 +1339,8 @@ void Navigation::AbortOngoingNavigation(JSContext* aCx,
   // Step 1
   RefPtr<NavigateEvent> event = mOngoingNavigateEvent;
 
+  LogEvent(event, event, "Abort"_ns);
+
   // Step 2
   MOZ_DIAGNOSTIC_ASSERT(event);
 
@@ -1343,6 +1393,21 @@ void Navigation::AbortOngoingNavigation(JSContext* aCx,
 
     // Step 12.2
     mTransition = nullptr;
+  }
+}
+
+// https://html.spec.whatwg.org/#inform-the-navigation-api-about-child-navigable-destruction
+void Navigation::InformAboutChildNavigableDestruction(JSContext* aCx) {
+  // Step 3
+  auto traversalAPIMethodTrackers = mUpcomingTraverseAPIMethodTrackers.Clone();
+
+  // Step 4
+  for (auto& apiMethodTracker : traversalAPIMethodTrackers.Values()) {
+    ErrorResult rv;
+    rv.ThrowAbortError("Navigable removed");
+    JS::Rooted<JS::Value> rootedExceptionValue(aCx);
+    MOZ_ALWAYS_TRUE(ToJSValue(aCx, std::move(rv), &rootedExceptionValue));
+    apiMethodTracker->RejectFinishedPromise(rootedExceptionValue);
   }
 }
 

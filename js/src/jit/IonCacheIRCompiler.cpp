@@ -267,7 +267,7 @@ void IonCacheIRCompiler::enterStubFrame(MacroAssembler& masm,
                                         const AutoSaveLiveRegisters&) {
   MOZ_ASSERT(!enteredStubFrame_);
   pushStubCodePointer();
-  masm.PushFrameDescriptor(FrameType::IonJS);
+  masm.Push(FrameDescriptor(FrameType::IonJS));
   masm.Push(ImmPtr(GetReturnAddressToIonCode(cx_)));
 
   masm.Push(FramePointer);
@@ -966,7 +966,7 @@ bool IonCacheIRCompiler::emitCallScriptedGetterResult(
   }
 
   masm.Push(callee);
-  masm.PushFrameDescriptorForJitCall(FrameType::IonICCall, /* argc = */ 0);
+  masm.Push(FrameDescriptor(FrameType::IonICCall, /* argc = */ 0));
 
   // Check stack alignment. Add 2 * sizeof(uintptr_t) for the return address and
   // frame pointer pushed by the call/callee.
@@ -1059,7 +1059,7 @@ bool IonCacheIRCompiler::emitCallScriptedProxyGetShared(
   masm.Push(scratchVal);
 
   masm.Push(callee);
-  masm.PushFrameDescriptorForJitCall(FrameType::IonICCall, /* argc = */ 3);
+  masm.Push(FrameDescriptor(FrameType::IonICCall, /* argc = */ 3));
 
   // Check stack alignment. Add 2 * sizeof(uintptr_t) for the return address and
   // frame pointer pushed by the call/callee.
@@ -1416,7 +1416,8 @@ bool IonCacheIRCompiler::emitStoreDynamicSlot(ObjOperandId objId,
 
 bool IonCacheIRCompiler::emitAddAndStoreSlotShared(
     CacheOp op, ObjOperandId objId, uint32_t offsetOffset, ValOperandId rhsId,
-    uint32_t newShapeOffset, Maybe<uint32_t> numNewSlotsOffset) {
+    uint32_t newShapeOffset, Maybe<uint32_t> numNewSlotsOffset,
+    bool preserveWrapper) {
   JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
   Register obj = allocator.useRegister(masm, objId);
   int32_t offset = int32StubField(offsetOffset);
@@ -1425,8 +1426,20 @@ bool IonCacheIRCompiler::emitAddAndStoreSlotShared(
   AutoScratchRegister scratch1(allocator, masm);
 
   Maybe<AutoScratchRegister> scratch2;
-  if (op == CacheOp::AllocateAndStoreDynamicSlot) {
+  if (op == CacheOp::AllocateAndStoreDynamicSlot || preserveWrapper) {
     scratch2.emplace(allocator, masm);
+  }
+
+  FailurePath* failure = nullptr;
+  if (preserveWrapper) {
+    if (!addFailurePath(&failure)) {
+      return false;
+    }
+    LiveRegisterSet save = liveVolatileRegs();
+    save.takeUnchecked(scratch1);
+    save.takeUnchecked(scratch2.ref());
+    masm.preserveWrapper(obj, scratch1, scratch2.ref(), save);
+    masm.branchIfFalseBool(scratch1, failure->label());
   }
 
   Shape* newShape = shapeStubField(newShapeOffset);
@@ -1436,8 +1449,7 @@ bool IonCacheIRCompiler::emitAddAndStoreSlotShared(
     // only fallible operation here. Note that growSlotsPure is
     // fallible but does not GC.
 
-    FailurePath* failure;
-    if (!addFailurePath(&failure)) {
+    if (!failure && !addFailurePath(&failure)) {
       return false;
     }
 
@@ -1491,32 +1503,34 @@ bool IonCacheIRCompiler::emitAddAndStoreSlotShared(
 bool IonCacheIRCompiler::emitAddAndStoreFixedSlot(ObjOperandId objId,
                                                   uint32_t offsetOffset,
                                                   ValOperandId rhsId,
-                                                  uint32_t newShapeOffset) {
+                                                  uint32_t newShapeOffset,
+                                                  bool preserveWrapper) {
   JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
   Maybe<uint32_t> numNewSlotsOffset = mozilla::Nothing();
   return emitAddAndStoreSlotShared(CacheOp::AddAndStoreFixedSlot, objId,
                                    offsetOffset, rhsId, newShapeOffset,
-                                   numNewSlotsOffset);
+                                   numNewSlotsOffset, preserveWrapper);
 }
 
 bool IonCacheIRCompiler::emitAddAndStoreDynamicSlot(ObjOperandId objId,
                                                     uint32_t offsetOffset,
                                                     ValOperandId rhsId,
-                                                    uint32_t newShapeOffset) {
+                                                    uint32_t newShapeOffset,
+                                                    bool preserveWrapper) {
   JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
   Maybe<uint32_t> numNewSlotsOffset = mozilla::Nothing();
   return emitAddAndStoreSlotShared(CacheOp::AddAndStoreDynamicSlot, objId,
                                    offsetOffset, rhsId, newShapeOffset,
-                                   numNewSlotsOffset);
+                                   numNewSlotsOffset, preserveWrapper);
 }
 
 bool IonCacheIRCompiler::emitAllocateAndStoreDynamicSlot(
     ObjOperandId objId, uint32_t offsetOffset, ValOperandId rhsId,
-    uint32_t newShapeOffset, uint32_t numNewSlotsOffset) {
+    uint32_t newShapeOffset, uint32_t numNewSlotsOffset, bool preserveWrapper) {
   JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
-  return emitAddAndStoreSlotShared(CacheOp::AllocateAndStoreDynamicSlot, objId,
-                                   offsetOffset, rhsId, newShapeOffset,
-                                   mozilla::Some(numNewSlotsOffset));
+  return emitAddAndStoreSlotShared(
+      CacheOp::AllocateAndStoreDynamicSlot, objId, offsetOffset, rhsId,
+      newShapeOffset, mozilla::Some(numNewSlotsOffset), preserveWrapper);
 }
 
 bool IonCacheIRCompiler::emitLoadStringCharResult(StringOperandId strId,
@@ -1719,7 +1733,7 @@ bool IonCacheIRCompiler::emitCallScriptedSetter(ObjOperandId receiverId,
   }
 
   masm.Push(callee);
-  masm.PushFrameDescriptorForJitCall(FrameType::IonICCall, /* argc = */ 1);
+  masm.Push(FrameDescriptor(FrameType::IonICCall, /* argc = */ 1));
 
   // Check stack alignment. Add 2 * sizeof(uintptr_t) for the return address and
   // frame pointer pushed by the call/callee.
@@ -2101,7 +2115,7 @@ bool IonCacheIRCompiler::emitCloseIterScriptedResult(ObjOperandId iterId,
   masm.Push(TypedOrValueRegister(MIRType::Object, AnyRegister(iter)));
 
   masm.Push(callee);
-  masm.PushFrameDescriptorForJitCall(FrameType::IonICCall, /* argc = */ 0);
+  masm.Push(FrameDescriptor(FrameType::IonICCall, /* argc = */ 0));
 
   masm.loadJitCodeRaw(callee, callee);
   masm.callJit(callee);

@@ -11,6 +11,10 @@ import {
   UrlbarUtils,
 } from "resource:///modules/UrlbarUtils.sys.mjs";
 
+/**
+ * @typedef {import("UrlbarProvidersManager.sys.mjs").Query} Query
+ */
+
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
@@ -284,20 +288,25 @@ const QUERY_URL_PREFIX_BOOKMARK = urlQuery(
 );
 
 /**
+ * @typedef AutofillData
+ *
+ * @property {UrlbarResult} result
+ * @property {Query} instance
+ */
+
+/**
  * Class used to create the provider.
  */
-class ProviderAutofill extends UrlbarProvider {
+export class UrlbarProviderAutofill extends UrlbarProvider {
+  /**
+   * This is usually reset on canceling or completing the query, but since we
+   * query in isActive, it may not have been canceled by the previous call.
+   *
+   * @type {?AutofillData}
+   */
+  _autofillData = null;
   constructor() {
     super();
-  }
-
-  /**
-   * Returns the name of this provider.
-   *
-   * @returns {string} the name of this provider.
-   */
-  get name() {
-    return "Autofill";
   }
 
   /**
@@ -319,8 +328,6 @@ class ProviderAutofill extends UrlbarProvider {
 
     // This is usually reset on canceling or completing the query, but since we
     // query in isActive, it may not have been canceled by the previous call.
-    // It is an object with values { result: UrlbarResult, instance: Query }.
-    // See the documentation for _getAutofillData for more information.
     this._autofillData = null;
 
     // First of all, check for the autoFill pref.
@@ -439,7 +446,7 @@ class ProviderAutofill extends UrlbarProvider {
    *   Resolved when the filtering is complete. Resolves with the top matching
    *   host, or null if not found.
    */
-  async getTopHostOverThreshold(queryContext, hosts) {
+  static async getTopHostOverThreshold(queryContext, hosts) {
     let db = await lazy.PlacesUtils.promiseLargeCacheDBConnection();
     let conditions = [];
     // Pay attention to the order of params, since they are not named.
@@ -990,5 +997,3 @@ class ProviderAutofill extends UrlbarProvider {
     return null;
   }
 }
-
-export var UrlbarProviderAutofill = new ProviderAutofill();

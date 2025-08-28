@@ -7408,11 +7408,17 @@ static bool NewGlobal(JSContext* cx, unsigned argc, Value* vp) {
       creationOptions.setDefineSharedArrayBufferConstructor(v.toBoolean());
     }
 
-    if (!JS_GetProperty(cx, opts, "forceUTC", &v)) {
+    if (!JS_GetProperty(cx, opts, "timeZone", &v)) {
       return false;
     }
-    if (v.isBoolean()) {
-      creationOptions.setForceUTC(v.toBoolean());
+    if (v.isString()) {
+      RootedString str(cx, v.toString());
+      UniqueChars timeZone =
+          StringToTimeZone(cx, callee, str, AllowTimeZoneLink::No);
+      if (!timeZone) {
+        return false;
+      }
+      behaviors.setTimeZoneCopyZ(timeZone.get());
     }
 
     if (!JS_GetProperty(cx, opts, "alwaysUseFdlibm", &v)) {
@@ -13129,7 +13135,6 @@ bool InitOptionParser(OptionParser& op) {
                         "Enable WebAssembly tail-calls proposal.") ||
       !op.addBoolOption('\0', "wasm-js-string-builtins",
                         "Enable WebAssembly js-string-builtins proposal.") ||
-      !op.addBoolOption('\0', "enable-promise-try", "Enable Promise.try") ||
       !op.addBoolOption('\0', "enable-iterator-sequencing",
                         "Enable Iterator Sequencing") ||
       !op.addBoolOption('\0', "enable-math-sumprecise",
@@ -13189,9 +13194,6 @@ bool SetGlobalOptionsPreJSInit(const OptionParser& op) {
   }
   if (op.getBoolOption("enable-uint8array-base64")) {
     JS::Prefs::setAtStartup_experimental_uint8array_base64(true);
-  }
-  if (op.getBoolOption("enable-promise-try")) {
-    JS::Prefs::setAtStartup_experimental_promise_try(true);
   }
   if (op.getBoolOption("enable-math-sumprecise")) {
     JS::Prefs::setAtStartup_experimental_math_sumprecise(true);

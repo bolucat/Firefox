@@ -41,7 +41,7 @@ void MacroAssembler::clampDoubleToUint8(FloatRegister input, Register output) {
 }
 
 bool MacroAssemblerLOONG64Compat::buildOOLFakeExitFrame(void* fakeReturnAddr) {
-  asMasm().PushFrameDescriptor(FrameType::IonJS);  // descriptor_
+  asMasm().Push(FrameDescriptor(FrameType::IonJS));  // descriptor_
   asMasm().Push(ImmPtr(fakeReturnAddr));
   asMasm().Push(FramePointer);
   return true;
@@ -521,6 +521,20 @@ void MacroAssemblerLOONG64::ma_add_d(Register rd, Register rj, Imm32 imm) {
   }
 }
 
+void MacroAssemblerLOONG64::ma_add_d(Register rd, Register rj, ImmWord imm) {
+  if (is_intN(imm.value, 12)) {
+    as_addi_d(rd, rj, imm.value);
+  } else if (rd != rj) {
+    ma_li(rd, imm);
+    as_add_d(rd, rj, rd);
+  } else {
+    ScratchRegisterScope scratch(asMasm());
+    MOZ_ASSERT(rj != scratch);
+    ma_li(scratch, imm);
+    as_add_d(rd, rj, scratch);
+  }
+}
+
 void MacroAssemblerLOONG64::ma_add32TestOverflow(Register rd, Register rj,
                                                  Register rk, Label* overflow) {
   ScratchRegisterScope scratch(asMasm());
@@ -715,6 +729,16 @@ void MacroAssemblerLOONG64::ma_sub_d(Register rd, Register rj, Imm32 imm) {
   }
 }
 
+void MacroAssemblerLOONG64::ma_sub_d(Register rd, Register rj, ImmWord imm) {
+  if (is_intN(-imm.value, 12)) {
+    as_addi_d(rd, rj, -imm.value);
+  } else {
+    ScratchRegisterScope scratch(asMasm());
+    ma_li(scratch, imm);
+    as_sub_d(rd, rj, scratch);
+  }
+}
+
 void MacroAssemblerLOONG64::ma_sub32TestOverflow(Register rd, Register rj,
                                                  Register rk, Label* overflow) {
   ScratchRegisterScope scratch(asMasm());
@@ -762,6 +786,14 @@ void MacroAssemblerLOONG64::ma_subPtrTestOverflow(Register rd, Register rj,
 }
 
 void MacroAssemblerLOONG64::ma_mul_d(Register rd, Register rj, Imm32 imm) {
+  // li handles the relocation.
+  ScratchRegisterScope scratch(asMasm());
+  MOZ_ASSERT(rj != scratch);
+  ma_li(scratch, imm);
+  as_mul_d(rd, rj, scratch);
+}
+
+void MacroAssemblerLOONG64::ma_mul_d(Register rd, Register rj, ImmWord imm) {
   // li handles the relocation.
   ScratchRegisterScope scratch(asMasm());
   MOZ_ASSERT(rj != scratch);

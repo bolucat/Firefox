@@ -123,6 +123,8 @@
            addon-webext-overflowtarget="overflowed-extensions-list"
            context="toolbar-context-menu">
 
+    <html:img id="taskbar-tabs-favicon" alt="" decoding="sync" />
+
     <hbox class="titlebar-spacer" type="pre-tabs"/>
     <toolbartabstop/>
 
@@ -515,6 +517,9 @@
                      removable="false"/>
     </hbox>
 
+    <toolbarbutton id="taskbar-tabs-audio" class="toolbarbutton-1 chromeclass-toolbar-additional"
+                    removable="false" overflows="false"/>
+
     <toolbarbutton id="nav-bar-overflow-button"
                    class="toolbarbutton-1 chromeclass-toolbar-additional"
                    delegatesanchor="true"
@@ -596,7 +601,7 @@
       </hbox>
     </toolbaritem>
   </toolbar>
-  <toolbar id="notifications-toolbar" class="browser-toolbar" nowindowdrag="">
+  <toolbar id="notifications-toolbar" class="browser-toolbar" nowindowdrag="" fullscreentoolbar="true">
     <!-- NOTE: This gets instantiated in-place -->
     <html:template id="tab-notification-deck-template">
       <html:named-deck id="tab-notification-deck"></html:named-deck>

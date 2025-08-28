@@ -4,7 +4,6 @@
 
 package mozilla.components.feature.autofill.response.dataset
 
-import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -19,8 +18,6 @@ import mozilla.components.feature.autofill.structure.ParsedStructure
 internal data class SearchDatasetBuilder(
     val parsedStructure: ParsedStructure,
 ) : DatasetBuilder {
-
-    @SuppressLint("NewApi")
     override fun build(
         context: Context,
         configuration: AutofillConfiguration,

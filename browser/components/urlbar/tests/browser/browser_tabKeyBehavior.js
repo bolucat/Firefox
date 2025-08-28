@@ -210,7 +210,7 @@ add_task(async function tabTabToSearch() {
   ).result;
   Assert.equal(
     tabToSearchResult.providerName,
-    "TabToSearch",
+    "UrlbarProviderTabToSearch",
     "The second result is a tab-to-search result."
   );
 
@@ -305,6 +305,9 @@ add_task(async function tabActionsSearchMode() {
     entry: "keywordoffer",
     restrictType: "keyword",
   });
+
+  await UrlbarTestUtils.promiseSearchComplete(window);
+
   await expectTabThroughResults();
 
   await exitSearchMode();

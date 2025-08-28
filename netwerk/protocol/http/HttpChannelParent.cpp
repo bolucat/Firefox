@@ -20,6 +20,7 @@
 #include "mozilla/dom/BrowserParent.h"
 #include "mozilla/dom/WindowGlobalParent.h"
 #include "mozilla/net/NeckoParent.h"
+#include "mozilla/net/ExecuteIfOnMainThreadEventTarget.h"
 #include "mozilla/net/CookieServiceParent.h"
 #include "mozilla/Components.h"
 #include "mozilla/InputStreamLengthHelper.h"
@@ -86,8 +87,7 @@ struct ChannelMarker {
     using MS = MarkerSchema;
     MS schema(MS::Location::MarkerChart, MS::Location::MarkerTable);
     schema.SetTableLabel("{marker.name} - {marker.data.url}");
-    schema.AddKeyFormatSearchable("url", MS::Format::Url,
-                                  MS::Searchable::Searchable);
+    schema.AddKeyFormat("url", MS::Format::Url, MS::PayloadFlags::Searchable);
     schema.AddStaticLabelValue(
         "Description",
         "Timestamp capturing various phases of a network channel's lifespan.");
@@ -484,12 +484,6 @@ bool HttpChannelParent::DoAsyncOpen(
                   aURI->GetSpecOrDefault(), aChannelId);
 
   nsresult rv;
-
-  nsCOMPtr<nsIIOService> ios(do_GetIOService(&rv));
-  if (NS_FAILED(rv)) {
-    return SendFailedAsyncOpen(rv);
-  }
-
   nsAutoCString remoteType;
   rv = GetRemoteType(remoteType);
   if (NS_FAILED(rv)) {
@@ -663,7 +657,7 @@ bool HttpChannelParent::DoAsyncOpen(
   RefPtr<HttpChannelParent> self = this;
   WaitForBgParent(mChannel->ChannelId())
       ->Then(
-          GetMainThreadSerialEventTarget(), __func__,
+          ExecuteIfOnMainThreadEventTarget::Get(), __func__,
           [self]() {
             self->mRequest.Complete();
             self->TryInvokeAsyncOpen(NS_OK);
@@ -746,7 +740,7 @@ bool HttpChannelParent::ConnectChannel(const uint32_t& registrarId) {
   RefPtr<HttpChannelParent> self = this;
   WaitForBgParent(mChannel->ChannelId())
       ->Then(
-          GetMainThreadSerialEventTarget(), __func__,
+          ExecuteIfOnMainThreadEventTarget::Get(), __func__,
           [self]() { self->mRequest.Complete(); },
           [self](const nsresult& aResult) {
             NS_ERROR("failed to establish the background channel");
@@ -992,7 +986,7 @@ HttpChannelParent::ContinueVerification(
   if (mChannel) {
     WaitForBgParent(mChannel->ChannelId())
         ->Then(
-            GetMainThreadSerialEventTarget(), __func__,
+            ExecuteIfOnMainThreadEventTarget::Get(), __func__,
             [callback]() { callback->ReadyToVerify(NS_OK); },
             [callback](const nsresult& aResult) {
               NS_ERROR("failed to establish the background channel");

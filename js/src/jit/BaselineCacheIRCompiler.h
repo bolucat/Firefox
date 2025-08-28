@@ -69,7 +69,8 @@ class MOZ_RAII BaselineCacheIRCompiler : public CacheIRCompiler {
                                          ValOperandId rhsId);
   [[nodiscard]] bool emitAddAndStoreSlotShared(
       CacheOp op, ObjOperandId objId, uint32_t offsetOffset, ValOperandId rhsId,
-      uint32_t newShapeOffset, mozilla::Maybe<uint32_t> numNewSlotsOffset);
+      uint32_t newShapeOffset, mozilla::Maybe<uint32_t> numNewSlotsOffset,
+      bool preserveWrapper);
 
   bool updateArgc(CallFlags flags, Register argcReg, uint32_t argcFixed,
                   Register scratch);
@@ -131,6 +132,10 @@ class MOZ_RAII BaselineCacheIRCompiler : public CacheIRCompiler {
                                     bool sameRealm,
                                     uint32_t nargsAndFlagsOffset,
                                     mozilla::Maybe<uint32_t> icScriptOffset);
+  bool emitCallScriptedFunctionShared(ObjOperandId calleeId,
+                                      Int32OperandId argcId, CallFlags flags,
+                                      uint32_t argcFixed,
+                                      mozilla::Maybe<uint32_t> icScriptOffset);
 
   template <typename IdType>
   bool emitCallScriptedProxyGetShared(ValOperandId targetId,
