@@ -1047,6 +1047,19 @@ who = "Emilio Cobos Álvarez <emilio@crisal.io>"
 criteria = "safe-to-deploy"
 delta = "0.69.2 -> 0.69.4"
 
+[[audits.bindgen]]
+who = "Emilio Cobos Álvarez <emilio@crisal.io>"
+criteria = "safe-to-deploy"
+delta = "0.69.4 -> 0.72.0"
+notes = "I'm the primary maintainer of this crate."
+
+[[audits.bindgen]]
+who = "Emilio Cobos Álvarez <emilio@crisal.io>"
+criteria = "safe-to-deploy"
+delta = "0.72.0 -> 0.72.0@git:9366e0af8da529c958b4cd4fcbe492d951c86f5c"
+importable = false
+notes = "Authored or reviewed all relevant changes upstream."
+
 [[audits.bit-set]]
 who = "Aria Beingessner <a.beingessner@gmail.com>"
 criteria = "safe-to-deploy"
@@ -4129,9 +4142,10 @@ who = [
     "Andy Leiserson <aleiserson@mozilla.com>",
     "Teodor Tanasoaia <ttanasoaia@mozilla.com>",
     "Erich Gubler <erichdongubler@gmail.com>",
+    "Jim Blandy <jimb@red-bean.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:54be6a2b5b780e356976ef7e30d00244f2bad651"
+delta = "26.0.0 -> 26.0.0@git:1301f80688cca5add83d9d12af00c9d5510a9d24"
 importable = false
 
 [[audits.net2]]
@@ -6320,6 +6334,11 @@ criteria = "safe-to-deploy"
 version = "0.23.0"
 notes = "Maintained by the Glean and Application Services team."
 
+[[audits.uritemplate-next]]
+who = "Kershaw Chang <kershaw@mozilla.com>"
+criteria = "safe-to-deploy"
+version = "0.2.0"
+
 [[audits.url]]
 who = "Valentin Gosu <valentin.gosu@gmail.com>"
 criteria = "safe-to-deploy"
@@ -6597,9 +6616,10 @@ who = [
     "Andy Leiserson <aleiserson@mozilla.com>",
     "Teodor Tanasoaia <ttanasoaia@mozilla.com>",
     "Erich Gubler <erichdongubler@gmail.com>",
+    "Jim Blandy <jimb@red-bean.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:54be6a2b5b780e356976ef7e30d00244f2bad651"
+delta = "26.0.0 -> 26.0.0@git:1301f80688cca5add83d9d12af00c9d5510a9d24"
 importable = false
 
 [[audits.wgpu-core-deps-apple]]
@@ -6617,9 +6637,10 @@ who = [
     "Andy Leiserson <aleiserson@mozilla.com>",
     "Teodor Tanasoaia <ttanasoaia@mozilla.com>",
     "Erich Gubler <erichdongubler@gmail.com>",
+    "Jim Blandy <jimb@red-bean.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:54be6a2b5b780e356976ef7e30d00244f2bad651"
+delta = "26.0.0 -> 26.0.0@git:1301f80688cca5add83d9d12af00c9d5510a9d24"
 importable = false
 
 [[audits.wgpu-core-deps-windows-linux-android]]
@@ -6637,9 +6658,10 @@ who = [
     "Andy Leiserson <aleiserson@mozilla.com>",
     "Teodor Tanasoaia <ttanasoaia@mozilla.com>",
     "Erich Gubler <erichdongubler@gmail.com>",
+    "Jim Blandy <jimb@red-bean.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:54be6a2b5b780e356976ef7e30d00244f2bad651"
+delta = "26.0.0 -> 26.0.0@git:1301f80688cca5add83d9d12af00c9d5510a9d24"
 importable = false
 
 [[audits.wgpu-hal]]
@@ -6735,9 +6757,10 @@ who = [
     "Andy Leiserson <aleiserson@mozilla.com>",
     "Teodor Tanasoaia <ttanasoaia@mozilla.com>",
     "Erich Gubler <erichdongubler@gmail.com>",
+    "Jim Blandy <jimb@red-bean.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:54be6a2b5b780e356976ef7e30d00244f2bad651"
+delta = "26.0.0 -> 26.0.0@git:1301f80688cca5add83d9d12af00c9d5510a9d24"
 importable = false
 
 [[audits.wgpu-types]]
@@ -6828,9 +6851,10 @@ who = [
     "Andy Leiserson <aleiserson@mozilla.com>",
     "Teodor Tanasoaia <ttanasoaia@mozilla.com>",
     "Erich Gubler <erichdongubler@gmail.com>",
+    "Jim Blandy <jimb@red-bean.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:54be6a2b5b780e356976ef7e30d00244f2bad651"
+delta = "26.0.0 -> 26.0.0@git:1301f80688cca5add83d9d12af00c9d5510a9d24"
 importable = false
 
 [[audits.whatsys]]

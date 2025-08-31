@@ -1726,7 +1726,7 @@ void PresShell::InitPaintSuppressionTimer() {
         self->UnsuppressPainting();
       },
       this, delay, nsITimer::TYPE_ONE_SHOT,
-      "PresShell::sPaintSuppressionCallback");
+      "PresShell::sPaintSuppressionCallback"_ns);
 }
 
 nsresult PresShell::Initialize() {
@@ -5291,9 +5291,9 @@ UniquePtr<RangePaintInfo> PresShell::CreateRangePaintInfo(
         rootScrollContainerFrame->GetContent());
 
     nsDisplayList wrapped(&info->mBuilder);
-    wrapped.AppendNewToTop<nsDisplayAsyncZoom>(&info->mBuilder,
-                                               rootScrollContainerFrame,
-                                               &info->mList, nullptr, zoomedId);
+    wrapped.AppendNewToTop<nsDisplayAsyncZoom>(
+        &info->mBuilder, rootScrollContainerFrame, &info->mList, nullptr,
+        nsDisplayItem::ContainerASRType::Constant, zoomedId);
     info->mList.AppendToTop(&wrapped);
   }
 

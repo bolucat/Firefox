@@ -254,6 +254,9 @@ newtab-custom-row-selector =
 newtab-custom-stories-toggle =
   .label = Recommended stories
   .description = Exceptional content curated by the { -brand-product-name } family
+newtab-custom-stories-personalized-toggle =
+  .label = Stories
+newtab-custom-stories-personalized-checkbox-label = Personalized stories based on your activity
 newtab-custom-weather-toggle =
   .label = Weather
   .description = Today’s forecast at a glance
@@ -284,7 +287,7 @@ newtab-wallpaper-custom-color = Choose a color
 # Variables
 #   $file_size (number) - The number of the maximum image file size (in MB) that may be uploaded
 newtab-wallpaper-error-max-file-size = The image exceeded the file size limit of { $file_size }MB. Please try uploading a smaller file.
-newtab-wallpaper-error-file-type = We couldn’t upload your file. Please try again with different file type.
+newtab-wallpaper-error-upload-file-type = We couldn’t upload your file. Please try again with an image file.
 newtab-wallpaper-light-red-panda = Red panda
 newtab-wallpaper-light-mountain = White mountain
 newtab-wallpaper-light-sky = Sky with purple and pink clouds

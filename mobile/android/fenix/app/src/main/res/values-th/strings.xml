@@ -32,6 +32,12 @@
   <string name="no_open_tabs_description">แท็บที่คุณเปิดจะถูกแสดงที่นี่</string>
   <!-- No Private Tabs Message Description -->
   <string name="no_private_tabs_description">แท็บส่วนตัวของคุณจะถูกแสดงที่นี่</string>
+  <!-- The header text displayed on the private tabs page when no private tabs are open -->
+  <string name="tab_manager_empty_private_tabs_page_header">การเรียกดูแบบส่วนตัว</string>
+  <!-- The supplementary text displayed on the private tabs page when no private tabs are open. %1$s is the name of the app (for example "Firefox") -->
+  <string name="tab_manager_empty_private_tabs_page_description">%1$s จะไม่จดจำประวัติหรือคุกกี้ใด ๆ ของคุณ แต่ที่คั่นหน้าใหม่จะถูกบันทึกไว้</string>
+  <!-- The header text displayed on the normal tabs page when no normal tabs are open -->
+  <string name="tab_manager_empty_normal_tabs_page_header">สร้างแท็บใหม่เพื่อเริ่มค้นหา</string>
   <!-- Tab tray multi select title in app bar. %1$d is the number of tabs selected -->
   <string name="tab_tray_multi_select_title">เลือกอยู่ %1$d</string>
   <!-- Tab tray multi select title in app bar when no tabs are selected -->
@@ -46,6 +52,12 @@
   <string name="tab_tray_close_multiselect_content_description">ออกจากโหมดเลือกหลายรายการ</string>
   <!-- Content description for save to collection button while in multiselect mode in tab tray -->
   <string name="tab_tray_collection_button_multiselect_content_description">บันทึกแท็บที่เลือกลงในชุดสะสม</string>
+  <!-- The header text displayed on the synced tabs page when the user is not logged into an account. -->
+  <string name="tab_manager_empty_synced_tabs_page_header">หยิบแท็บได้จากอุปกรณ์ใดก็ได้</string>
+  <!-- The supplementary text displayed on the synced tabs page when the user is not logged into an account. -->
+  <string name="tab_manager_empty_synced_tabs_page_description">ลงชื่อเข้าเพื่อจัดการแท็บที่ซิงค์จากอุปกรณ์ทั้งหมดของคุณ</string>
+  <!-- The action text displayed on the synced tabs page when the user is not logged into an account, prompting the user to sign into their account. When clicked, it takes the user to the account sign-in flow. -->
+  <string name="tab_manager_empty_synced_tabs_page_sign_in_cta">ลงชื่อเข้าใช้</string>
   <!--
     Home - Bookmarks
 
@@ -366,6 +378,18 @@
   -->
   <string name="browser_toolbar_translated_successfully">แปลหน้าจาก%1$sเป็น%2$sแล้ว</string>
   <!--
+    Translation Toolbar
+
+    Translation toolbar label that is displayed when the current page has been translated by the translation feature.
+    %1$s is the name of the language that is displayed in the original page. (For example: English)
+    %2$s is the name of the language which the page was translated to. (For example: French)
+  -->
+  <string name="translation_toolbar_translated_from_and_to" tools:ignore="UnusedResources">แปลจาก%1$sเป็น%2$s</string>
+  <!-- Content description for the translate toolbar action that opens the translations dialog. -->
+  <string name="translation_toolbar_expand_action">เปิดชีตการแปล</string>
+  <!-- Content description for the translate toolbar action that closes the translations toolbar. -->
+  <string name="translation_toolbar_close_action">ปิดข้อความ</string>
+  <!--
     Locale Settings Fragment
 
     Content description for tick mark on selected language
@@ -495,6 +519,16 @@
   <string name="onboarding_preferences_dialog_crash_reporting_description">รายงานข้อขัดข้องทำให้เราสามารถวินิจฉัยและแก้ไขปัญหาเกี่ยวกับเบราว์เซอร์ได้ รายงานอาจมีข้อมูลส่วนตัวหรือข้อมูลละเอียดอ่อน</string>
   <!-- Learn more link for the crash reporting option in the privacy preferences dialog shown during onboarding. -->
   <string name="onboarding_preferences_dialog_crash_reporting_learn_more_2">เรียนรู้เพิ่มเติม</string>
+  <!-- Title for the startup crash page. %s is the name of the app (for example "Firefox") -->
+  <string name="startup_crash_title">%s ต้องเริ่มการทำงานใหม่</string>
+  <!-- Body text for the startup crash page. %s is the name of the app (for example "Firefox") -->
+  <string name="startup_crash_body">มีปัญหาในการเปิด %s\n\nการส่งรายงานข้อขัดข้องช่วยให้เราวินิจฉัยและแก้ไขปัญหาเกี่ยวกับเบราว์เซอร์ได้ รายงานอาจมีข้อมูลส่วนบุคคลหรือข้อมูลที่ละเอียดอ่อน</string>
+  <!-- Button text to submit a startup crash report -->
+  <string name="startup_crash_positive">ส่งรายงานข้อขัดข้อง</string>
+  <!-- Button text to continue and not send a startup crash report -->
+  <string name="startup_crash_negative">ไม่ ขอบคุณ</string>
+  <!-- Button text to reopen firefox after the crash is processed %s is the name of the app (for example "Firefox") -->
+  <string name="startup_crash_restart">เปิด %s ใหม่</string>
   <!-- Title for the usage data option in the privacy preferences dialog shown during onboarding. Note: The word "Mozilla" should NOT be translated. -->
   <string name="onboarding_preferences_dialog_usage_data_title">ส่งข้อมูลทางเทคนิคและข้อมูลการโต้ตอบไปยัง Mozilla</string>
   <string name="onboarding_preferences_dialog_usage_data_description_2" tools:ignore="BrandUsage">ข้อมูลเกี่ยวกับอุปกรณ์ของคุณ การกำหนดค่าฮาร์ดแวร์ และพฤติกรรมการใช้งาน Firefox ช่วยปรับปรุงคุณลักษณะ ประสิทธิภาพ และเสถียรภาพสำหรับผู้ใช้จากทุกที่ได้</string>
@@ -725,6 +759,8 @@
   <string name="preferences_home_2">หน้าแรก</string>
   <!-- Preference for customizing the app icon -->
   <string name="preferences_app_icon">ไอคอนแอป</string>
+  <!-- Preference for showing the tab strip -->
+  <string name="preferences_tab_strip">การแสดงแถบแท็บ</string>
   <!-- Preference for gestures based actions -->
   <string name="preferences_gestures">ท่าทาง</string>
   <!-- Preference for settings related to visual options -->
@@ -970,8 +1006,14 @@
   <string name="alternative_app_icon_group_other" tools:ignore="UnusedResources">อื่น ๆ</string>
   <!-- Title to show in alert when user selects an alternative app icon -->
   <string name="restart_warning_dialog_title">เปลี่ยนไอคอนแอปหรือไม่?</string>
+  <!-- Message to warn users that applying an alternative app icon requires an app restart -->
+  <string name="restart_warning_dialog_body" tools:ignore="UnusedResources" moz:removedIn="144">การเปลี่ยนไอคอนต้องเริ่มการทำงานแอปใหม่</string>
+  <!-- Message to warn users that applying an alternative app icon may require an app restart. Whether or not the app closes depends on what version of Android it is, so we use the word "may" instead of "will". %1$s is replaced by the brand name (e.g. Firefox). -->
+  <string name="restart_warning_dialog_body_2">แอปอาจปิดไปเอง แค่แตะไอคอนใหม่ของคุณเพื่อเปิด %1$s ใหม่</string>
   <!-- Dialog button text for confirming the app restart to apply the selected icon -->
-  <string name="restart_warning_dialog_button_positive">เริ่มการทำงานใหม่ตอนนี้</string>
+  <string name="restart_warning_dialog_button_positive" tools:ignore="UnusedResources" moz:removedIn="144">เริ่มการทำงานใหม่ตอนนี้</string>
+  <!-- Dialog button text for confirming the possible app restart and new icon selection -->
+  <string name="restart_warning_dialog_button_positive_2">เปลี่ยนไอคอน</string>
   <!-- Dialog button text for cancelling app icon change -->
   <string name="restart_warning_dialog_button_negative">ยกเลิก</string>
   <!--
@@ -1152,6 +1194,12 @@
   <!-- Preference description indicating the toolbar location preference is disabled when the tab strip is enabled -->
   <string name="preference_toolbar_pref_disabled_explanation">แถบที่อยู่ต้องอยู่ด้านบนเมื่อแสดงแถบแท็บ</string>
   <!--
+    App icon Preferences
+
+    Title for the preference that lets the user pick a new app icon
+  -->
+  <string name="preference_select_app_icon_title">เลือกไอคอนแอป</string>
+  <!--
     Theme Preferences
 
     Preference for using light theme
@@ -1318,6 +1366,13 @@
   <!-- Learn more link for studies, links to an article for more information about studies. -->
   <string name="studies_learn_more">เรียนรู้เพิ่มเติม</string>
   <!--
+    Sessions
+
+    Title for the list of tabs in the current normal session used by a11y services
+    The %1$s will be replaced by the number of opened normal tabs
+  -->
+  <string name="tabs_header_normal_tabs_counter_title">แท็บปกติที่เปิดอยู่: %1$s แตะเพื่อสลับแท็บ</string>
+  <!--
     Title for the list of tabs in the current private session used by a11y services
     The %1$s will be replaced by the number of opened private tabs
   -->
@@ -1361,8 +1416,16 @@
   <string name="tab_tray_menu_item_close">ปิดแท็บทั้งหมด</string>
   <!-- Text shown in the multiselect menu for bookmarking selected tabs. -->
   <string name="tab_tray_multiselect_menu_item_bookmark">ที่คั่นหน้า</string>
+  <!-- Content description (not visible, for screen readers etc.): Bookmarks selected tabs. -->
+  <string name="tab_manager_multiselect_menu_item_bookmark_content_description">เพิ่มที่คั่นหน้าสำหรับแท็บที่เลือก</string>
   <!-- Text shown in the multiselect menu for closing selected tabs. -->
   <string name="tab_tray_multiselect_menu_item_close">ปิด</string>
+  <!-- Content description (not visible, for screen readers etc.): Closes selected tabs. -->
+  <string name="tab_manager_multiselect_menu_item_close_content_description">ปิดแท็บที่เลือก</string>
+  <!-- Text shown in the multiselect menu for sharing selected tabs. -->
+  <string name="tab_manager_multiselect_menu_item_share">แบ่งปัน</string>
+  <!-- Text shown in the multiselect menu for adding selected tabs to collections. -->
+  <string name="tab_manager_multiselect_menu_item_add_to_collection">เพิ่มไปยังชุดสะสม</string>
   <!-- Content description for tabs tray multiselect share button -->
   <string name="tab_tray_multiselect_share_content_description">แบ่งปันแท็บที่เลือก</string>
   <!-- Content description for tabs tray multiselect menu -->
@@ -1579,6 +1642,10 @@
   <string name="webcompat_reporter_screen_title">รายงานไซต์ที่ใช้งานไม่ได้</string>
   <!-- The description of the Web Compat Reporter feature. %1$s is the name of the app (for example "Firefox"). -->
   <string name="webcompat_reporter_description" moz:removedIn="142" tools:ignore="UnusedResources">ช่วยทำให้ %1$s ดีขึ้นสำหรับทุกคน พนักงานของ Mozilla จะใช้ข้อมูลที่คุณส่งไปเพื่อแก้ไขปัญหาเว็บไซต์</string>
+  <!-- The description of the Web Compat Reporter feature, which has a "learn more" button text for navigating to a SUMO link to learn more about reporting a broken site. %1$s is the name of the app (for example "Firefox"). -->
+  <string name="webcompat_reporter_description_2" moz:removedIn="143" tools:ignore="UnusedResources">รายงานของคุณช่วยให้เราเข้าใจและแก้ไขปัญหาใน %1$s เพื่อให้ดีขึ้นสำหรับทุกคน เรียนรู้เพิ่มเติม</string>
+  <!-- The description of the Web Compat Reporter feature, which has a "learn more" button text for navigating to a SUMO link to learn more about reporting a broken site. %1$s is the name of the app (for example "Firefox") and %2$s is the learn more button. -->
+  <string name="webcompat_reporter_description_3">รายงานของคุณช่วยให้เราเข้าใจและแก้ไขปัญหาใน %1$s เพื่อให้ดีขึ้นสำหรับทุกคน %2$s</string>
   <!-- The button text for navigating to the SUMO link to learn more about reporting a broken site. -->
   <string name="webcompat_reporter_learn_more">เรียนรู้เพิ่มเติม</string>
   <!-- The text field label of the URL text field. This is displayed above the user-inputted URL. -->
@@ -1596,7 +1663,9 @@
   <!-- The label/title of an optional field in the Web Compat Reporter feature for adding additional information. -->
   <string name="webcompat_reporter_label_description">อธิบายปัญหา (เพิ่มเติม)</string>
   <!-- The button text for navigating away from the feature to provide more information on the broken site's bug report. -->
-  <string name="webcompat_reporter_send_more_info">ส่งข้อมูลเพิ่มเติม</string>
+  <string name="webcompat_reporter_send_more_info" moz:removedIn="144" tools:ignore="UnusedResources">ส่งข้อมูลเพิ่มเติม</string>
+  <!-- The button text for navigating away from the feature to provide more information on the broken site's bug report. -->
+  <string name="webcompat_reporter_add_more_info">เพิ่มข้อมูลเพิ่มเติม</string>
   <!-- The button text for the cancel button to leave the Web Compat Reporter feature. -->
   <string name="webcompat_reporter_cancel">ยกเลิก</string>
   <!-- The button text for the send button to submit the provided form data. -->
@@ -1643,6 +1712,12 @@
   <string name="tab_crash_restore">เรียกคืนแท็บ</string>
   <!-- Unsubmitted crash dialog title, %s is the name of the app (for example "Firefox"). -->
   <string name="unsubmitted_crash_dialog_title" moz:removedIn="142" tools:ignore="UnusedResources">%s ต้องเริ่มการทำงานใหม่อีกครั้ง</string>
+  <!-- Unsubmitted crash dialog title, %s is the name of the app (for example "Firefox"). -->
+  <string name="unsubmitted_crash_dialog_title_2">%s เกิดข้อขัดข้อง ต้องการส่งรายงานไหม?</string>
+  <!-- Single unsubmitted crash matching remote settings. %1$s is the name of the app (for example "Firefox"). -->
+  <string name="unsubmitted_crash_requested_by_devs_dialog_title">คุณมีรายงานข้อขัดข้องที่ยังไม่ได้ส่ง ซึ่งเกี่ยวข้องกับข้อขัดข้องที่กำลังตรวจสอบอยู่ การส่งรายงานนี้จะช่วยให้เราปรับปรุง %1$s ได้ การปิดการแจ้งเตือนนี้จะยกเลิกรายงานนี้</string>
+  <!-- Multiple unsubmitted crashes matching remote settings. %1$d is the number of unsent crash reports, %2$s is the name of the app (for example "Firefox"). -->
+  <string name="unsubmitted_crashes_requested_by_devs_dialog_title">คุณมีรายงานข้อขัดข้องที่ยังไม่ได้ส่ง (%1$d) ซึ่งเกี่ยวข้องกับข้อขัดข้องที่กำลังตรวจสอบอยู่ การส่งรายงานเหล่านี้จะช่วยให้เราปรับปรุง %2$s ได้ การปิดการแจ้งเตือนนี้จะยกเลิกรายงานเหล่านี้</string>
   <!-- Unsubmitted crash dialog checkbox label for automatically sending reports in the future -->
   <string name="unsubmitted_crash_dialog_checkbox_label">ส่งรายงานความผิดพลาดโดยอัตโนมัติ</string>
   <!-- Unsubmitted crash dialog negative button to dismiss the dialog -->
@@ -1700,6 +1775,8 @@
   <string name="bookmark_menu_delete_button">ลบ</string>
   <!-- Bookmark overflow menu save button -->
   <string name="bookmark_menu_save_button" tools:ignore="UnusedResources" moz:removedIn="143">บันทึก</string>
+  <!-- Accessibility label for sorting options -->
+  <string name="bookmark_sort_menu_content_desc">ตัวเลือกการจัดเรียง</string>
   <!-- Label for button to sort bookmarks by user-defined sort order in the bookmark sorting overflow menu. -->
   <string name="bookmark_sort_menu_custom">เรียงลำดับแบบกำหนดเอง</string>
   <!-- Label for button to sort bookmarks by newest in the bookmark sorting overflow menu. -->
@@ -1770,6 +1847,8 @@
   <string name="bookmark_search_button_content_description">ค้นหาที่คั่นหน้า</string>
   <!-- Content description for the overflow menu for a bookmark item. %s is a folder name or bookmark title. -->
   <string name="bookmark_item_menu_button_content_description">เมนูรายการสำหรับ %s</string>
+  <!-- Content description for the "close" button in bookmarks screen. -->
+  <string name="bookmark_close_button_content_description">ปิดที่คั่นหน้า</string>
   <!-- Title for the bookmark list empty state -->
   <string name="bookmark_empty_list_title">ไม่มีที่คั่นหน้า</string>
   <!-- Description for the bookmark list empty state when you're not signed into sync. -->
@@ -1812,6 +1891,10 @@
   <string name="clear_permissions_on_all_sites">ล้างสิทธิอนุญาตบนไซต์ทั้งหมด</string>
   <!-- Preference for altering video and audio autoplay for all websites -->
   <string name="preference_browser_feature_autoplay">การเล่นอัตโนมัติ</string>
+  <!-- Preference for local device access for all websites -->
+  <string name="preference_browser_feature_local_device_access">แอปและบริการของอุปกรณ์</string>
+  <!-- Preference for local network access for all websites -->
+  <string name="preference_browser_feature_local_network_access">อุปกรณ์เครือข่ายภายใน</string>
   <!-- Preference for altering the camera access for all websites -->
   <string name="preference_phone_feature_camera">กล้อง</string>
   <!-- Preference for altering the microphone access for all websites -->
@@ -2090,6 +2173,8 @@
   <string name="preference_accessibility_text_size_summary">ทำให้ข้อความบนเว็บไซต์ใหญ่ขึ้นหรือเล็กลง</string>
   <!-- Title for Accessibility Text Size Scaling Preference -->
   <string name="preference_accessibility_font_size_title">ขนาดแบบอักษร</string>
+  <!-- %d is the percentage of the slide bar for setting the text font size and %% will be announced as "percent". -->
+  <string name="a11y_preference_accessibility_font_size_percentage">%d %%</string>
   <!-- Title for Accessibility Text Automatic Size Scaling Preference -->
   <string name="preference_accessibility_auto_size_2">การปรับขนาดแบบอักษรโดยอัตโนมัติ</string>
   <!-- Summary for Accessibility Text Automatic Size Scaling Preference -->
@@ -2221,6 +2306,8 @@
   <string name="preference_enhanced_tracking_protection_strict">เข้มงวด</string>
   <!-- Preference description for enhanced tracking protection for the strict protection settings -->
   <string name="preference_enhanced_tracking_protection_strict_description_4">การป้องกันการติดตามที่แข็งแกร่งขึ้นและประสิทธิภาพที่เร็วขึ้น แต่บางไซต์อาจทำงานไม่ถูกต้อง</string>
+  <!-- Preference description for the checkbox setting for "baseline" exceptions (a set of content blocking exceptions applied to fix major website breakage). %1$s is the name of the application (e.g. Fenix). -->
+  <string name="preference_enhanced_tracking_protection_allow_list_baseline">อนุญาตให้ %1$s ใช้ข้อยกเว้นที่จำเป็นโดยอัตโนมัติเพื่อหลีกเลี่ยงไม่ให้เว็บไซต์เสียหายอย่างรุนแรง</string>
   <!-- Preference description for the checkbox setting for "convenience" exceptions (a set of content blocking exceptions applied to fix convenience site features). -->
   <string name="preference_enhanced_tracking_protection_allow_list_convenience">เปิดใช้งานข้อยกเว้นที่จำเป็นเฉพาะเพื่อแก้ไขปัญหาเล็กน้อยและเปิดใช้คุณสมบัติอำนวยความสะดวกโดยอัตโนมัติด้วย</string>
   <!-- Accessibility text for the Strict protection information icon -->
@@ -2934,6 +3021,13 @@
     Header text for a section on the home screen.
   -->
   <string name="pocket_stories_header_2">เรื่องราว</string>
+  <!--
+    Context description text for the "Discover more" button in the stories home screen section
+    which navigates the user to a screen displaying more stories.
+  -->
+  <string name="stories_discover_more_content_description">ค้นพบเรื่องราวเพิ่มเติม</string>
+  <!-- Content description for the "Navigate back" button on the top app bar of the Stories screen. -->
+  <string name="stories_back_button_content_description">นำทางย้อนกลับ</string>
   <!-- Text indicating that the Pocket story that also displays this text is a sponsored story by other 3rd party entity. -->
   <string name="pocket_stories_sponsor_indication">ได้รับการสนับสนุน</string>
   <!-- Snackbar message for enrolling in a Nimbus experiment from the secret settings when Studies preference is Off. -->
@@ -3257,6 +3351,8 @@
   <string name="protection_panel_num_trackers_blocked">ตัวติดตามที่ปิดกั้น: %d</string>
   <!-- Text for when no trackers have been blocked. -->
   <string name="protection_panel_no_trackers_blocked">ไม่พบตัวติดตาม</string>
+  <!-- Text for when tracking protection is disabled and no trackers are blocked. -->
+  <string name="protection_panel_etp_disabled_no_trackers_blocked">ตัวติดตามไม่ถูกปิดกั้น</string>
   <!-- Link text to navigate to privacy and security settings from the protection panel. -->
   <string name="protection_panel_privacy_and_security_settings" moz:removedIn="142" tools:ignore="UnusedResources">การตั้งค่าความเป็นส่วนตัวและความปลอดภัย</string>
   <!-- Link text to navigate to privacy and security settings from the protection panel. -->
@@ -3284,11 +3380,13 @@
   <!-- Button text on the clear site data dialog to allow users to cancel the action and not clear the site data. -->
   <string name="clear_site_data_dialog_negative_button_text">ยกเลิก</string>
   <!-- Snackbar title shown when the site data has been cleared. -->
-  <string name="clear_site_data_snackbar">เอาคุกกี้และข้อมูลไซต์ออกแล้ว</string>
+  <string name="clear_site_data_snackbar" moz:removedIn="144" tools:ignore="UnusedResources">เอาคุกกี้และข้อมูลไซต์ออกแล้ว</string>
   <!-- Text for the connection security panel when the site is secure. -->
   <string name="connection_security_panel_secure">การเชื่อมต่อปลอดภัย</string>
   <!-- Text for the connection security panel when the site is not secure. -->
   <string name="connection_security_panel_not_secure">การเชื่อมต่อไม่ปลอดภัย</string>
+  <!-- Text for the connection security panel when accessed from local PDF. -->
+  <string name="connection_security_panel_local_pdf">หน้านี้ถูกเก็บไว้ในอุปกรณ์ของคุณ</string>
   <!--
     Text for the connection security panel to indicate who the certificate was verified by.
     %s is a placeholder for the name of the certificate authority that issued the certificate.
@@ -3606,6 +3704,8 @@
   <string name="setup_checklist_task_explore_extensions">สำรวจส่วนขยาย</string>
   <!-- The title of the search widget task for the setup checklist -->
   <string name="setup_checklist_task_search_widget" moz:removedIn="143" tools:ignore="UnusedResources">ติดตั้งวิดเจ็ตค้นหา</string>
+  <!-- The title of the search widget task for the setup checklist -->
+  <string name="setup_checklist_task_search_widget_2">สำรวจเครื่องมือค้นหา</string>
   <!--
     ===== Setup checklist feature: Group titles =====
 
@@ -3676,6 +3776,13 @@
     Title for the pop up prompt
   -->
   <string name="terms_of_use_prompt_title">เรามีอัปเดต</string>
+  <!--
+    Message for the terms of use pop up prompt
+    %1$s is the product name "Firefox"
+    %2$s is the string terms_of_use_prompt_link_terms_of_use (Terms of Use) that is a link to the terms of use
+    %3$s is the string terms_of_use_prompt_link_privacy_notice (Privacy Notice) that is a link to the privacy notice
+  -->
+  <string name="terms_of_use_prompt_message_1">เราได้นำ%2$s %1$s มาใช้ และอัปเดต%3$sของเราแล้ว</string>
   <!--
     Second part of the terms of use pop up prompt
     %1$s is the string terms_of_use_prompt_link_learn_more (Learn more) that is a link to a website with more information about the terms of use

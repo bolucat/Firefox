@@ -81,6 +81,7 @@
 #include "PresShell.h"
 #include "nsIObserverService.h"
 #include "nsISHistory.h"
+#include "nsJSUtils.h"
 #include "nsContentUtils.h"
 #include "nsQueryObject.h"
 #include "nsSandboxFlags.h"
@@ -2291,7 +2292,8 @@ BrowsingContext::CheckURLAndCreateLoadState(nsIURI* aURI,
 // https://bugzil.la/1974717 tracks the work to align this method with the spec.
 void BrowsingContext::Navigate(nsIURI* aURI, nsIPrincipal& aSubjectPrincipal,
                                ErrorResult& aRv,
-                               NavigationHistoryBehavior aHistoryHandling) {
+                               NavigationHistoryBehavior aHistoryHandling,
+                               bool aShouldNotForceReplaceInOnLoad) {
   CallerType callerType = aSubjectPrincipal.IsSystemPrincipal()
                               ? CallerType::System
                               : CallerType::NonSystem;
@@ -2307,6 +2309,8 @@ void BrowsingContext::Navigate(nsIURI* aURI, nsIPrincipal& aSubjectPrincipal,
   if (aRv.Failed()) {
     return;
   }
+
+  loadState->SetShouldNotForceReplaceInOnLoad(aShouldNotForceReplaceInOnLoad);
 
   // The steps 12 and 13 of #navigate are handled later in
   // nsDocShell::InternalLoad().
@@ -3474,6 +3478,28 @@ void BrowsingContext::SetGeolocationServiceOverride(
         nsGeolocationService::GetGeolocationService();
     serviceOverride->MoveLocators(service);
   }
+}
+
+void BrowsingContext::DidSet(FieldIndex<IDX_TimezoneOverride>,
+                             nsString&& aOldValue) {
+  MOZ_ASSERT(IsTop());
+
+  PreOrderWalk([&](BrowsingContext* aBrowsingContext) {
+    RefPtr<WindowContext> windowContext =
+        aBrowsingContext->GetCurrentWindowContext();
+
+    if (nsCOMPtr<nsPIDOMWindowInner> window = windowContext->GetInnerWindow()) {
+      JSObject* global = nsGlobalWindowInner::Cast(window)->GetGlobalJSObject();
+      JS::Realm* realm = JS::GetObjectRealmOrNull(global);
+
+      if (GetTimezoneOverride().IsEmpty()) {
+        JS::SetRealmTimezoneOverride(realm, nullptr);
+      } else {
+        JS::SetRealmTimezoneOverride(
+            realm, NS_ConvertUTF16toUTF8(GetTimezoneOverride()).get());
+      }
+    }
+  });
 }
 
 auto BrowsingContext::CanSet(FieldIndex<IDX_DefaultLoadFlags>,

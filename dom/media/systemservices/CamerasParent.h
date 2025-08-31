@@ -7,16 +7,14 @@
 #ifndef mozilla_CamerasParent_h
 #define mozilla_CamerasParent_h
 
-#include "CamerasChild.h"
 #include "api/video/video_sink_interface.h"
 #include "modules/video_capture/video_capture.h"
 #include "modules/video_capture/video_capture_defines.h"
-#include "mozilla/Atomics.h"
 #include "mozilla/ShmemPool.h"
 #include "mozilla/camera/PCamerasParent.h"
+#include "mozilla/dom/MediaStreamTrackBinding.h"
 #include "mozilla/ipc/Shmem.h"
 #include "mozilla/media/MediaUtils.h"
-#include "video/render/incoming_video_stream.h"
 
 class WebrtcLogSinkHandle;
 class nsIThread;
@@ -40,7 +38,9 @@ class CallbackHelper : public webrtc::VideoSinkInterface<webrtc::VideoFrame> {
         mParent(aParent),
         mConfiguration("CallbackHelper::mConfiguration") {};
 
-  void SetConfiguration(const webrtc::VideoCaptureCapability& aCapability);
+  void SetConfiguration(const webrtc::VideoCaptureCapability& aCapability,
+                        const NormalizedConstraints& aConstraints,
+                        const dom::VideoResizeModeEnum& aResizeMode);
 
   void OnCaptureEnded();
   void OnFrame(const webrtc::VideoFrame& aVideoFrame) override;
@@ -48,13 +48,20 @@ class CallbackHelper : public webrtc::VideoSinkInterface<webrtc::VideoFrame> {
   friend CamerasParent;
 
  private:
+  struct Configuration {
+    webrtc::VideoCaptureCapability mCapability;
+    NormalizedConstraints mConstraints;
+    // This is the effective resize mode, i.e. based on mConstraints and with
+    // defaults factored in.
+    dom::VideoResizeModeEnum mResizeMode{};
+  };
   const CaptureEngine mCapEngine;
   const uint32_t mStreamId;
   const TrackingId mTrackingId;
   CamerasParent* const mParent;
   MediaEventListener mCaptureEndedListener;
   bool mConnectedToCaptureEnded = false;
-  DataMutex<webrtc::VideoCaptureCapability> mConfiguration;
+  DataMutex<Configuration> mConfiguration;
   // Capture thread only.
   media::TimeUnit mLastFrameTime = media::TimeUnit::FromNegativeInfinity();
 };
@@ -108,7 +115,9 @@ class CamerasParent final : public PCamerasParent {
       const CaptureEngine& aCapEngine, const int& aDeviceIndex) override;
   mozilla::ipc::IPCResult RecvStartCapture(
       const CaptureEngine& aCapEngine, const int& aCaptureId,
-      const VideoCaptureCapability& aIpcCaps) override;
+      const VideoCaptureCapability& aIpcCaps,
+      const NormalizedConstraints& aConstraints,
+      const dom::VideoResizeModeEnum& aResizeMode) override;
   mozilla::ipc::IPCResult RecvFocusOnSelectedSource(
       const CaptureEngine& aCapEngine, const int& aCaptureId) override;
   mozilla::ipc::IPCResult RecvStopCapture(const CaptureEngine& aCapEngine,

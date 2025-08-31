@@ -985,9 +985,9 @@
   <!-- Title to show in alert when user selects an alternative app icon -->
   <string name="restart_warning_dialog_title">更改应用图标？</string>
   <!-- Message to warn users that applying an alternative app icon requires an app restart -->
-  <string name="restart_warning_dialog_body">需要重新启动应用以更改图标。</string>
+  <string name="restart_warning_dialog_body" tools:ignore="UnusedResources" moz:removedIn="144">需要重新启动应用以更改图标。</string>
   <!-- Dialog button text for confirming the app restart to apply the selected icon -->
-  <string name="restart_warning_dialog_button_positive">立即重启</string>
+  <string name="restart_warning_dialog_button_positive" tools:ignore="UnusedResources" moz:removedIn="144">立即重启</string>
   <!-- Dialog button text for cancelling app icon change -->
   <string name="restart_warning_dialog_button_negative">取消</string>
   <!--
@@ -1392,6 +1392,10 @@
   <string name="tab_tray_multiselect_menu_item_bookmark">书签</string>
   <!-- Text shown in the multiselect menu for closing selected tabs. -->
   <string name="tab_tray_multiselect_menu_item_close">关闭</string>
+  <!-- Content description (not visible, for screen readers etc.): Closes selected tabs. -->
+  <string name="tab_manager_multiselect_menu_item_close_content_description">关闭所选标签页</string>
+  <!-- Text shown in the multiselect menu for adding selected tabs to collections. -->
+  <string name="tab_manager_multiselect_menu_item_add_to_collection">添加到收藏集</string>
   <!-- Content description for tabs tray multiselect share button -->
   <string name="tab_tray_multiselect_share_content_description">分享所选标签页</string>
   <!-- Content description for tabs tray multiselect menu -->
@@ -1629,7 +1633,7 @@
   <!-- The label/title of an optional field in the Web Compat Reporter feature for adding additional information. -->
   <string name="webcompat_reporter_label_description">描述问题（选填）</string>
   <!-- The button text for navigating away from the feature to provide more information on the broken site's bug report. -->
-  <string name="webcompat_reporter_send_more_info">发送更多信息</string>
+  <string name="webcompat_reporter_send_more_info" moz:removedIn="144" tools:ignore="UnusedResources">发送更多信息</string>
   <!-- The button text for the cancel button to leave the Web Compat Reporter feature. -->
   <string name="webcompat_reporter_cancel">取消</string>
   <!-- The button text for the send button to submit the provided form data. -->
@@ -1739,6 +1743,8 @@
   <string name="bookmark_menu_delete_button">删除</string>
   <!-- Bookmark overflow menu save button -->
   <string name="bookmark_menu_save_button" tools:ignore="UnusedResources" moz:removedIn="143">保存</string>
+  <!-- Accessibility label for sorting options -->
+  <string name="bookmark_sort_menu_content_desc">排序选项</string>
   <!-- Label for button to sort bookmarks by user-defined sort order in the bookmark sorting overflow menu. -->
   <string name="bookmark_sort_menu_custom">按自定义顺序排序</string>
   <!-- Label for button to sort bookmarks by newest in the bookmark sorting overflow menu. -->
@@ -1809,6 +1815,8 @@
   <string name="bookmark_search_button_content_description">搜索书签</string>
   <!-- Content description for the overflow menu for a bookmark item. %s is a folder name or bookmark title. -->
   <string name="bookmark_item_menu_button_content_description">“%s”项目菜单</string>
+  <!-- Content description for the "close" button in bookmarks screen. -->
+  <string name="bookmark_close_button_content_description">关闭书签</string>
   <!-- Title for the bookmark list empty state -->
   <string name="bookmark_empty_list_title">暂无书签</string>
   <!-- Description for the bookmark list empty state when you're not signed into sync. -->
@@ -3311,6 +3319,8 @@
   <string name="protection_panel_num_trackers_blocked">已拦截 %d 个跟踪器</string>
   <!-- Text for when no trackers have been blocked. -->
   <string name="protection_panel_no_trackers_blocked">未发现跟踪器</string>
+  <!-- Text for when tracking protection is disabled and no trackers are blocked. -->
+  <string name="protection_panel_etp_disabled_no_trackers_blocked">未在拦截跟踪器</string>
   <!-- Link text to navigate to privacy and security settings from the protection panel. -->
   <string name="protection_panel_privacy_and_security_settings" moz:removedIn="142" tools:ignore="UnusedResources">隐私与安全设置</string>
   <!-- Link text to navigate to privacy and security settings from the protection panel. -->
@@ -3338,7 +3348,7 @@
   <!-- Button text on the clear site data dialog to allow users to cancel the action and not clear the site data. -->
   <string name="clear_site_data_dialog_negative_button_text">取消</string>
   <!-- Snackbar title shown when the site data has been cleared. -->
-  <string name="clear_site_data_snackbar">已移除 Cookie 和网站数据</string>
+  <string name="clear_site_data_snackbar" moz:removedIn="144" tools:ignore="UnusedResources">已移除 Cookie 和网站数据</string>
   <!-- Text for the connection security panel when the site is secure. -->
   <string name="connection_security_panel_secure">安全连接</string>
   <!-- Text for the connection security panel when the site is not secure. -->

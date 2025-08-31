@@ -274,6 +274,8 @@ void CanonicalBrowsingContext::ReplacedBy(
 
   // Reapply language override to update the corresponding realm.
   txn.SetLanguageOverride(GetLanguageOverride());
+  // Reapply timezone override to update the corresponding realm.
+  txn.SetTimezoneOverride(GetTimezoneOverride());
 
   // Propagate some settings on BrowsingContext replacement so they're not lost
   // on bfcached navigations. These are important for GeckoView (see bug
@@ -2930,7 +2932,7 @@ void CanonicalBrowsingContext::MaybeScheduleSessionStoreUpdate() {
         },
         this, StaticPrefs::browser_sessionstore_interval(),
         nsITimer::TYPE_ONE_SHOT,
-        "CanonicalBrowsingContext::MaybeScheduleSessionStoreUpdate");
+        "CanonicalBrowsingContext::MaybeScheduleSessionStoreUpdate"_ns);
 
     if (result.isErr()) {
       return;

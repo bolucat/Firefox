@@ -42,10 +42,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -88,11 +86,16 @@ import kotlinx.coroutines.launch
 import mozilla.appservices.places.BookmarkRoot
 import mozilla.components.browser.state.action.AwesomeBarAction
 import mozilla.components.browser.state.search.SearchEngine
+import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.compose.base.Divider
 import mozilla.components.compose.base.annotation.FlexibleWindowLightDarkPreview
 import mozilla.components.compose.base.button.FloatingActionButton
 import mozilla.components.compose.base.button.PrimaryButton
 import mozilla.components.compose.base.button.TextButton
+import mozilla.components.compose.base.menu.DropdownMenu
+import mozilla.components.compose.base.menu.MenuItem
+import mozilla.components.compose.base.snackbar.displaySnackbar
+import mozilla.components.compose.base.text.Text
 import mozilla.components.compose.base.textfield.TextField
 import mozilla.components.compose.base.textfield.TextFieldColors
 import mozilla.components.compose.base.theme.AcornTheme
@@ -103,6 +106,7 @@ import mozilla.components.compose.browser.awesomebar.AwesomeBarOrientation
 import mozilla.components.compose.browser.toolbar.BrowserToolbar
 import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarStore
+import mozilla.components.concept.base.profiler.Profiler
 import mozilla.components.lib.state.ext.observeAsComposableState
 import mozilla.components.lib.state.ext.observeAsState
 import mozilla.components.support.ktx.android.view.hideKeyboard
@@ -113,9 +117,7 @@ import org.mozilla.fenix.bookmarks.BookmarksTestTag.EDIT_BOOKMARK_ITEM_URL_TEXT_
 import org.mozilla.fenix.components.AppStore
 import org.mozilla.fenix.components.appstate.AppAction
 import org.mozilla.fenix.components.components
-import org.mozilla.fenix.compose.ContextualMenu
 import org.mozilla.fenix.compose.Favicon
-import org.mozilla.fenix.compose.MenuItem
 import org.mozilla.fenix.compose.list.IconListItem
 import org.mozilla.fenix.compose.list.SelectableFaviconListItem
 import org.mozilla.fenix.compose.list.SelectableIconListItem
@@ -135,20 +137,24 @@ private const val MATERIAL_DESIGN_SCRIM = "#52000000"
  * @param buildStore A builder function to construct a [BookmarksStore] using the NavController that's local
  * to the nav graph for the Bookmarks view hierarchy.
  * @param appStore [AppStore] for syncing with other application features.
+ * @param browserStore [BrowserStore] for checking browser state and dispatching browser action.
  * @param toolbarStore [BrowserToolbarStore] controlling the search toolbar.
  * @param searchStore [SearchFragmentStore] controlling how search results are displayed.
  * @param bookmarksSearchEngine [SearchEngine] the default search engine to use when searching bookmarks.
  * @param useNewSearchUX Whether to use the new integrated search UX or navigate to a separate search screen.
+ * @param profiler app profiler used to access firefox profile features.
  * @param startDestination the screen on which to initialize [BookmarksScreen] with.
  */
 @Composable
 internal fun BookmarksScreen(
     buildStore: (NavHostController) -> BookmarksStore,
     appStore: AppStore = components.appStore,
+    browserStore: BrowserStore = components.core.store,
     toolbarStore: BrowserToolbarStore,
     searchStore: SearchFragmentStore,
     bookmarksSearchEngine: SearchEngine?,
     useNewSearchUX: Boolean = false,
+    profiler: Profiler? = components.core.engine.profiler,
     startDestination: String = BookmarksDestinations.LIST,
 ) {
     val navController = rememberNavController()
@@ -179,9 +185,11 @@ internal fun BookmarksScreen(
             BookmarksList(
                 store = store,
                 appStore = appStore,
+                browserStore = browserStore,
                 toolbarStore = toolbarStore,
                 searchStore = searchStore,
                 bookmarksSearchEngine = bookmarksSearchEngine,
+                profiler = profiler,
                 useNewSearchUX = useNewSearchUX,
             )
         }
@@ -221,12 +229,13 @@ internal object BookmarksDestinations {
 private fun BookmarksList(
     store: BookmarksStore,
     appStore: AppStore,
+    browserStore: BrowserStore,
     toolbarStore: BrowserToolbarStore,
     searchStore: SearchFragmentStore,
     bookmarksSearchEngine: SearchEngine?,
+    profiler: Profiler?,
     useNewSearchUX: Boolean = false,
 ) {
-    val browserStore = components.core.store
     val state by store.observeAsState(store.state) { it }
     val searchState = searchStore.observeAsComposableState { it }.value
     val awesomebarBackground = AcornTheme.colors.layer1
@@ -263,24 +272,18 @@ private fun BookmarksList(
         when (state.bookmarksSnackbarState) {
             BookmarksSnackbarState.None -> return@LaunchedEffect
             is BookmarksSnackbarState.UndoDeletion -> scope.launch {
-                val result = snackbarHostState.showSnackbar(
+                snackbarHostState.displaySnackbar(
                     message = snackbarMessage,
                     actionLabel = snackbarActionLabel,
-                    duration = SnackbarDuration.Short,
+                    onActionPerformed = { store.dispatch(SnackbarAction.Undo) },
+                    onDismissPerformed = { store.dispatch(SnackbarAction.Dismissed) },
                 )
-                if (result == SnackbarResult.Dismissed) {
-                    store.dispatch(SnackbarAction.Dismissed)
-                } else if (result == SnackbarResult.ActionPerformed) {
-                    store.dispatch(SnackbarAction.Undo)
-                }
             }
             BookmarksSnackbarState.CantEditDesktopFolders -> scope.launch {
-                val result = snackbarHostState.showSnackbar(
+                snackbarHostState.displaySnackbar(
                     message = snackbarMessage,
+                    onDismissPerformed = { store.dispatch(SnackbarAction.Dismissed) },
                 )
-                if (result == SnackbarResult.Dismissed) {
-                    store.dispatch(SnackbarAction.Dismissed)
-                }
             }
         }
     }
@@ -535,7 +538,7 @@ private fun BookmarksList(
                             browserStore.dispatch(AwesomeBarAction.VisibilityStateUpdated(it))
                         },
                         onScroll = { view.hideKeyboard() },
-                        profiler = components.core.engine.profiler,
+                        profiler = profiler,
                     )
                 }
             }
@@ -561,21 +564,21 @@ private fun BookmarksListTopBar(
     val showSortMenu by store.observeAsState(store.state.sortMenuShown) { it.sortMenuShown }
 
     val backgroundColor = if (selectedItems.isEmpty()) {
-        FirefoxTheme.colors.layer1
+        MaterialTheme.colorScheme.surface
     } else {
-        FirefoxTheme.colors.layerAccent
+        MaterialTheme.colorScheme.primary
     }
 
     val textColor = if (selectedItems.isEmpty()) {
-        FirefoxTheme.colors.textPrimary
+        MaterialTheme.colorScheme.onSurface
     } else {
-        FirefoxTheme.colors.textOnColorPrimary
+        MaterialTheme.colorScheme.inverseOnSurface
     }
 
     val iconColor = if (selectedItems.isEmpty()) {
-        FirefoxTheme.colors.textPrimary
+        MaterialTheme.colorScheme.onSurface
     } else {
-        FirefoxTheme.colors.iconOnColor
+        MaterialTheme.colorScheme.inverseOnSurface
     }
 
     Box {
@@ -673,6 +676,24 @@ private fun BookmarksListTopBar(
                                 painter = painterResource(R.drawable.mozac_ic_delete_24),
                                 contentDescription = stringResource(R.string.bookmark_menu_delete_button),
                                 tint = iconColor,
+                            )
+                        }
+
+                        Box {
+                            IconButton(onClick = { showMenu = true }) {
+                                Icon(
+                                    painter = painterResource(R.drawable.mozac_ic_ellipsis_vertical_24),
+                                    contentDescription = stringResource(
+                                        R.string.content_description_menu,
+                                    ),
+                                    tint = iconColor,
+                                )
+                            }
+
+                            FolderListOverflowMenu(
+                                showFolderMenu = showMenu,
+                                onDismissRequest = { showMenu = false },
+                                store = store,
                             )
                         }
                     }
@@ -999,35 +1020,35 @@ private fun BookmarkSortOverflowMenu(
     val sortOrder by store.observeAsState(store.state.sortOrder) { store.state.sortOrder }
 
     val menuItems = listOf(
-        MenuItem(
-            title = stringResource(R.string.bookmark_sort_menu_custom),
+        MenuItem.CheckableItem(
+            text = Text.Resource(R.string.bookmark_sort_menu_custom),
             isChecked = sortOrder is BookmarksListSortOrder.Positional,
             onClick = { store.dispatch(BookmarksListMenuAction.SortMenu.CustomSortClicked) },
         ),
-        MenuItem(
-            title = stringResource(R.string.bookmark_sort_menu_newest),
+        MenuItem.CheckableItem(
+            text = Text.Resource(R.string.bookmark_sort_menu_newest),
             isChecked = sortOrder == BookmarksListSortOrder.Created(ascending = true),
             onClick = { store.dispatch(BookmarksListMenuAction.SortMenu.NewestClicked) },
         ),
-        MenuItem(
-            title = stringResource(R.string.bookmark_sort_menu_oldest),
+        MenuItem.CheckableItem(
+            text = Text.Resource(R.string.bookmark_sort_menu_oldest),
             isChecked = sortOrder == BookmarksListSortOrder.Created(ascending = false),
             onClick = { store.dispatch(BookmarksListMenuAction.SortMenu.OldestClicked) },
         ),
-        MenuItem(
-            title = stringResource(R.string.bookmark_sort_menu_a_to_z),
+        MenuItem.CheckableItem(
+            text = Text.Resource(R.string.bookmark_sort_menu_a_to_z),
             isChecked = sortOrder == BookmarksListSortOrder.Alphabetical(ascending = true),
             onClick = { store.dispatch(BookmarksListMenuAction.SortMenu.AtoZClicked) },
         ),
-        MenuItem(
-            title = stringResource(R.string.bookmark_sort_menu_z_to_a),
+        MenuItem.CheckableItem(
+            text = Text.Resource(R.string.bookmark_sort_menu_z_to_a),
             isChecked = sortOrder == BookmarksListSortOrder.Alphabetical(ascending = false),
             onClick = { store.dispatch(BookmarksListMenuAction.SortMenu.ZtoAClicked) },
         ),
     )
-    ContextualMenu(
+    DropdownMenu(
         menuItems = menuItems,
-        showMenu = showMenu,
+        expanded = showMenu,
         onDismissRequest = onDismissRequest,
     )
 }
@@ -1040,37 +1061,68 @@ private fun BookmarkListOverflowMenu(
     store: BookmarksStore,
 ) {
     val menuItems = listOf(
-        MenuItem(
-            title = stringResource(R.string.bookmark_menu_select_all_bookmarks),
+        MenuItem.TextItem(
+            text = Text.Resource(R.string.bookmark_menu_select_all_bookmarks),
             onClick = { store.dispatch(BookmarksListMenuAction.SelectAll) },
         ),
-        MenuItem(
-            title = stringResource(R.string.bookmark_menu_open_in_new_tab_button),
+        MenuItem.TextItem(
+            text = Text.Resource(R.string.bookmark_menu_open_in_new_tab_button),
             onClick = { store.dispatch(BookmarksListMenuAction.MultiSelect.OpenInNormalTabsClicked) },
         ),
-        MenuItem(
-            title = stringResource(R.string.bookmark_menu_open_in_private_tab_button),
+        MenuItem.TextItem(
+            text = Text.Resource(R.string.bookmark_menu_open_in_private_tab_button),
             onClick = { store.dispatch(BookmarksListMenuAction.MultiSelect.OpenInPrivateTabsClicked) },
         ),
-        MenuItem(
-            title = stringResource(R.string.bookmark_menu_share_button),
+        MenuItem.TextItem(
+            text = Text.Resource(R.string.bookmark_menu_share_button),
             onClick = { store.dispatch(BookmarksListMenuAction.MultiSelect.ShareClicked) },
         ),
-        MenuItem(
-            title = stringResource(R.string.bookmark_menu_delete_button),
-            color = FirefoxTheme.colors.textCritical,
+        MenuItem.TextItem(
+            text = Text.Resource(R.string.bookmark_menu_delete_button),
+            level = MenuItem.FixedItem.Level.Critical,
             onClick = { store.dispatch(BookmarksListMenuAction.MultiSelect.DeleteClicked) },
         ),
     )
-    ContextualMenu(
+    DropdownMenu(
         menuItems = menuItems,
-        showMenu = showMenu,
+        expanded = showMenu,
         onDismissRequest = onDismissRequest,
     )
 }
 
 @Composable
-@Suppress("Deprecation") // https://bugzilla.mozilla.org/show_bug.cgi?id=1927718
+private fun FolderListOverflowMenu(
+    showFolderMenu: Boolean,
+    onDismissRequest: () -> Unit,
+    store: BookmarksStore,
+) {
+    val menuItems = listOf(
+        MenuItem.TextItem(
+            text = Text.Resource(R.string.bookmark_menu_select_all_bookmarks),
+            onClick = { store.dispatch(BookmarksListMenuAction.SelectAll) },
+        ),
+        MenuItem.TextItem(
+            text = Text.Resource(R.string.bookmark_menu_open_in_new_tab_button),
+            onClick = { store.dispatch(BookmarksListMenuAction.MultiSelect.OpenInNormalTabsClicked) },
+        ),
+        MenuItem.TextItem(
+            text = Text.Resource(R.string.bookmark_menu_open_in_private_tab_button),
+            onClick = { store.dispatch(BookmarksListMenuAction.MultiSelect.OpenInPrivateTabsClicked) },
+        ),
+        MenuItem.TextItem(
+            text = Text.Resource(R.string.bookmark_menu_delete_button),
+            level = MenuItem.FixedItem.Level.Critical,
+            onClick = { store.dispatch(BookmarksListMenuAction.MultiSelect.DeleteClicked) },
+        ),
+    )
+    DropdownMenu(
+        menuItems = menuItems,
+        expanded = showFolderMenu,
+        onDismissRequest = onDismissRequest,
+    )
+}
+
+@Composable
 private fun BookmarkListItemMenu(
     showMenu: Boolean,
     onDismissRequest: () -> Unit,
@@ -1078,41 +1130,40 @@ private fun BookmarkListItemMenu(
     store: BookmarksStore,
 ) {
     val menuItems = listOf(
-        MenuItem(
-            title = stringResource(R.string.bookmark_menu_edit_button),
+        MenuItem.TextItem(
+            text = Text.Resource(R.string.bookmark_menu_edit_button),
             onClick = { store.dispatch(BookmarksListMenuAction.Bookmark.EditClicked(bookmark)) },
         ),
-        MenuItem(
-            title = stringResource(R.string.bookmark_menu_copy_button),
+        MenuItem.TextItem(
+            text = Text.Resource(R.string.bookmark_menu_copy_button),
             onClick = { store.dispatch(BookmarksListMenuAction.Bookmark.CopyClicked(bookmark)) },
         ),
-        MenuItem(
-            title = stringResource(R.string.bookmark_menu_share_button),
+        MenuItem.TextItem(
+            text = Text.Resource(R.string.bookmark_menu_share_button),
             onClick = { store.dispatch(BookmarksListMenuAction.Bookmark.ShareClicked(bookmark)) },
         ),
-        MenuItem(
-            title = stringResource(R.string.bookmark_menu_open_in_new_tab_button),
+        MenuItem.TextItem(
+            text = Text.Resource(R.string.bookmark_menu_open_in_new_tab_button),
             onClick = { store.dispatch(BookmarksListMenuAction.Bookmark.OpenInNormalTabClicked(bookmark)) },
         ),
-        MenuItem(
-            title = stringResource(R.string.bookmark_menu_open_in_private_tab_button),
+        MenuItem.TextItem(
+            text = Text.Resource(R.string.bookmark_menu_open_in_private_tab_button),
             onClick = { store.dispatch(BookmarksListMenuAction.Bookmark.OpenInPrivateTabClicked(bookmark)) },
         ),
-        MenuItem(
-            title = stringResource(R.string.bookmark_menu_delete_button),
-            color = FirefoxTheme.colors.actionCritical,
+        MenuItem.TextItem(
+            text = Text.Resource(R.string.bookmark_menu_delete_button),
+            level = MenuItem.FixedItem.Level.Critical,
             onClick = { store.dispatch(BookmarksListMenuAction.Bookmark.DeleteClicked(bookmark)) },
         ),
     )
-    ContextualMenu(
+    DropdownMenu(
         menuItems = menuItems,
-        showMenu = showMenu,
+        expanded = showMenu,
         onDismissRequest = onDismissRequest,
     )
 }
 
 @Composable
-@Suppress("Deprecation") // https://bugzilla.mozilla.org/show_bug.cgi?id=1927718
 private fun BookmarkListFolderMenu(
     showMenu: Boolean,
     onDismissRequest: () -> Unit,
@@ -1120,27 +1171,27 @@ private fun BookmarkListFolderMenu(
     store: BookmarksStore,
 ) {
     val menuItems = listOf(
-        MenuItem(
-            title = stringResource(R.string.bookmark_menu_edit_button),
+        MenuItem.TextItem(
+            text = Text.Resource(R.string.bookmark_menu_edit_button),
             onClick = { store.dispatch(BookmarksListMenuAction.Folder.EditClicked(folder)) },
         ),
-        MenuItem(
-            title = stringResource(R.string.bookmark_menu_open_all_in_tabs_button),
+        MenuItem.TextItem(
+            text = Text.Resource(R.string.bookmark_menu_open_all_in_tabs_button),
             onClick = { store.dispatch(BookmarksListMenuAction.Folder.OpenAllInNormalTabClicked(folder)) },
         ),
-        MenuItem(
-            title = stringResource(R.string.bookmark_menu_open_all_in_private_tabs_button),
+        MenuItem.TextItem(
+            text = Text.Resource(R.string.bookmark_menu_open_all_in_private_tabs_button),
             onClick = { store.dispatch(BookmarksListMenuAction.Folder.OpenAllInPrivateTabClicked(folder)) },
         ),
-        MenuItem(
-            title = stringResource(R.string.bookmark_menu_delete_button),
-            color = FirefoxTheme.colors.actionCritical,
+        MenuItem.TextItem(
+            text = Text.Resource(R.string.bookmark_menu_delete_button),
+            level = MenuItem.FixedItem.Level.Critical,
             onClick = { store.dispatch(BookmarksListMenuAction.Folder.DeleteClicked(folder)) },
         ),
     )
-    ContextualMenu(
+    DropdownMenu(
         menuItems = menuItems,
-        showMenu = showMenu,
+        expanded = showMenu,
         onDismissRequest = onDismissRequest,
     )
 }
@@ -1673,9 +1724,11 @@ private fun BookmarksScreenPreview() {
             BookmarksScreen(
                 buildStore = store,
                 appStore = AppStore(),
+                browserStore = BrowserStore(),
                 toolbarStore = BrowserToolbarStore(),
                 searchStore = SearchFragmentStore(SearchFragmentState.EMPTY),
                 bookmarksSearchEngine = null,
+                profiler = null,
             )
         }
     }
@@ -1717,9 +1770,11 @@ private fun EmptyBookmarksScreenPreview() {
             BookmarksScreen(
                 buildStore = store,
                 appStore = AppStore(),
+                browserStore = BrowserStore(),
                 toolbarStore = BrowserToolbarStore(),
                 searchStore = SearchFragmentStore(SearchFragmentState.EMPTY),
                 bookmarksSearchEngine = null,
+                profiler = null,
             )
         }
     }

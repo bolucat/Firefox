@@ -1651,6 +1651,11 @@ interface InspectorFontFeature {
     tag: string;
 }
 
+interface InspectorNearestColor {
+    colorName: string;
+    exact: boolean;
+}
+
 interface InspectorRGBATuple {
     a?: number;
     b?: number;
@@ -25364,6 +25369,7 @@ declare namespace InspectorUtils {
     function getUsedFontFaces(range: Range, maxRanges?: number, skipCollapsedWhitespace?: boolean): InspectorFontFace[];
     function hasPseudoClassLock(element: Element, pseudoClass: string): boolean;
     function hasRulesModifiedByCSSOM(sheet: CSSStyleSheet): boolean;
+    function hsvToRgb(r: number, g: number, b: number): number[] | Float32Array;
     function isCustomElementName(name: string | null, namespaceURI: string | null): boolean;
     function isElementThemed(element: Element): boolean;
     function isIgnorableWhitespace(dataNode: CharacterData): boolean;
@@ -25371,10 +25377,13 @@ declare namespace InspectorUtils {
     function isUsedColorSchemeDark(element: Element): boolean;
     function isValidCSSColor(colorString: string): boolean;
     function parseStyleSheet(sheet: CSSStyleSheet, input: string): void;
+    function relativeLuminance(r: number, g: number, b: number): number;
     function removeContentState(element: Element, state: number, clearActiveDocument?: boolean): boolean;
     function removePseudoClassLock(element: Element, pseudoClass: string): void;
     function replaceBlockRuleBodyTextInStylesheet(styleSheetText: string, line: number, column: number, newBodyText: string): string | null;
     function rgbToColorName(r: number, g: number, b: number): string;
+    function rgbToHsv(r: number, g: number, b: number): number[] | Float32Array;
+    function rgbToNearestColorName(r: number, g: number, b: number): InspectorNearestColor;
     function setContentState(element: Element, state: number): boolean;
     function setDynamicToolbarMaxHeight(aContext: BrowsingContext | null, aHeight: number): void;
     function setVerticalClipping(aContext: BrowsingContext | null, aOffset: number): void;
