@@ -320,8 +320,8 @@ AnchorResolvedMargin AnchorResolvedMarginHelper::ResolveAnchor(
              "Calling anchor resolution without using it?");
   if (aValue.IsAnchorSizeFunction()) {
     auto resolved = StyleAnchorPositioningFunctionResolution::Invalid();
-    Servo_ResolveAnchorSizeFunction(&*aValue.AsAnchorSizeFunction(), &aParams,
-                                    aAxis, &resolved);
+    Servo_ResolveAnchorSizeFunctionForMargin(&*aValue.AsAnchorSizeFunction(),
+                                             &aParams, aAxis, &resolved);
     if (resolved.IsInvalid()) {
       return Zero();
     }
@@ -1337,11 +1337,11 @@ nsChangeHint nsStylePosition::CalcDifference(
   // right now.
   // Don't try to handle changes between types efficiently; at least for
   // changing into/out of `auto`, we will hardly ever be able to avoid a reflow.
-  // TODO(dshin, Bug 1917695): Re-evaulate this for `anchor()`.
   if (mOffset != aNewData.mOffset) {
     if (IsEqualInsetType(mOffset, aNewData.mOffset) &&
         aNewData.mOffset.All([](const StyleInset& aInset) {
-          // Err on the side of triggering reflow for anchor positioning.
+          // Anchor positioning invalidation depends on `AnchorPosReferences`
+          // being updated, which happens during reflow.
           return !aInset.HasAnchorPositioningFunction();
         })) {
       hint |=
@@ -1427,9 +1427,9 @@ AnchorResolvedInset AnchorResolvedInsetHelper::ResolveAnchor(
     }
     case StyleInset::Tag::AnchorSizeFunction: {
       auto resolved = StyleAnchorPositioningFunctionResolution::Invalid();
-      Servo_ResolveAnchorSizeFunction(&*aValue.AsAnchorSizeFunction(),
-                                      &aParams.mBaseParams,
-                                      ToStylePhysicalAxis(aSide), &resolved);
+      Servo_ResolveAnchorSizeFunctionForInset(
+          &*aValue.AsAnchorSizeFunction(), &aParams, ToStylePhysicalAxis(aSide),
+          &resolved);
       if (resolved.IsInvalid()) {
         return Auto();
       }
@@ -1453,8 +1453,8 @@ AnchorResolvedSize AnchorResolvedSizeHelper::ResolveAnchor(
              "Calling anchor resolution without using it?");
   if (aValue.IsAnchorSizeFunction()) {
     auto resolved = StyleAnchorPositioningFunctionResolution::Invalid();
-    Servo_ResolveAnchorSizeFunction(&*aValue.AsAnchorSizeFunction(), &aParams,
-                                    aAxis, &resolved);
+    Servo_ResolveAnchorSizeFunctionForSize(&*aValue.AsAnchorSizeFunction(),
+                                           &aParams, aAxis, &resolved);
     if (resolved.IsInvalid()) {
       return Auto();
     }
@@ -1488,8 +1488,8 @@ AnchorResolvedMaxSize AnchorResolvedMaxSizeHelper::ResolveAnchor(
              "Calling anchor resolution without using it?");
   if (aValue.IsAnchorSizeFunction()) {
     auto resolved = StyleAnchorPositioningFunctionResolution::Invalid();
-    Servo_ResolveAnchorSizeFunction(&*aValue.AsAnchorSizeFunction(), &aParams,
-                                    aAxis, &resolved);
+    Servo_ResolveAnchorSizeFunctionForMaxSize(&*aValue.AsAnchorSizeFunction(),
+                                              &aParams, aAxis, &resolved);
     if (resolved.IsInvalid()) {
       return None();
     }

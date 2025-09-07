@@ -188,6 +188,10 @@ mozilla::ipc::IPCResult CanvasTranslator::RecvInitTranslator(
   }
 
   // Use the first buffer as our current buffer.
+  if (aBufferHandles.IsEmpty()) {
+    Deactivate();
+    return IPC_FAIL(this, "No canvas buffer shared memory supplied.");
+  }
   mDefaultBufferSize = aBufferHandles[0].Size();
   auto handleIter = aBufferHandles.begin();
   mCurrentShmem.shmem = std::move(*handleIter).Map();
@@ -443,11 +447,19 @@ void CanvasTranslator::RemoveExportSurface(gfx::ReferencePtr aRefPtr) {
 }
 
 void CanvasTranslator::RecycleBuffer() {
+  if (!mCurrentShmem.IsValid()) {
+    return;
+  }
+
   mCanvasShmems.emplace(std::move(mCurrentShmem));
   NextBuffer();
 }
 
 void CanvasTranslator::NextBuffer() {
+  if (mCanvasShmems.empty()) {
+    return;
+  }
+
   // Check and signal the writer when we finish with a buffer, because it
   // might have hit the buffer count limit and be waiting to use our old one.
   CheckAndSignalWriter();
@@ -1546,9 +1558,6 @@ CanvasTranslator::MaybeRecycleDataSurfaceForSurfaceDescriptor(
     return do_AddRef(usedWrapper);
   }
 
-  usedWrapper = nullptr;
-  usedDescriptor = Some(aSurfaceDescriptor);
-
   bool isYuvVideo = false;
   if (aTextureHost->AsMacIOSurfaceTextureHost()) {
     if (aTextureHost->GetFormat() == SurfaceFormat::NV12 ||
@@ -1559,24 +1568,22 @@ CanvasTranslator::MaybeRecycleDataSurfaceForSurfaceDescriptor(
     isYuvVideo = true;
   }
 
-  if (isYuvVideo && usedSurf && usedSurf->refCount() == 1 &&
-      usedSurf->GetFormat() == gfx::SurfaceFormat::B8G8R8X8 &&
-      aTextureHost->GetSize() == usedSurf->GetSize()) {
-    // Reuse previously used DataSourceSurface if it is not used and same
-    // size/format.
-    usedSurf = aTextureHost->GetAsSurface(usedSurf);
-    // Wrap DataSourceSurface with DataSourceSurfaceWrapper to force upload in
-    // DrawTargetWebgl::DrawSurface().
-    usedWrapper =
-        new gfx::DataSourceSurfaceWrapper(mUsedDataSurfaceForSurfaceDescriptor);
-    return do_AddRef(usedWrapper);
+  // Reuse previously used DataSourceSurface if it is not used and same
+  // size/format.
+  bool reuseSurface = isYuvVideo && usedSurf && usedSurf->refCount() == 1 &&
+                      usedSurf->GetFormat() == gfx::SurfaceFormat::B8G8R8X8 &&
+                      aTextureHost->GetSize() == usedSurf->GetSize();
+  usedSurf =
+      aTextureHost->GetAsSurface(reuseSurface ? usedSurf.get() : nullptr);
+  if (NS_WARN_IF(!usedSurf)) {
+    usedWrapper = nullptr;
+    usedDescriptor = Nothing();
+    return nullptr;
   }
-
-  usedSurf = aTextureHost->GetAsSurface(nullptr);
   // Wrap DataSourceSurface with DataSourceSurfaceWrapper to force upload in
   // DrawTargetWebgl::DrawSurface().
-  usedWrapper =
-      new gfx::DataSourceSurfaceWrapper(mUsedDataSurfaceForSurfaceDescriptor);
+  usedDescriptor = Some(aSurfaceDescriptor);
+  usedWrapper = new gfx::DataSourceSurfaceWrapper(usedSurf);
   return do_AddRef(usedWrapper);
 }
 

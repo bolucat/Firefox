@@ -109,6 +109,7 @@ import org.mozilla.fenix.databinding.ActivityHomeBinding
 import org.mozilla.fenix.debugsettings.data.DefaultDebugSettingsRepository
 import org.mozilla.fenix.debugsettings.ui.FenixOverlay
 import org.mozilla.fenix.downloads.DownloadSnackbar
+import org.mozilla.fenix.downloads.DownloadStatusBinding
 import org.mozilla.fenix.experiments.ResearchSurfaceDialogFragment
 import org.mozilla.fenix.ext.alreadyOnDestination
 import org.mozilla.fenix.ext.breadcrumb
@@ -224,6 +225,13 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
         AboutHomeBinding(
             browserStore = components.core.store,
             navController = navHost.navController,
+        )
+    }
+
+    private val downloadStatusBinding by lazy {
+        DownloadStatusBinding(
+            browserStore = components.core.store,
+            appStore = components.appStore,
         )
     }
 
@@ -501,6 +509,8 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
 
         Performance.processIntentIfPerformanceTest(intent, this)
 
+        // This will record an event in Nimbus' internal event store. Used for behavioral targeting
+        recordEventInNimbus("app_opened")
         if (settings().isTelemetryEnabled) {
             lifecycle.addObserver(
                 BreadcrumbsRecorder(
@@ -519,8 +529,6 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
                             source = source,
                         ),
                     )
-                    // This will record an event in Nimbus' internal event store. Used for behavioral targeting
-                    recordEventInNimbus("app_opened")
 
                     if (safeIntent.action.equals(ACTION_OPEN_PRIVATE_TAB) && source == APP_ICON) {
                         AppIcon.newPrivateTabTapped.record(NoExtras())
@@ -542,6 +550,7 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
             ),
             downloadSnackbar,
             privateBrowsingLockFeature,
+            downloadStatusBinding,
         )
 
         if (!isCustomTabIntent(intent)) {

@@ -26,10 +26,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
@@ -74,6 +72,7 @@ import org.mozilla.fenix.downloads.listscreen.ui.FileListItem
 import org.mozilla.fenix.downloads.listscreen.ui.Filters
 import org.mozilla.fenix.downloads.listscreen.ui.ToolbarConfig
 import org.mozilla.fenix.theme.FirefoxTheme
+import mozilla.components.ui.icons.R as iconsR
 
 /**
  * Downloads screen that displays the list of downloads.
@@ -159,7 +158,7 @@ fun DownloadsScreen(
                     if (!uiState.isSearchFieldVisible) {
                         IconButton(onClick = onNavigationIconClick) {
                             Icon(
-                                painter = painterResource(R.drawable.mozac_ic_back_24),
+                                painter = painterResource(iconsR.drawable.mozac_ic_back_24),
                                 contentDescription = stringResource(R.string.download_navigate_back_description),
                                 tint = toolbarConfig.iconColor,
                             )
@@ -197,7 +196,7 @@ fun DownloadsScreen(
         floatingActionButton = {
             if (uiState.isSearchIconVisible) {
                 FloatingActionButton(
-                    icon = painterResource(R.drawable.mozac_ic_search_24),
+                    icon = painterResource(iconsR.drawable.mozac_ic_search_24),
                     contentDescription = stringResource(R.string.download_search_placeholder),
                     onClick = { downloadsStore.dispatch(DownloadUIAction.SearchBarVisibilityRequest) },
                 )
@@ -285,7 +284,7 @@ private fun ToolbarEditActions(
 
         IconButton(onClick = { showMenu = true }) {
             Icon(
-                painter = painterResource(R.drawable.mozac_ic_ellipsis_vertical_24),
+                painter = painterResource(iconsR.drawable.mozac_ic_ellipsis_vertical_24),
                 contentDescription = stringResource(
                     R.string.content_description_menu,
                 ),

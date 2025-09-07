@@ -3300,6 +3300,12 @@ already_AddRefed<gfxFont> gfxFontGroup::FindFontForChar(
   // Handle a candidate font that could support the character, returning true
   // if we should go ahead and return |f|, false to continue searching.
   auto CheckCandidate = [&](gfxFont* f, FontMatchType t) -> bool {
+    // If a given character is a Private Use Area Unicode codepoint, user
+    // agents must only match font families named in the font-family list that
+    // are not generic families.
+    if (t.generic != StyleGenericFontFamily::None && IsPUA(aCh)) {
+      return false;
+    }
     // If no preference, or if it's an explicitly-named family in the fontgroup
     // and font-variant-emoji is 'normal', then we accept the font.
     if (presentation == FontPresentation::Any ||
@@ -3316,7 +3322,12 @@ already_AddRefed<gfxFont> gfxFontGroup::FindFontForChar(
         f->HasColorGlyphFor(aCh, aNextCh) ||
         (!nextIsVarSelector && f->HasColorGlyphFor(aCh, kVariationSelector16));
     // If the provided glyph matches the preference, accept the font.
-    if (hasColorGlyph == PrefersColor(presentation)) {
+    if (hasColorGlyph == PrefersColor(presentation) &&
+        // Exception: if this is an emoji flag+tag letters sequence, and the
+        // following codepoint (the first tag) is missing from the font, we
+        // don't want to use this font as it will fail to present the cluster.
+        (!hasColorGlyph || !gfxFontUtils::IsEmojiFlagAndTag(aCh, aNextCh) ||
+         f->HasCharacter(aNextCh))) {
       *aMatchType = t;
       return true;
     }

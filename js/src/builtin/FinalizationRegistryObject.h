@@ -28,15 +28,15 @@
  *   |  |  |   token     :   object    |     |  +------------+------------+  |
  *   |  |  +--------------------+------+     |  |      RecordMap map      |  |
  *   |  |                       |            |  +-------------------------+  |
- *   |  |                       v            |  |  Target  : Finalization |  |
- *   |  |  +--------------------+------+     |  |  object  : RecordVector |  |
+ *   |  |                       v            |  |  Target  : ObserverList |  |
+ *   |  |  +--------------------+------+     |  |  object  :              |  |
  *   |  |  |       Finalization        |     |  +----+-------------+------+  |
  *   |  |  |    RegistrationsObject    |     |       |             |         |
- *   |  |  +---------------------------+     |       v             v         |
- *   |  |  |       RecordVector        |     |  +----+-----+  +----+-----+   |
- *   |  |  +-------------+-------------+     |  |  Target  |  | (CCW if  |   |
- *   |  |                |                   |  | JSObject |  |  needed) |   |
- *   |  |              * v                   |  +----------+  +----+-----+   |
+ *   |  |  +---------------------------+     |       v             |         |
+ *   |  |  |       RecordVector        |     |  +----+-----+       |         |
+ *   |  |  +-------------+-------------+     |  |  Target  |       |         |
+ *   |  |                |                   |  | JSObject |       |         |
+ *   |  |              * v                   |  +----------+       |         |
  *   |  |  +-------------+-------------+ *   |                     |         |
  *   |  |  | FinalizationRecordObject  +<--------------------------+         |
  *   |  |  +---------------------------+     |                               |
@@ -87,6 +87,7 @@
 #define builtin_FinalizationRegistryObject_h
 
 #include "gc/Barrier.h"
+#include "gc/FinalizationObservers.h"
 #include "gc/WeakMap.h"
 #include "js/GCVector.h"
 #include "vm/NativeObject.h"
@@ -119,10 +120,17 @@ using RootedFinalizationQueueObject = Rooted<FinalizationQueueObject*>;
 // cancelled. See FinalizationObservers::shouldRemoveRecord for the possible
 // reasons.
 
-class FinalizationRecordObject : public NativeObject {
-  enum { QueueSlot = 0, HeldValueSlot, InMapSlot, SlotCount };
+class FinalizationRecordObject : public gc::ObserverListObject {
+  enum {
+    QueueSlot = ObserverListObject::SlotCount,
+    HeldValueSlot,
+    DebugStateSlot,  // Used for assertions only.
+    SlotCount
+  };
 
  public:
+  enum State { Unknown, InRecordMap, InQueue };
+
   static const JSClass class_;
 
   static FinalizationRecordObject* create(JSContext* cx,
@@ -132,10 +140,22 @@ class FinalizationRecordObject : public NativeObject {
   FinalizationQueueObject* queue() const;
   Value heldValue() const;
   bool isRegistered() const;
-  bool isInRecordMap() const;
+
+#ifdef DEBUG
+  void setState(State state);
+  State getState() const;
+  bool isInRecordMap() const { return getState() == InRecordMap; }
+  bool isInQueue() const { return getState() == InQueue; }
+#endif
 
   void setInRecordMap(bool newValue);
+  void setInQueue(bool newValue);
   void clear();
+
+ private:
+  static const JSClassOps classOps_;
+
+  static void finalize(JS::GCContext* gcx, JSObject* obj);
 };
 
 // A vector of weakly-held FinalizationRecordObjects.
@@ -182,11 +202,13 @@ class FinalizationRegistryObject : public NativeObject {
   enum { QueueSlot = 0, RegistrationsSlot, SlotCount };
 
  public:
+  using RegistrationsWeakMap = WeakMap<Value, JSObject*>;
+
   static const JSClass class_;
   static const JSClass protoClass_;
 
   FinalizationQueueObject* queue() const;
-  ObjectWeakMap* registrations() const;
+  RegistrationsWeakMap* registrations() const;
 
   void traceWeak(JSTracer* trc);
 
@@ -209,10 +231,10 @@ class FinalizationRegistryObject : public NativeObject {
 
   static bool addRegistration(JSContext* cx,
                               HandleFinalizationRegistryObject registry,
-                              HandleObject unregisterToken,
+                              HandleValue unregisterToken,
                               HandleFinalizationRecordObject record);
   static void removeRegistrationOnError(
-      HandleFinalizationRegistryObject registry, HandleObject unregisterToken,
+      HandleFinalizationRegistryObject registry, HandleValue unregisterToken,
       HandleFinalizationRecordObject record);
 
   static bool preserveDOMWrapper(JSContext* cx, HandleObject obj);
@@ -243,6 +265,7 @@ class FinalizationQueueObject : public NativeObject {
 
   JSObject* cleanupCallback() const;
   JSObject* getHostDefinedData() const;
+  bool hasRecordsToCleanUp() const;
   FinalizationRecordVector* recordsToBeCleanedUp() const;
   bool isQueuedForCleanup() const;
   JSFunction* doCleanupFunction() const;

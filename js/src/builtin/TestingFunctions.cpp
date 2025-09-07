@@ -149,6 +149,7 @@
 #include "wasm/WasmValue.h"
 
 #include "debugger/DebugAPI-inl.h"
+#include "jit/JitHints-inl.h"
 #include "vm/Compartment-inl.h"
 #include "vm/EnvironmentObject-inl.h"
 #include "vm/JSContext-inl.h"
@@ -2179,34 +2180,6 @@ static bool WasmFunctionTier(JSContext* cx, unsigned argc, Value* vp) {
   return false;
 }
 
-static bool ToIonDumpContents(JSContext* cx, HandleValue value,
-                              wasm::IonDumpContents* contents) {
-  RootedString option(cx, JS::ToString(cx, value));
-
-  if (!option) {
-    return false;
-  }
-
-  bool isEqual = false;
-  if (!JS_StringEqualsLiteral(cx, option, "mir", &isEqual) || isEqual) {
-    *contents = wasm::IonDumpContents::UnoptimizedMIR;
-    return isEqual;
-  } else if (!JS_StringEqualsLiteral(cx, option, "unopt-mir", &isEqual) ||
-             isEqual) {
-    *contents = wasm::IonDumpContents::UnoptimizedMIR;
-    return isEqual;
-  } else if (!JS_StringEqualsLiteral(cx, option, "opt-mir", &isEqual) ||
-             isEqual) {
-    *contents = wasm::IonDumpContents::OptimizedMIR;
-    return isEqual;
-  } else if (!JS_StringEqualsLiteral(cx, option, "lir", &isEqual) || isEqual) {
-    *contents = wasm::IonDumpContents::LIR;
-    return isEqual;
-  } else {
-    return false;
-  }
-}
-
 static bool WasmDumpIon(JSContext* cx, unsigned argc, Value* vp) {
   if (!wasm::HasSupport(cx)) {
     JS_ReportErrorASCII(cx, "wasm support unavailable");
@@ -2225,12 +2198,6 @@ static bool WasmDumpIon(JSContext* cx, unsigned argc, Value* vp) {
   uint32_t targetFuncIndex;
   if (!ToUint32(cx, args.get(1), &targetFuncIndex)) {
     JS_ReportErrorASCII(cx, "argument is not a func index");
-    return false;
-  }
-
-  wasm::IonDumpContents contents = wasm::IonDumpContents::Default;
-  if (args.length() > 2 && !ToIonDumpContents(cx, args.get(2), &contents)) {
-    JS_ReportErrorASCII(cx, "argument is not a valid dump contents");
     return false;
   }
 
@@ -2258,8 +2225,7 @@ static bool WasmDumpIon(JSContext* cx, unsigned argc, Value* vp) {
     return false;
   }
 
-  if (!wasm::DumpIonFunctionInModule(*bytecode, targetFuncIndex, contents, out,
-                                     &error)) {
+  if (!wasm::DumpIonFunctionInModule(*bytecode, targetFuncIndex, out, &error)) {
     if (error) {
       JS_ReportErrorNumberUTF8(cx, GetErrorMessage, nullptr,
                                JSMSG_WASM_COMPILE_ERROR, error.get());
@@ -9512,6 +9478,58 @@ static bool BaselineCompile(JSContext* cx, unsigned argc, Value* vp) {
   return true;
 }
 
+static bool SetBaselineHint(JSContext* cx, unsigned argc, Value* vp) {
+  CallArgs args = CallArgsFromVp(argc, vp);
+  RootedObject callee(cx, &args.callee());
+
+  if (args.length() != 1) {
+    ReportUsageErrorASCII(cx, callee, "Wrong number of arguments");
+    return false;
+  }
+
+  RootedScript script(cx, TestingFunctionArgumentToScript(cx, args[0]));
+  if (!script) {
+    return false;
+  }
+
+  if (!cx->runtime()->jitRuntime()->hasJitHintsMap()) {
+    args.rval().setUndefined();
+    return true;
+  }
+
+  jit::JitHintsMap* jitHints = cx->runtime()->jitRuntime()->getJitHintsMap();
+  jitHints->setEagerBaselineHint(script);
+
+  args.rval().setUndefined();
+  return true;
+}
+
+static bool HasBaselineHint(JSContext* cx, unsigned argc, Value* vp) {
+  CallArgs args = CallArgsFromVp(argc, vp);
+  RootedObject callee(cx, &args.callee());
+
+  if (args.length() != 1) {
+    ReportUsageErrorASCII(cx, callee, "Wrong number of arguments");
+    return false;
+  }
+
+  RootedScript script(cx, TestingFunctionArgumentToScript(cx, args[0]));
+  if (!script) {
+    return false;
+  }
+
+  if (!cx->runtime()->jitRuntime()->hasJitHintsMap()) {
+    args.rval().setBoolean(false);
+    return true;
+  }
+
+  jit::JitHintsMap* jitHints = cx->runtime()->jitRuntime()->getJitHintsMap();
+  bool hasHint = jitHints->mightHaveEagerBaselineHint(script);
+
+  args.rval().setBoolean(hasHint);
+  return true;
+}
+
 static bool ClearKeptObjects(JSContext* cx, unsigned argc, Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
   JS::ClearKeptObjects(cx);
@@ -10874,6 +10892,13 @@ JS_FOR_WASM_FEATURES(WASM_FEATURE)
 "    baselineCompile();  for (var i=0; i<1; i++) {} ...\n"
 "  The interpreter will enter the new jitcode at the loop header unless\n"
 "  baselineCompile returned a string or threw an error.\n"),
+    JS_FN_HELP("setBaselineHint", SetBaselineHint, 1, 0,
+"setBaselineHint(fun)",
+"  Sets a baseline JIT hint for the given function, marking it for eager\n"
+"  baseline compilation on subsequent executions.\n"),
+    JS_FN_HELP("hasBaselineHint", HasBaselineHint, 1, 0,
+"hasBaselineHint(fun)",
+"  Returns true if the given function has a baseline JIT hint set.\n"),
 
     JS_FN_HELP("encodeAsUtf8InBuffer", EncodeAsUtf8InBuffer, 2, 0,
 "encodeAsUtf8InBuffer(str, uint8Array)",

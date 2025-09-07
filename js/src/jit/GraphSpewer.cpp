@@ -18,6 +18,19 @@
 using namespace js;
 using namespace js::jit;
 
+static constexpr uint32_t IonGraphVersion = 1;
+
+// Hash pointers to make them smaller, while still (probably) unique.
+static uint32_t HashedPointer(const void* pointer) {
+  return mozilla::HashGeneric((uintptr_t)pointer);
+}
+
+void GraphSpewer::begin() {
+  beginObject();
+  property("version", IonGraphVersion);
+  beginListProperty("functions");
+}
+
 void GraphSpewer::beginFunction(JSScript* script) {
   beginObject();
   formatProperty("name", "%s:%u", script->filename(), script->lineno());
@@ -82,6 +95,7 @@ void GraphSpewer::spewMResumePoint(MResumePoint* rp) {
 void GraphSpewer::spewMDef(MDefinition* def) {
   beginObject();
 
+  property("ptr", HashedPointer(def));
   property("id", def->id());
 
   propertyName("opcode");
@@ -155,7 +169,8 @@ void GraphSpewer::spewMIR(MIRGraph* mir) {
   for (MBasicBlockIterator block(mir->begin()); block != mir->end(); block++) {
     beginObject();
 
-    property("number", block->id());
+    property("ptr", HashedPointer(*block));
+    property("id", block->id());
     property("loopDepth", block->loopDepth());
 
     beginListProperty("attributes");
@@ -207,7 +222,13 @@ void GraphSpewer::spewMIR(MIRGraph* mir) {
 void GraphSpewer::spewLIns(LNode* ins) {
   beginObject();
 
+  property("ptr", HashedPointer(ins));
   property("id", ins->id());
+  if (ins->mirRaw()) {
+    property("mirPtr", HashedPointer(ins->mirRaw()));
+  } else {
+    nullProperty("mirPtr");
+  }
 
   propertyName("opcode");
   out_.printf("\"");
@@ -238,7 +259,8 @@ void GraphSpewer::spewLIR(MIRGraph* mir) {
     }
 
     beginObject();
-    property("number", i->id());
+    property("id", i->id());
+    property("ptr", HashedPointer(*i));
 
     beginListProperty("instructions");
     for (size_t p = 0; p < block->numPhis(); p++) {
@@ -302,6 +324,11 @@ void GraphSpewer::spewRanges(BacktrackingAllocator* regalloc) {
 void GraphSpewer::endPass() { endObject(); }
 
 void GraphSpewer::endFunction() {
+  endList();
+  endObject();
+}
+
+void GraphSpewer::end() {
   endList();
   endObject();
 }

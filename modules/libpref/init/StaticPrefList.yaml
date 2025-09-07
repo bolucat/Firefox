@@ -2700,12 +2700,12 @@
 # Enable/disable Gecko specific edit commands
 - name: dom.document.edit_command.contentReadOnly.enabled
   type: bool
-  value: @IS_NOT_EARLY_BETA_OR_EARLIER@
+  value: false
   mirror: always
 
 - name: dom.document.edit_command.insertBrOnReturn.enabled
   type: bool
-  value: @IS_NOT_EARLY_BETA_OR_EARLIER@
+  value: false
   mirror: always
 
 # Only intended for fuzzing purposes, this will break mozPrintCallback, etc.
@@ -3024,7 +3024,7 @@
 # Whether to dispatch `beforescriptexecute` and `afterscriptexecute` event.
 - name: dom.events.script_execute.enabled
   type: bool
-  value: @IS_NOT_EARLY_BETA_OR_EARLIER@
+  value: false
   mirror: always
 
 # Whether to expose test interfaces of various sorts
@@ -4239,7 +4239,7 @@
 # Enable Screen Orientation lock
 - name: dom.screenorientation.allow-lock
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Enable Screen Wake Lock API
@@ -5417,7 +5417,7 @@
 
 - name: dom.w3c_pointer_events.getcoalescedevents_only_in_securecontext
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # `click` event target is defined as overridden by pointer capture target in
@@ -5552,7 +5552,7 @@
 # Whether WebGPU's GPUExternalTexture API is enabled.
 - name: dom.webgpu.external-texture.enabled
   type: bool
-#if defined(XP_WIN)
+#if defined(XP_WIN) || defined(XP_MACOSX)
   value: true
 #else
   value: false
@@ -5922,16 +5922,8 @@
   value: false
   mirror: always
 
-# Whether the InstallTrigger implementation should be enabled (or hidden and
-# none of its methods available).
-- name: extensions.InstallTriggerImpl.enabled
-  type: bool
-  value: false
-  mirror: always
-
-# Whether the InstallTrigger implementation should be enabled (or completely
-# hidden), separate from InstallTriggerImpl because InstallTrigger is improperly
-# used also for UA detection.
+# Whether the InstallTrigger global should be enabled (kept for compatibility,
+# as it is still used in the wild as an improper UA detection method)
 - name: extensions.InstallTrigger.enabled
   type: bool
   value: true
@@ -7660,7 +7652,11 @@
 
 - name: gfx.webrender.layer-compositor
   type: bool
+#if defined(XP_WIN)
+  value: @IS_NIGHTLY_BUILD@
+#else
   value: false
+#endif
   mirror: once
 
 #ifdef XP_WIN
@@ -7799,7 +7795,7 @@
     mirror: always
 -   name: gfx.webrender.swap-chain-allow-tearing
     type: bool
-    value: true
+    value: false
     mirror: once
 #endif
 
@@ -8549,7 +8545,7 @@
   # TSF/TIP requests to select from/by middle of a cluster.
 -   name: intl.tsf.hack.extend_setting_selection_range_to_cluster_boundaries
     type: bool
-    value: @IS_NOT_EARLY_BETA_OR_EARLIER@
+    value: false
     mirror: always
 
   # Whether Gecko supports IMM even if TSF is enabled.  This pref exists
@@ -8686,14 +8682,27 @@
   mirror: always  # LoadStartupJSPrefs
   do_not_use_directly: true
 
-#ifdef NIGHTLY_BUILD
-# Experimental support for off-main-thread baseline compilation.
-- name: javascript.options.experimental.baselinejit.offthread_compilation
-  type: bool
-  value: false
+# Select which OMT baseline compilation strategy to use:
+#    0:  None.  Disables OMT baseline compilation entirely.
+#
+#    1:  On-demand only.  Only perform OMT baseline compilation
+#        when needed during execution.
+#
+#    2:  Eager compilation only.  This will perform OMT baseline
+#        compilation eagerly when JitHints and bytecode is available.
+#
+#    3:  Eager and on-demand.  Perform eager compilation when
+#        JitHints and bytecode is available whenever possible,
+#        and also perform on-demand OMT baseline compilation.
+#
+#    4:  Aggressive eager compilation.  This is aggressively
+#        compiling all functions eagerly when bytecode is available,
+#        regardless of JitHints.  Not recommended for normal use.
+#
+- name: javascript.options.baselinejit.offthread_compilation_strategy
+  type: uint32_t
+  value: 2
   mirror: always  # LoadStartupJSPrefs
-  do_not_use_directly: true
-#endif
 
 # Enable off-main-thread Warp compilation.
 - name: javascript.options.ion.offthread_compilation
@@ -8734,7 +8743,7 @@
   do_not_use_directly: true
 
 # Whether object fuses are used to optimize constant properties on the global
-# object.
+# object and its lexical environment object.
 - name: javascript.options.objectfuse_for_global
   type: bool
   value: true
@@ -10947,6 +10956,13 @@
   value: true
   mirror: always
 
+# Whether to enable character and glyph level mirroring for operators when
+# the writing mode is right to left.
+- name: mathml.rtl_operator_mirroring.enabled
+  type: bool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
 # Whether to disable fallback for mathvariant=italic/bold/bold-italic via
 # styling when lacking proper fonts for Mathematical Alphanumeric Symbols.
 # We expect all OSes to have relevant fonts, except Android, see bug 1789083.
@@ -13074,6 +13090,13 @@
 - name: network.auth.sort_challenge_in_progress
   type: RelaxedAtomicBool
   value: false
+  mirror: always
+
+# When true, the hashing of the certificate will be done with the hashing
+# algorithm specified in the cert instead of SHA256.
+- name: network.auth.sspi_detect_hash
+  type: RelaxedAtomicBool
+  value: true
   mirror: always
 
 # See the full list of values in nsICookieService.idl.
@@ -15844,6 +15867,13 @@
   value: true
   mirror: always
 
+# Whether simpler monochrome printing set-up is enabled for CUPS.
+# TODO(emilio): remove after a few releases on-by-default
+- name: print.cups.monochrome-gtk-simple.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # Disabling this will no-op window.print()
 - name: print.enabled
   type: RelaxedAtomicBool
@@ -16366,12 +16396,6 @@
   value: true
   mirror: always
 
-# Controls whether or not the dFPI partition key includes non-standard ports
-- name: privacy.dynamic_firstparty.use_site.include_port
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
 - name: privacy.partition.network_state
   type: RelaxedAtomicBool
   value: true
@@ -16724,7 +16748,11 @@
 - name: security.sandbox.gpu.level
   type: int32_t
 #if defined(XP_WIN)
+#if defined(NIGHTLY_BUILD)
+  value: 2
+#else
   value: 1
+#endif
 #else
   value: 0
 #endif
@@ -17797,7 +17825,7 @@
 #ifdef XP_WIN
 - name: ui.key.layout.load_when_first_needed
   type: bool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 #endif
 
@@ -18787,7 +18815,7 @@
 - name: widget.wayland.fractional-scale.enabled
   type: bool
   value: false
-  mirror: once
+  mirror: always
 
 # Use opaque region for MozContainer wl_surface
 - name: widget.wayland.opaque-region.enabled

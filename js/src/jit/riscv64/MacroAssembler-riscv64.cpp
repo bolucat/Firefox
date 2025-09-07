@@ -509,6 +509,94 @@ void MacroAssemblerRiscv64Compat::convertDoubleToFloat32(FloatRegister src,
   fcvt_s_d(dest, src);
 }
 
+void MacroAssemblerRiscv64Compat::minMax32(Register lhs, Register rhs,
+                                           Register dest, bool isMax) {
+  if (rhs == dest) {
+    std::swap(lhs, rhs);
+  }
+
+  auto cond = isMax ? Assembler::GreaterThan : Assembler::LessThan;
+  if (lhs != dest) {
+    move32(lhs, dest);
+  }
+  asMasm().cmp32Move32(cond, rhs, lhs, rhs, dest);
+}
+
+void MacroAssemblerRiscv64Compat::minMax32(Register lhs, Imm32 rhs,
+                                           Register dest, bool isMax) {
+  if (rhs.value == 0) {
+    ScratchRegisterScope scratch(asMasm());
+
+    if (isMax) {
+      // dest = -(lhs > 0 ? 1 : 0) & lhs
+      sgtz(scratch, lhs);
+      neg(scratch, scratch);
+      and_(dest, lhs, scratch);
+    } else {
+      // dest = (lhs >> 31) & lhs
+      sraiw(scratch, lhs, 31);
+      and_(dest, lhs, scratch);
+    }
+    return;
+  }
+
+  // Uses branches because "Zicond" extension isn't yet supported.
+
+  auto cond =
+      isMax ? Assembler::GreaterThanOrEqual : Assembler::LessThanOrEqual;
+  if (lhs != dest) {
+    move32(lhs, dest);
+  }
+  Label done;
+  asMasm().branch32(cond, lhs, rhs, &done);
+  move32(rhs, dest);
+  bind(&done);
+}
+
+void MacroAssemblerRiscv64Compat::minMaxPtr(Register lhs, Register rhs,
+                                            Register dest, bool isMax) {
+  if (rhs == dest) {
+    std::swap(lhs, rhs);
+  }
+
+  auto cond = isMax ? Assembler::GreaterThan : Assembler::LessThan;
+  if (lhs != dest) {
+    movePtr(lhs, dest);
+  }
+  asMasm().cmpPtrMovePtr(cond, rhs, lhs, rhs, dest);
+}
+
+void MacroAssemblerRiscv64Compat::minMaxPtr(Register lhs, ImmWord rhs,
+                                            Register dest, bool isMax) {
+  if (rhs.value == 0) {
+    ScratchRegisterScope scratch(asMasm());
+
+    if (isMax) {
+      // dest = -(lhs > 0 ? 1 : 0) & lhs
+      sgtz(scratch, lhs);
+      neg(scratch, scratch);
+      and_(dest, lhs, scratch);
+    } else {
+      // dest = (lhs >> 63) & lhs
+      srai(scratch, lhs, 63);
+      and_(dest, lhs, scratch);
+    }
+    return;
+  }
+
+  // Uses branches because "Zicond" extension isn't yet supported.
+
+  auto cond =
+      isMax ? Assembler::GreaterThanOrEqual : Assembler::LessThanOrEqual;
+  if (lhs != dest) {
+    movePtr(lhs, dest);
+  }
+  Label done;
+  asMasm().branchPtr(cond, lhs, rhs, &done);
+  movePtr(rhs, dest);
+  bind(&done);
+}
+
 template <typename F>
 void MacroAssemblerRiscv64::RoundHelper(FPURegister dst, FPURegister src,
                                         FPURegister fpu_scratch,
@@ -3257,13 +3345,49 @@ void MacroAssembler::moveValue(const Value& src, const ValueOperand& dest) {
   writeDataRelocation(src);
   movWithPatch(ImmWord(src.asRawBits()), dest.valueReg());
 }
-void MacroAssembler::nearbyIntDouble(RoundingMode, FloatRegister,
-                                     FloatRegister) {
-  MOZ_CRASH("not supported on this platform");
+
+void MacroAssembler::nearbyIntDouble(RoundingMode mode, FloatRegister src,
+                                     FloatRegister dest) {
+  MOZ_ASSERT(HasRoundInstruction(mode));
+
+  ScratchDoubleScope2 fscratch(*this);
+
+  switch (mode) {
+    case RoundingMode::Down:
+      Floor_d_d(dest, src, fscratch);
+      break;
+    case RoundingMode::Up:
+      Ceil_d_d(dest, src, fscratch);
+      break;
+    case RoundingMode::NearestTiesToEven:
+      Round_d_d(dest, src, fscratch);
+      break;
+    case RoundingMode::TowardsZero:
+      Trunc_d_d(dest, src, fscratch);
+      break;
+  }
 }
-void MacroAssembler::nearbyIntFloat32(RoundingMode, FloatRegister,
-                                      FloatRegister) {
-  MOZ_CRASH("not supported on this platform");
+
+void MacroAssembler::nearbyIntFloat32(RoundingMode mode, FloatRegister src,
+                                      FloatRegister dest) {
+  MOZ_ASSERT(HasRoundInstruction(mode));
+
+  ScratchFloat32Scope2 fscratch(*this);
+
+  switch (mode) {
+    case RoundingMode::Down:
+      Floor_s_s(dest, src, fscratch);
+      break;
+    case RoundingMode::Up:
+      Ceil_s_s(dest, src, fscratch);
+      break;
+    case RoundingMode::NearestTiesToEven:
+      Round_s_s(dest, src, fscratch);
+      break;
+    case RoundingMode::TowardsZero:
+      Trunc_s_s(dest, src, fscratch);
+      break;
+  }
 }
 
 void MacroAssembler::oolWasmTruncateCheckF32ToI32(

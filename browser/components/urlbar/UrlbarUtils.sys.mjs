@@ -8,7 +8,7 @@
  */
 
 /**
- * @import {Query, ProvidersManager} from "UrlbarProvidersManager.sys.mjs"
+ * @import {Query} from "UrlbarProvidersManager.sys.mjs"
  */
 
 import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
@@ -29,7 +29,6 @@ ChromeUtils.defineESModuleGetters(lazy, {
   UrlbarProviderInterventions:
     "resource:///modules/UrlbarProviderInterventions.sys.mjs",
   UrlbarProviderOpenTabs: "resource:///modules/UrlbarProviderOpenTabs.sys.mjs",
-  UrlbarProvidersManager: "resource:///modules/UrlbarProvidersManager.sys.mjs",
   UrlbarProviderSearchTips:
     "resource:///modules/UrlbarProviderSearchTips.sys.mjs",
   UrlbarSearchUtils: "resource:///modules/UrlbarSearchUtils.sys.mjs",
@@ -611,7 +610,7 @@ export var UrlbarUtils = {
    *   The result to extract from.
    * @param {object} options
    *   Options object.
-   * @param {Element} [options.element]
+   * @param {HTMLElement} [options.element]
    *   The element associated with the result that was selected or picked, if
    *   available. For results that have multiple selectable children, the URL
    *   may be taken from a child element rather than the result.
@@ -1079,23 +1078,24 @@ export var UrlbarUtils = {
    * Runs a search for the given string, and returns the heuristic result.
    *
    * @param {string} searchString The string to search for.
-   * @param {nsIDOMWindow} window The window requesting it.
+   * @param {UrlbarInput} urlbarInput The input requesting it.
    * @returns {Promise<UrlbarResult>} an heuristic result.
    */
-  async getHeuristicResultFor(searchString, window) {
+  async getHeuristicResultFor(searchString, urlbarInput) {
     if (!searchString) {
       throw new Error("Must pass a non-null search string");
     }
 
+    let gBrowser = urlbarInput.window.gBrowser;
     let options = {
       allowAutofill: false,
-      isPrivate: lazy.PrivateBrowsingUtils.isWindowPrivate(window),
+      isPrivate: urlbarInput.isPrivate,
       maxResults: 1,
       searchString,
       userContextId: parseInt(
-        window.gBrowser.selectedBrowser.getAttribute("usercontextid") || 0
+        gBrowser.selectedBrowser.getAttribute("usercontextid") || 0
       ),
-      tabGroup: window.gBrowser.selectedTab.group?.id ?? null,
+      tabGroup: gBrowser.selectedTab.group?.id ?? null,
       prohibitRemoteResults: true,
       providers: [
         "UrlbarProviderAliasEngines",
@@ -1103,15 +1103,15 @@ export var UrlbarUtils = {
         "UrlbarProviderHeuristicFallback",
       ],
     };
-    if (window.gURLBar.searchMode) {
-      let searchMode = window.gURLBar.searchMode;
+    if (urlbarInput.searchMode) {
+      let searchMode = urlbarInput.searchMode;
       options.searchMode = searchMode;
       if (searchMode.source) {
         options.sources = [searchMode.source];
       }
     }
     let context = new UrlbarQueryContext(options);
-    await lazy.UrlbarProvidersManager.startQuery(context);
+    await urlbarInput.controller.manager.startQuery(context);
     if (!context.heuristicResult) {
       throw new Error("There should always be an heuristic result");
     }
@@ -1520,6 +1520,10 @@ export var UrlbarUtils = {
       return "experimental_addon";
     }
 
+    if (result.providerName == "UrlbarProviderQuickSuggest") {
+      return this._getQuickSuggestTelemetryType(result);
+    }
+
     // Appends subtype to certain result types.
     function checkForSubType(type, res) {
       if (res.providerName == "UrlbarProviderSemanticHistorySearch") {
@@ -1545,8 +1549,6 @@ export var UrlbarUtils = {
             return "tab_to_search";
           case "UrlbarProviderUnitConversion":
             return "unit";
-          case "UrlbarProviderQuickSuggest":
-            return this._getQuickSuggestTelemetryType(result);
           case "UrlbarProviderQuickSuggestContextualOptIn":
             return "fxsuggest_data_sharing_opt_in";
           case "UrlbarProviderGlobalActions":
@@ -1598,11 +1600,6 @@ export var UrlbarUtils = {
               return "intervention_unknown";
           }
         }
-
-        if (result.providerName === "UrlbarProviderQuickSuggest") {
-          return this._getQuickSuggestTelemetryType(result);
-        }
-
         switch (result.payload.type) {
           case lazy.UrlbarProviderSearchTips.TIP_TYPE.ONBOARD:
             return "tip_onboard";
@@ -1622,9 +1619,6 @@ export var UrlbarUtils = {
         }
         if (result.autofill) {
           return `autofill_${result.autofill.type ?? "unknown"}`;
-        }
-        if (result.providerName === "UrlbarProviderQuickSuggest") {
-          return this._getQuickSuggestTelemetryType(result);
         }
         if (result.providerName === "UrlbarProviderTopSites") {
           return "top_site";
@@ -2652,14 +2646,16 @@ export class UrlbarQueryContext {
       return false;
     }
 
-    // Disallow remote results if only an origin is typed to avoid disclosing
-    // sites the user visits. This also catches partially typed origins, like
-    // mozilla.o, because the fixup check below can't validate them.
-    if (
-      this.tokens.length == 1 &&
-      this.tokens[0].type == lazy.UrlbarTokenizer.TYPE.POSSIBLE_ORIGIN
-    ) {
-      return false;
+    // Prohibit remote results if the search string is likely an origin to avoid
+    // disclosing sites the user visits. If the search string may or may not be
+    // an origin but we've determined a search is allowed, then allow it.
+    if (this.tokens.length == 1) {
+      switch (this.tokens[0].type) {
+        case lazy.UrlbarTokenizer.TYPE.POSSIBLE_ORIGIN:
+          return false;
+        case lazy.UrlbarTokenizer.TYPE.POSSIBLE_ORIGIN_BUT_SEARCH_ALLOWED:
+          return true;
+      }
     }
 
     // Disallow remote results for strings containing tokens that look like URIs

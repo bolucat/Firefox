@@ -443,6 +443,8 @@ pref("browser.urlbar.suggest.calculator",           true);
 pref("browser.urlbar.suggest.recentsearches",       true);
 pref("browser.urlbar.suggest.quickactions",         true);
 
+pref("browser.urlbar.allowSearchSuggestionsForSimpleOrigins", true);
+
 pref("browser.urlbar.deduplication.enabled", true);
 pref("browser.urlbar.deduplication.thresholdDays", 0);
 
@@ -1845,6 +1847,7 @@ pref("browser.newtabpage.activity-stream.newtabWallpapers.customWallpaper.enable
 pref("browser.newtabpage.activity-stream.newtabWallpapers.customWallpaper.uuid", "");
 pref("browser.newtabpage.activity-stream.newtabWallpapers.customWallpaper.fileSize", 0);
 pref("browser.newtabpage.activity-stream.newtabWallpapers.customWallpaper.fileSize.enabled", false);
+pref("browser.newtabpage.activity-stream.newtabWallpapers.customWallpaper.theme", "");
 
 // Current new tab page background images.
 pref("browser.newtabpage.activity-stream.newtabWallpapers.wallpaper", "");
@@ -1972,12 +1975,6 @@ pref("browser.newtabpage.activity-stream.discoverystream.sections.personalizatio
 pref("browser.newtabpage.activity-stream.discoverystream.sections.personalization.inferred.locale-config", "en-US,en-GB,en-CA");
 
 pref("browser.newtabpage.activity-stream.discoverystream.sections.personalization.inferred.user.enabled", true);
-
-// List of regions that use shortcuts personalization.
-pref("browser.newtabpage.activity-stream.discoverystream.shortcuts.personalization.region-config", "");
-// List of locales that use shortcuts personalization.
-pref("browser.newtabpage.activity-stream.discoverystream.shortcuts.personalization.locale-config", "en-US,en-GB,en-CA");
-
 
 // Override inferred personalization model JSON string that typically comes from rec API. Or "TEST" for a test model.
 pref("browser.newtabpage.activity-stream.discoverystream.sections.personalization.inferred.model.override", "");
@@ -3446,7 +3443,7 @@ pref("toolkit.contentRelevancy.log", false);
 
 // The number of days after which to rotate the context ID. 0 means to disable
 // rotation altogether.
-pref("browser.contextual-services.contextId.rotation-in-days", 30);
+pref("browser.contextual-services.contextId.rotation-in-days", 15);
 pref("browser.contextual-services.contextId.rust-component.enabled", true);
 
 // Pref to enable the IP protection feature
@@ -3457,3 +3454,12 @@ pref("browser.ipProtection.guardian.endpoint", "https://vpn.mozilla.org/");
 
 // Pref to enable aboug:glean redesign.
 pref("about.glean.redesign.enabled", false);
+
+// Forward Rust component logs to the JS console (comma separate list of crate names)
+// The empty string defaults to forwarding error-level messages.
+// If your crate needs to log more by default, for example persistent logging to a file like Sync,
+// contact the application-services developers and we can work with you to implement this.
+pref("toolkit.rust-components.logging.crates", "");
+
+// Log level for the internal logs in `AppServicesTracing.sys.mjs`
+pref("toolkit.rust-components.logging.internal-level", "Warn");

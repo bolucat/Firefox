@@ -63,6 +63,7 @@ const TASKS = [
   "feature-extraction",
   "image-feature-extraction",
   "wllama-text-generation",
+  "moz-text-to-goal",
 ];
 
 const DTYPE = ["fp32", "fp16", "q8", "int8", "uint8", "q4", "bnb4", "q4f16"];
@@ -1121,7 +1122,7 @@ async function runBenchmark() {
   benchmarkConsole.addText("Starting benchmark...\n");
   let backend = document.getElementById("benchmark.backend").value;
   if (backend === "all") {
-    backend = lazy.BACKENDS;
+    backend = Object.values(lazy.BACKENDS);
   } else {
     backend = [backend];
   }
@@ -1141,7 +1142,7 @@ async function runBenchmark() {
       name: "ner-small",
       inputArgs: ["Sarah lives in the United States of America"],
       runOptions: {},
-      compatibleBackends: ["onnx"],
+      compatibleBackends: [lazy.BACKENDS.onnx],
       pipelineOptions: {
         taskName: "token-classification",
         modelId: "Xenova/bert-base-NER",
@@ -1154,7 +1155,7 @@ async function runBenchmark() {
     {
       name: "feature-extraction-large",
       inputArgs: [repeatedSentences],
-      compatibleBackends: ["onnx"],
+      compatibleBackends: [lazy.BACKENDS.onnx],
       runOptions: { pooling: "mean", normalize: true },
       pipelineOptions: {
         taskName: "feature-extraction",
@@ -1167,7 +1168,7 @@ async function runBenchmark() {
     },
     {
       name: "image-to-text",
-      compatibleBackends: ["onnx"],
+      compatibleBackends: [lazy.BACKENDS.onnx],
       inputArgs: [
         "https://huggingface.co/datasets/mishig/sample_images/resolve/main/football-match.jpg",
       ],
@@ -1183,7 +1184,7 @@ async function runBenchmark() {
     },
     {
       name: "link-preview",
-      compatibleBackends: ["wllama"],
+      compatibleBackends: [lazy.BACKENDS.wllama],
       inputArgs: `Summarize this: ${TINY_ARTICLE}`,
       runOptions: {
         nPredict: 100,
@@ -1305,8 +1306,8 @@ window.onload = async function () {
   fillSelect("taskName", TASKS);
   fillSelect("numThreads", getNumThreadsArray());
   fillSelect("predefined", PREDEFINED);
-  fillSelect("benchmark.backend", ["all"].concat(lazy.BACKENDS));
-  fillSelect("backend", lazy.BACKENDS);
+  fillSelect("benchmark.backend", ["all"].concat(Object.values(lazy.BACKENDS)));
+  fillSelect("backend", Object.values(lazy.BACKENDS));
 
   document.getElementById("predefined").value = "feature-large";
   loadExample("feature-large");

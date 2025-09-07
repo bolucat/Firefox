@@ -94,6 +94,7 @@ import org.mozilla.fenix.search.fixtures.buildExpectedSearchSelector
 import org.mozilla.fenix.tabstray.Page
 import org.robolectric.Shadows.shadowOf
 import mozilla.components.ui.icons.R as iconsR
+import mozilla.components.ui.tabcounter.R as tabcounterR
 
 @RunWith(AndroidJUnit4::class)
 class BrowserToolbarMiddlewareTest {
@@ -627,7 +628,7 @@ class BrowserToolbarMiddlewareTest {
 
         assertEquals(3, action.count)
         assertEquals(
-            testContext.getString(R.string.mozac_tab_counter_open_tab_tray, 3),
+            testContext.getString(tabcounterR.string.mozac_tab_counter_open_tab_tray, 3),
             action.contentDescription,
         )
         assertEquals(
@@ -647,7 +648,7 @@ class BrowserToolbarMiddlewareTest {
             action = HomeToolbarAction.Menu,
         ) as ActionButtonRes
 
-        assertEquals(R.drawable.mozac_ic_ellipsis_vertical_24, action.drawableResId)
+        assertEquals(iconsR.drawable.mozac_ic_ellipsis_vertical_24, action.drawableResId)
         assertEquals(R.string.content_description_menu, action.contentDescription)
         assertEquals(ActionButton.State.DEFAULT, action.state)
         assertEquals(MenuClicked(source = Source.AddressBar), action.onClick)
@@ -717,12 +718,12 @@ class BrowserToolbarMiddlewareTest {
         count = tabCount,
         contentDescription = if (isPrivate) {
             testContext.getString(
-                R.string.mozac_tab_counter_private,
+                tabcounterR.string.mozac_tab_counter_private,
                 tabCount.toString(),
             )
         } else {
             testContext.getString(
-                R.string.mozac_tab_counter_open_tab_tray,
+                tabcounterR.string.mozac_tab_counter_open_tab_tray,
                 tabCount.toString(),
             )
         },
@@ -733,8 +734,8 @@ class BrowserToolbarMiddlewareTest {
                 true -> listOf(
                     BrowserToolbarMenuButton(
                         icon = DrawableResIcon(iconsR.drawable.mozac_ic_plus_24),
-                        text = StringResText(R.string.mozac_browser_menu_new_tab),
-                        contentDescription = StringResContentDescription(R.string.mozac_browser_menu_new_tab),
+                        text = StringResText(tabcounterR.string.mozac_browser_menu_new_tab),
+                        contentDescription = StringResContentDescription(tabcounterR.string.mozac_browser_menu_new_tab),
                         onClick = AddNewTab(source),
                     ),
                 )
@@ -742,8 +743,8 @@ class BrowserToolbarMiddlewareTest {
                 false -> listOf(
                     BrowserToolbarMenuButton(
                         icon = DrawableResIcon(iconsR.drawable.mozac_ic_private_mode_24),
-                        text = StringResText(R.string.mozac_browser_menu_new_private_tab),
-                        contentDescription = StringResContentDescription(R.string.mozac_browser_menu_new_private_tab),
+                        text = StringResText(tabcounterR.string.mozac_browser_menu_new_private_tab),
+                        contentDescription = StringResContentDescription(tabcounterR.string.mozac_browser_menu_new_private_tab),
                         onClick = AddNewPrivateTab(source),
                     ),
                 )
@@ -752,27 +753,27 @@ class BrowserToolbarMiddlewareTest {
     )
 
     private fun expectedMenuButton(source: Source = Source.AddressBar) = ActionButtonRes(
-        drawableResId = R.drawable.mozac_ic_ellipsis_vertical_24,
+        drawableResId = iconsR.drawable.mozac_ic_ellipsis_vertical_24,
         contentDescription = R.string.content_description_menu,
         onClick = MenuClicked(source),
     )
 
     private val expectedBookmarkButton = ActionButtonRes(
-        drawableResId = R.drawable.mozac_ic_bookmark_24,
+        drawableResId = iconsR.drawable.mozac_ic_bookmark_24,
         contentDescription = R.string.browser_menu_bookmark_this_page_2,
         state = ActionButton.State.DISABLED,
         onClick = FakeClicked,
     )
 
     private val expectedShareButton = ActionButtonRes(
-        drawableResId = R.drawable.mozac_ic_share_android_24,
+        drawableResId = iconsR.drawable.mozac_ic_share_android_24,
         contentDescription = R.string.browser_menu_share,
         state = ActionButton.State.DISABLED,
         onClick = FakeClicked,
     )
 
     private fun expectedNewTabButton(source: Source = Source.AddressBar) = ActionButtonRes(
-        drawableResId = R.drawable.mozac_ic_plus_24,
+        drawableResId = iconsR.drawable.mozac_ic_plus_24,
         contentDescription = R.string.home_screen_shortcut_open_new_tab_2,
         onClick = AddNewTab(source),
     )

@@ -471,6 +471,9 @@ features:
         type: Boolean
         default: false
     defaults:
+      - channel: nightly
+        value:
+          enabled: true
       - channel: developer
         value:
           enabled: true
@@ -920,6 +923,17 @@ features:
           Whether or not the expanded toolbar customization option is visible to the user.
         type: Boolean
         default: false
+    defaults:
+      - channel: developer
+        value:
+          show-options: true
+          show-simple-customization: false
+          show-expanded-customization: false
+      - channel: nightly
+        value:
+          show-options: true
+          show-simple-customization: false
+          show-expanded-customization: false
 
   tab-management-enhancements:
     description: Control the visibility of the tab management enhancements.
@@ -961,6 +975,15 @@ features:
     variables:
       enabled:
         description: If true, new users won’t see sponsored tiles for 14 days.
+        type: Boolean
+        default: false
+
+  lna-blocking:
+    description: Feature that allows blocking local network or device access.
+    variables:
+      enabled:
+        description: >
+          Whether or not to turn on local network / device access blocking
         type: Boolean
         default: false
 

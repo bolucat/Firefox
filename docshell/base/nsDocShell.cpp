@@ -9971,6 +9971,13 @@ nsresult nsDocShell::InternalLoad(nsDocShellLoadState* aLoadState,
   if (NS_FAILED(rv)) {
     nsCOMPtr<nsIChannel> chan(do_QueryInterface(req));
     UnblockEmbedderLoadEventForFailure();
+
+    // The spec says no exception should be raised for pre-navigation check
+    // failures.
+    if (NS_ERROR_DOM_SECURITY_ERR == rv) {
+      return NS_OK;
+    }
+
     nsCOMPtr<nsIURI> uri = aLoadState->URI();
     if (DisplayLoadError(rv, uri, nullptr, chan) &&
         // FIXME: At this point code was using internal load flags, but checking
@@ -9983,12 +9990,6 @@ nsresult nsDocShell::InternalLoad(nsDocShellLoadState* aLoadState,
     // reason behind this is that it will allow enumeration of external
     // protocols if we report an error for each unknown protocol.
     if (NS_ERROR_UNKNOWN_PROTOCOL == rv) {
-      return NS_OK;
-    }
-
-    // The spec says no exception should be raised for pre-navigation check
-    // failures.
-    if (NS_ERROR_DOM_SECURITY_ERR == rv) {
       return NS_OK;
     }
   }
@@ -10762,6 +10763,7 @@ nsresult nsDocShell::DoURILoad(nsDocShellLoadState* aLoadState,
         aLoadState->PartitionedPrincipalToInherit(),
         aLoadState->PolicyContainer(), mContentTypeHint);
     mozilla::dom::LoadingSessionHistoryInfo info(*entry);
+    info.mContiguousEntries.AppendElement(*entry);
     SetLoadingSessionHistoryInfo(info, true);
   }
 
@@ -14295,11 +14297,6 @@ void nsDocShell::MoveLoadingToActiveEntry(bool aExpired, uint32_t aCacheKey,
         GetWindow()->GetCurrentInnerWindow()) {
       if (RefPtr navigation =
               GetWindow()->GetCurrentInnerWindow()->Navigation()) {
-        // When the current load is finished the currently loading entry will be
-        // last in the list of entries. This works because we've created
-        // `mContiguousEntries` to only hold the entries up to the old current
-        // entry.
-        loadingEntry->mContiguousEntries.AppendElement(*mActiveEntry);
         navigation->InitializeHistoryEntries(loadingEntry->mContiguousEntries,
                                              mActiveEntry.get());
 

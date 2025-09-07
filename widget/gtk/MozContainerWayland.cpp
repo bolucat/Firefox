@@ -259,11 +259,12 @@ static bool moz_container_wayland_ensure_surface(MozContainer* container,
   }
 
   bool fractionalScale = false;
-  if (StaticPrefs::widget_wayland_fractional_scale_enabled_AtStartup()) {
+  if (StaticPrefs::widget_wayland_fractional_scale_enabled()) {
     fractionalScale = surface->EnableFractionalScaleLocked(
         lock,
         [win = RefPtr{window}]() {
-          win->RefreshScale(/* aRefreshScreen */ true);
+          win->RefreshScale(/* aRefreshScreen */ true,
+                            /* aForceRefresh */ true);
         },
         /* aManageViewport */ true);
   }

@@ -1703,7 +1703,7 @@ void MParameter::printOpcode(GenericPrinter& out) const {
 #endif
 
 HashNumber MParameter::valueHash() const {
-  HashNumber hash = MDefinition::valueHash();
+  HashNumber hash = MNullaryInstruction::valueHash();
   hash = addU32ToHash(hash, index_);
   return hash;
 }
@@ -2299,6 +2299,13 @@ void MTrunc::trySpecializeFloat32(TempAllocator& alloc) {
 }
 
 void MNearbyInt::trySpecializeFloat32(TempAllocator& alloc) {
+  if (EnsureFloatConsumersAndInputOrConvert(this, alloc)) {
+    specialization_ = MIRType::Float32;
+    setResultType(MIRType::Float32);
+  }
+}
+
+void MRoundToDouble::trySpecializeFloat32(TempAllocator& alloc) {
   if (EnsureFloatConsumersAndInputOrConvert(this, alloc)) {
     specialization_ = MIRType::Float32;
     setResultType(MIRType::Float32);
@@ -6440,6 +6447,12 @@ MDefinition::AliasType MLoadFixedSlot::mightAlias(
   return AliasType::MayAlias;
 }
 
+HashNumber MLoadFixedSlot::valueHash() const {
+  HashNumber hash = MUnaryInstruction::valueHash();
+  hash = addU32ToHash(hash, slot());
+  return hash;
+}
+
 MDefinition* MLoadFixedSlot::foldsTo(TempAllocator& alloc) {
   if (MDefinition* def = foldsToStore(alloc)) {
     return def;
@@ -6489,7 +6502,7 @@ MDefinition::AliasType MLoadDynamicSlot::mightAlias(
 }
 
 HashNumber MLoadDynamicSlot::valueHash() const {
-  HashNumber hash = MDefinition::valueHash();
+  HashNumber hash = MUnaryInstruction::valueHash();
   hash = addU32ToHash(hash, slot_);
   return hash;
 }
@@ -7364,6 +7377,12 @@ bool MMegamorphicHasProp::congruentTo(const MDefinition* ins) const {
 AliasSet MMegamorphicHasProp::getAliasSet() const {
   return AliasSet::Load(AliasSet::ObjectFields | AliasSet::FixedSlot |
                         AliasSet::DynamicSlot);
+}
+
+HashNumber MNurseryObject::valueHash() const {
+  HashNumber hash = MNullaryInstruction::valueHash();
+  hash = addU32ToHash(hash, nurseryObjectIndex());
+  return hash;
 }
 
 bool MNurseryObject::congruentTo(const MDefinition* ins) const {

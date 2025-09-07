@@ -1655,12 +1655,10 @@ bool MNearbyInt::writeRecoverData(CompactBufferWriter& writer) const {
   }
 }
 
-RNearbyInt::RNearbyInt(CompactBufferReader& reader) {
-  roundingMode_ = reader.readByte();
-}
-
-bool RNearbyInt::recover(JSContext* cx, SnapshotIterator& iter) const {
-  MOZ_CRASH("Unsupported rounding mode.");
+bool MRoundToDouble::writeRecoverData(CompactBufferWriter& writer) const {
+  MOZ_ASSERT(canRecoverOnBailout());
+  writer.writeUnsigned(uint32_t(RInstruction::Recover_Round));
+  return true;
 }
 
 bool MSign::writeRecoverData(CompactBufferWriter& writer) const {

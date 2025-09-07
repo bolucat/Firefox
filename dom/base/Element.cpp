@@ -4494,7 +4494,9 @@ void Element::InsertAdjacentHTML(
   if (doc->IsHTMLDocument() && !OwnerDoc()->MayHaveDOMMutationObservers() &&
       (position == eBeforeEnd || (position == eAfterEnd && !GetNextSibling()) ||
        (position == eAfterBegin && !GetFirstChild()))) {
-    int32_t oldChildCount = destination->GetChildCount();
+    doc->SuspendDOMNotifications();
+    nsIContent* oldLastChild = destination->GetLastChild();
+    uint32_t oldChildCount = destination->GetChildCount();
     int32_t contextNs = destination->GetNameSpaceID();
     nsAtom* contextLocal = destination->NodeInfo()->NameAtom();
     if (contextLocal == nsGkAtoms::html && contextNs == kNameSpaceID_XHTML) {
@@ -4506,6 +4508,15 @@ void Element::InsertAdjacentHTML(
     aError = nsContentUtils::ParseFragmentHTML(
         *compliantString, destination, contextLocal, contextNs,
         doc->GetCompatibilityMode() == eCompatibility_NavQuirks, true);
+    doc->ResumeDOMNotifications();
+    nsIContent* firstNewChild = oldLastChild ? oldLastChild->GetNextSibling()
+                                             : destination->GetFirstChild();
+    if (!firstNewChild) {
+      firstNewChild = oldLastChild;
+    }
+    if (firstNewChild) {
+      MutationObservers::NotifyContentAppended(destination, firstNewChild, {});
+    }
     // HTML5 parser has notified, but not fired mutation events.
     nsContentUtils::FireMutationEventsForDirectParsing(doc, destination,
                                                        oldChildCount);
@@ -4795,6 +4806,26 @@ bool Element::IsPopoverOpen() const {
   return htmlElement && htmlElement->PopoverOpen();
 }
 
+void Element::SetAssociatedPopover(nsGenericHTMLElement& aPopover) {
+  MOZ_ASSERT(IsHTMLElement());
+  MOZ_ASSERT(aPopover.IsHTMLElement());
+  auto* slots = ExtendedDOMSlots();
+  slots->mAssociatedPopover = do_GetWeakReference(&aPopover);
+}
+
+nsGenericHTMLElement* Element::GetAssociatedPopover() const {
+  if (const nsExtendedDOMSlots* slots = GetExistingExtendedDOMSlots()) {
+    if (nsCOMPtr<nsGenericHTMLElement> popover =
+            do_QueryReferent(slots->mAssociatedPopover)) {
+      if (popover->GetPopoverData() &&
+          popover->GetPopoverData()->GetInvoker() == this) {
+        return popover;
+      }
+    }
+  }
+  return nullptr;
+}
+
 Element* Element::GetTopmostPopoverAncestor(const Element* aInvoker,
                                             bool isPopover) const {
   const Element* newPopover = this;
@@ -4988,7 +5019,7 @@ already_AddRefed<nsIAutoCompletePopup> Element::AsAutoCompletePopup() {
   return value.forget();
 }
 
-nsPresContext* Element::GetPresContext(PresContextFor aFor) {
+nsPresContext* Element::GetPresContext(PresContextFor aFor) const {
   // Get the document
   Document* doc =
       (aFor == eForComposedDoc) ? GetComposedDoc() : GetUncomposedDoc();
@@ -5517,7 +5548,8 @@ static OffsetResult GetUnretargetedOffsetsFor(const Element& aElement) {
       }
     }
 
-    if (isAbsolutelyPositioned && !offsetParent) {
+    if (isAbsolutelyPositioned && !offsetParent &&
+        !frame->GetParent()->IsViewportFrame()) {
       // If this element is absolutely positioned, but we don't have
       // an offset parent it means this element is an absolutely
       // positioned child that's not nested inside another positioned

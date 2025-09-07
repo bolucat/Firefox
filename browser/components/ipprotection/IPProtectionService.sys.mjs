@@ -11,6 +11,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
   GuardianClient: "resource:///modules/ipprotection/GuardianClient.sys.mjs",
   // eslint-disable-next-line mozilla/valid-lazy
   IPPChannelFilter: "resource:///modules/ipprotection/IPPChannelFilter.sys.mjs",
+  IPPNetworkErrorObserver:
+    "resource:///modules/ipprotection/IPPNetworkErrorObserver.sys.mjs",
   getDefaultLocation:
     "resource:///modules/ipprotection/IPProtectionServerlist.sys.mjs",
   selectServer:
@@ -22,6 +24,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
     "resource://messaging-system/lib/SpecialMessageActions.sys.mjs",
   IPProtection: "resource:///modules/ipprotection/IPProtection.sys.mjs",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
+  CustomizableUI:
+    "moz-src:///browser/components/customizableui/CustomizableUI.sys.mjs",
 });
 
 import {
@@ -80,12 +84,16 @@ class IPProtectionServiceSingleton extends EventTarget {
   /**@type {import("./IPPChannelFilter.sys.mjs").IPPChannelFilter | null} */
   connection = null;
   errors = [];
+  enrolling = null;
 
   guardian = null;
   #entitlement = null;
   #pass = null;
   #inited = false;
   #usageObserver = null;
+  #networkErrorObserver = null;
+  // If this is set, we're awating a proxy pass rotation
+  #rotateProxyPassPromise = null;
 
   constructor() {
     super();
@@ -95,6 +103,7 @@ class IPProtectionServiceSingleton extends EventTarget {
     this.updateEnabled = this.#updateEnabled.bind(this);
     this.updateSignInStatus = this.#updateSignInStatus.bind(this);
     this.updateEligibility = this.#updateEligibility.bind(this);
+    this.handleProxyErrorEvent = this.#handleProxyErrorEvent.bind(this);
   }
 
   /**
@@ -132,17 +141,13 @@ class IPProtectionServiceSingleton extends EventTarget {
 
     this.#removeEligibilityListeners();
 
+    this.resetAccount();
     this.isSignedIn = null;
-    this.isEnrolled = null;
     this.isEligible = null;
-    this.isEntitled = null;
-    this.hasUpgraded = null;
-    this.hasProxyPass = null;
     this.hasError = null;
 
-    this.#entitlement = null;
-    this.#pass = null;
     this.errors = [];
+    this.enrolling = null;
 
     this.#inited = false;
   }
@@ -154,6 +159,9 @@ class IPProtectionServiceSingleton extends EventTarget {
    * True if started by user action, false if system action
    */
   async start(userAction = true) {
+    // Wait for enrollment to finish.
+    await this.enrolling;
+
     // Retry enrollment if the previous attempt failed.
     if (this.hasError && !this.isEnrolled) {
       await this.#updateEnrollment();
@@ -215,6 +223,9 @@ class IPProtectionServiceSingleton extends EventTarget {
     this.usageObserver.start();
     this.usageObserver.addIsolationKey(this.connection.isolationKey);
 
+    this.networkErrorObserver.start();
+    this.networkErrorObserver.addIsolationKey(this.connection.isolationKey);
+
     this.dispatchEvent(
       new CustomEvent("IPProtectionService:Started", {
         bubbles: true,
@@ -245,7 +256,7 @@ class IPProtectionServiceSingleton extends EventTarget {
     this.isActive = false;
 
     let deactivatedAt = ChromeUtils.now();
-    let sessionLength = this.activatedAt - deactivatedAt;
+    let sessionLength = deactivatedAt - this.activatedAt;
 
     Glean.ipprotection.toggled.record({
       userAction,
@@ -255,6 +266,7 @@ class IPProtectionServiceSingleton extends EventTarget {
 
     this.activatedAt = null;
     this.connection?.stop();
+    this.networkErrorObserver.stop();
     this.connection = null;
     this.dispatchEvent(
       new CustomEvent("IPProtectionService:Stopped", {
@@ -277,6 +289,36 @@ class IPProtectionServiceSingleton extends EventTarget {
     if (win) {
       win.gBrowser.reloadTab(win.gBrowser.selectedTab);
     }
+  }
+
+  /**
+   * Enroll the current account if it meets all the criteria.
+   *
+   * @returns {Promise<void>}
+   */
+  async maybeEnroll() {
+    if (
+      !this.isSignedIn ||
+      !this.isEligible ||
+      this.isEnrolled ||
+      this.enrolling
+    ) {
+      return null;
+    }
+    return this.#enroll();
+  }
+
+  /**
+   * Reset the statuses, entitlement and pass that are set based on a FxA account.
+   */
+  resetAccount() {
+    this.isEnrolled = null;
+    this.isEntitled = null;
+    this.hasUpgraded = null;
+    this.hasProxyPass = null;
+
+    this.#entitlement = null;
+    this.#pass = null;
   }
 
   /**
@@ -322,6 +364,10 @@ class IPProtectionServiceSingleton extends EventTarget {
   #isEligible() {
     let inExperiment = lazy.NimbusFeatures.ipProtection.getEnrollmentMetadata();
     let isEligible = inExperiment?.branch && inExperiment.branch !== "control";
+
+    if (inExperiment) {
+      lazy.NimbusFeatures.ipProtection.recordExposureEvent();
+    }
 
     if (isEligible) {
       lazy.logConsole.info("Device: Eligible");
@@ -411,10 +457,15 @@ class IPProtectionServiceSingleton extends EventTarget {
    * Adds an observer to monitor the VPN add-on installation
    */
   addVPNAddonObserver() {
+    let service = this;
     this.addonVPNListener = {
-      onInstallEnded(install, addon) {
-        if (addon.id === VPN_ADDON_ID) {
-          Services.prefs.setBoolPref(ENABLED_PREF, false);
+      onInstallEnded(_install, addon) {
+        if (addon.id === VPN_ADDON_ID && service.hasUpgraded) {
+          // Place the widget in the customization palette.
+          lazy.CustomizableUI.removeWidgetFromArea(
+            IPProtectionServiceSingleton.WIDGET_ID
+          );
+          lazy.logConsole.info("VPN Extension: Installed");
         }
       },
     };
@@ -476,7 +527,7 @@ class IPProtectionServiceSingleton extends EventTarget {
       if (this.isActive) {
         this.stop();
       }
-      this.hasUpgraded = false;
+      this.resetAccount();
       this.updateHasUpgradedStatus();
     }
   }
@@ -510,8 +561,7 @@ class IPProtectionServiceSingleton extends EventTarget {
    *
    * If no user is signed in, the enrolled pref will set to false.
    *
-   * If the user is not enrolled but meets the other conditions to use
-   * the VPN they will be enrolled now.
+   * If the user is already enrolled and is entitled to use the VPN, the widget will be shown.
    *
    * @param { boolean } onlyCached - if true only the cached clients will be checked.
    * @returns {Promise<void>}
@@ -519,37 +569,50 @@ class IPProtectionServiceSingleton extends EventTarget {
   async #updateEnrollment(onlyCached = false) {
     this.isEnrolled = await this.#isEnrolled(onlyCached);
 
-    if (this.isEnrolled) {
-      lazy.IPProtection.init();
-    } else if (
-      !this.isEnrolled &&
-      lazy.IPProtection.isInitialized &&
-      this.isEligible &&
-      this.isSignedIn
-    ) {
-      this.isEnrolled = await this.#enroll();
+    if (!this.isEnrolled) {
+      return;
     }
 
-    if (this.isEnrolled) {
-      await this.#updateEntitlement();
-    } else {
-      this.#entitlement = null;
-      this.#pass = null;
-      this.isEntitled = null;
-      this.hasUpgraded = null;
-      this.hasProxyPass = null;
+    await this.#updateEntitlement();
+    if (this.isEntitled) {
+      lazy.IPProtection.init();
     }
+  }
+
+  /**
+   * Starts a flow to get a new ProxyPass and replace the current one.
+   *
+   * @returns {Promise<void>} - Returns a promise that resolves when the rotation is complete or failed.
+   * When it's called again while a rotation is in progress, it will return the existing promise.
+   */
+  async rotateProxyPass() {
+    if (this.#rotateProxyPassPromise) {
+      return this.#rotateProxyPassPromise;
+    }
+    this.#rotateProxyPassPromise = this.#getProxyPass();
+    const pass = await this.#rotateProxyPassPromise;
+    this.#rotateProxyPassPromise = null;
+    if (!pass) {
+      return null;
+    }
+    // Inject the new token in the current connection
+    if (this.connection?.active) {
+      this.connection.replaceAuthToken(pass.asBearerToken());
+      this.usageObserver.addIsolationKey(this.connection.isolationKey);
+      this.networkErrorObserver.addIsolationKey(this.connection.isolationKey);
+    }
+    lazy.logConsole.debug("Successfully rotated token!");
+    this.#pass = pass;
+    return null;
   }
 
   /**
    * Enrolls a users FxA account to use the proxy if they are eligible and not already
    * enrolled then updates the enrollment status.
    *
-   * If they are enrolled, updates the enrollment status.
+   * If successful, updates the enrollment status and entitlement.
    *
-   * If the user is already enrolled, this will do nothing.
-   *
-   * @returns {Promise<boolean | null>}
+   * @returns {Promise<void>}
    */
   async #enroll() {
     let { isSignedIn, isEnrolled, isEligible } = this;
@@ -561,24 +624,37 @@ class IPProtectionServiceSingleton extends EventTarget {
       return null;
     }
 
-    let enrollment;
-    try {
-      enrollment = await this.guardian.enroll();
-    } catch (error) {
-      this.#dispatchError(error?.message);
+    if (this.enrolling) {
+      return this.enrolling;
     }
 
-    lazy.logConsole.debug(
-      "Guardian:",
-      enrollment?.ok ? "Enrolled" : "Enrollment Failed"
-    );
+    this.enrolling = this.guardian
+      .enroll()
+      .then(enrollment => {
+        let ok = enrollment?.ok;
 
-    if (enrollment?.ok) {
-      return true;
-    }
+        lazy.logConsole.debug(
+          "Guardian:",
+          ok ? "Enrolled" : "Enrollment Failed"
+        );
 
-    this.#dispatchError(enrollment?.error);
-    return false;
+        this.isEnrolled = !!ok;
+
+        if (!ok) {
+          this.#dispatchError(enrollment?.error || ERRORS.GENERIC);
+          return null;
+        }
+
+        return this.#updateEntitlement();
+      })
+      .catch(error => {
+        this.#dispatchError(error?.message);
+      })
+      .finally(() => {
+        this.enrolling = null;
+      });
+
+    return this.enrolling;
   }
 
   /**
@@ -646,6 +722,40 @@ class IPProtectionServiceSingleton extends EventTarget {
       this.#usageObserver = new lazy.IPProtectionUsage();
     }
     return this.#usageObserver;
+  }
+
+  get networkErrorObserver() {
+    if (!this.#networkErrorObserver) {
+      this.#networkErrorObserver = new lazy.IPPNetworkErrorObserver();
+      this.#networkErrorObserver.addEventListener(
+        "proxy-http-error",
+        this.handleProxyErrorEvent
+      );
+    }
+    return this.#networkErrorObserver;
+  }
+
+  #handleProxyErrorEvent(event) {
+    if (!this.connection?.active) {
+      return null;
+    }
+    const { isolationKey, level, httpStatus } = event.detail;
+    if (isolationKey != this.connection?.isolationKey) {
+      // This error does not concern our current connection.
+      // This could be due to an old request after a token refresh.
+      return null;
+    }
+
+    if (httpStatus !== 401) {
+      // Envoy returns a 401 if the token is rejected
+      // So for now as we only care about rotating tokens we can exit here.
+      return null;
+    }
+    if (level == "error" || this.#pass.shouldRotate()) {
+      // If this is a visible top-level error force a rotation
+      return this.rotateProxyPass();
+    }
+    return null;
   }
 
   /**

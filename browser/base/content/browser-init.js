@@ -256,7 +256,10 @@ var gBrowserInit = {
     gUIDensity.init();
     Win10TabletModeUpdater.init();
     CombinedStopReload.ensureInitialized();
-    gPrivateBrowsingUI.init();
+    // Initialize private browsing UI only if window is private
+    if (PrivateBrowsingUtils.isWindowPrivate(window)) {
+      PrivateBrowsingUI.init(window);
+    }
     TaskbarTabsChrome.init(window);
     BrowserPageActions.init();
     if (gToolbarKeyNavEnabled) {
@@ -403,7 +406,6 @@ var gBrowserInit = {
     Services.obs.addObserver(gLocaleChangeObserver, "intl:app-locales-changed");
 
     BrowserOffline.init();
-    WebAuthnPromptHelper.init();
 
     BrowserUtils.callModulesFromCategory(
       {
@@ -1144,7 +1146,6 @@ var gBrowserInit = {
       );
 
       BrowserOffline.uninit();
-      WebAuthnPromptHelper.uninit();
       PanelUI.uninit();
     }
 

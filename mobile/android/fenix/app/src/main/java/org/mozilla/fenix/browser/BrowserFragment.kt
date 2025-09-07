@@ -53,6 +53,7 @@ import org.mozilla.fenix.compose.snackbar.SnackbarState
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.isLargeWindow
 import org.mozilla.fenix.ext.nav
+import org.mozilla.fenix.ext.navigateSafe
 import org.mozilla.fenix.ext.requireComponents
 import org.mozilla.fenix.ext.runIfFragmentIsAttached
 import org.mozilla.fenix.ext.settings
@@ -62,6 +63,7 @@ import org.mozilla.fenix.settings.quicksettings.protections.cookiebanners.getCoo
 import org.mozilla.fenix.shortcut.PwaOnboardingObserver
 import org.mozilla.fenix.termsofuse.store.Surface
 import org.mozilla.fenix.theme.ThemeManager
+import mozilla.components.ui.icons.R as iconsR
 
 /**
  * Fragment used for browsing the web within the main app.
@@ -201,7 +203,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             Toolbar.ActionButton(
                 AppCompatResources.getDrawable(
                     context,
-                    R.drawable.mozac_ic_translate_24,
+                    iconsR.drawable.mozac_ic_translate_24,
                 ),
                 contentDescription = context.getString(R.string.browser_toolbar_translate),
                 iconTintColorResource = ThemeManager.resolveAttribute(R.attr.textPrimary, context),
@@ -279,6 +281,11 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 feature = TranslationsBannerIntegration(
                     browserScreenStore = browserScreenStore,
                     binding = binding,
+                    onExpand = {
+                        val directions =
+                            BrowserFragmentDirections.actionBrowserFragmentToTranslationsDialogFragment()
+                        findNavController().navigateSafe(R.id.browserFragment, directions)
+                    },
                 ),
                 owner = this,
                 view = rootView,
@@ -377,7 +384,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         homeAction = BrowserToolbar.Button(
             imageDrawable = AppCompatResources.getDrawable(
                 context,
-                R.drawable.mozac_ic_home_24,
+                iconsR.drawable.mozac_ic_home_24,
             )!!,
             contentDescription = context.getString(R.string.browser_toolbar_home),
             iconTintColorResource = ThemeManager.resolveAttribute(R.attr.textPrimary, context),
@@ -430,7 +437,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             backAction = BrowserToolbar.TwoStateButton(
                 primaryImage = AppCompatResources.getDrawable(
                     context,
-                    R.drawable.mozac_ic_back_24,
+                    iconsR.drawable.mozac_ic_back_24,
                 )!!,
                 primaryContentDescription = context.getString(R.string.browser_menu_back),
                 primaryImageTintResource = enableTint,
@@ -456,7 +463,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             forwardAction = BrowserToolbar.TwoStateButton(
                 primaryImage = AppCompatResources.getDrawable(
                     context,
-                    R.drawable.mozac_ic_forward_24,
+                    iconsR.drawable.mozac_ic_forward_24,
                 )!!,
                 primaryContentDescription = context.getString(R.string.browser_menu_forward),
                 primaryImageTintResource = enableTint,
@@ -488,7 +495,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             refreshAction = BrowserToolbar.TwoStateButton(
                 primaryImage = AppCompatResources.getDrawable(
                     context,
-                    R.drawable.mozac_ic_arrow_clockwise_24,
+                    iconsR.drawable.mozac_ic_arrow_clockwise_24,
                 )!!,
                 primaryContentDescription = context.getString(R.string.browser_menu_refresh),
                 primaryImageTintResource = enableTint,
@@ -497,7 +504,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 },
                 secondaryImage = AppCompatResources.getDrawable(
                     context,
-                    R.drawable.mozac_ic_stop,
+                    iconsR.drawable.mozac_ic_stop,
                 )!!,
                 secondaryContentDescription = context.getString(R.string.browser_menu_stop),
                 disableInSecondaryState = false,

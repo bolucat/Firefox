@@ -422,6 +422,7 @@ package org.mozilla.geckoview {
     ctor protected ContentBlocking();
     field public static final ContentBlocking.SafeBrowsingProvider GOOGLE_LEGACY_SAFE_BROWSING_PROVIDER;
     field public static final ContentBlocking.SafeBrowsingProvider GOOGLE_SAFE_BROWSING_PROVIDER;
+    field public static final ContentBlocking.SafeBrowsingProvider GOOGLE_SAFE_BROWSING_V5_PROVIDER;
   }
 
   public static class ContentBlocking.AntiTracking {
@@ -530,6 +531,7 @@ package org.mozilla.geckoview {
     method @Nullable public String getAdvisoryUrl();
     method @Nullable public Boolean getDataSharingEnabled();
     method @Nullable public String getDataSharingUrl();
+    method @Nullable public Boolean getEnabled();
     method @Nullable public String getGetHashUrl();
     method @NonNull public String[] getLists();
     method @NonNull public String getName();
@@ -548,6 +550,7 @@ package org.mozilla.geckoview {
     method @NonNull public ContentBlocking.SafeBrowsingProvider build();
     method @NonNull public ContentBlocking.SafeBrowsingProvider.Builder dataSharingEnabled(boolean);
     method @NonNull public ContentBlocking.SafeBrowsingProvider.Builder dataSharingUrl(@NonNull String);
+    method @NonNull public ContentBlocking.SafeBrowsingProvider.Builder enabled(boolean);
     method @NonNull public ContentBlocking.SafeBrowsingProvider.Builder getHashUrl(@NonNull String);
     method @NonNull public ContentBlocking.SafeBrowsingProvider.Builder lists(@NonNull String...);
     method @NonNull public ContentBlocking.SafeBrowsingProvider.Builder reportMalwareMistakeUrl(@NonNull String);
@@ -1004,6 +1007,7 @@ package org.mozilla.geckoview {
     method public boolean getGlobalPrivacyControl();
     method public boolean getGlobalPrivacyControlPrivateMode();
     method public boolean getInputAutoZoomEnabled();
+    method public boolean getIsolatedProcessEnabled();
     method public boolean getJavaScriptEnabled();
     method @NonNull public int getLargeKeepaliveFactor();
     method public boolean getLnaBlockingEnabled();
@@ -1125,6 +1129,7 @@ package org.mozilla.geckoview {
     method @NonNull public GeckoRuntimeSettings.Builder glMsaaLevel(int);
     method @NonNull public GeckoRuntimeSettings.Builder globalPrivacyControlEnabled(boolean);
     method @NonNull public GeckoRuntimeSettings.Builder inputAutoZoomEnabled(boolean);
+    method @NonNull public GeckoRuntimeSettings.Builder isolatedProcessEnabled(boolean);
     method @NonNull public GeckoRuntimeSettings.Builder javaScriptEnabled(boolean);
     method @NonNull public GeckoRuntimeSettings.Builder largeKeepaliveFactor(int);
     method @NonNull public GeckoRuntimeSettings.Builder locales(@Nullable String[]);

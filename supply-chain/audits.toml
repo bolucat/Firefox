@@ -3079,6 +3079,28 @@ who = "Makoto Kato <m_kato@ga2.so-net.ne.jp>"
 criteria = "safe-to-deploy"
 delta = "2.0.0-beta2 -> 2.0.0"
 
+[[audits.icu_casemap]]
+who = "Henri Sivonen <hsivonen@hsivonen.fi>"
+criteria = "safe-to-deploy"
+delta = "2.0.0-beta2 -> 2.0.0"
+
+[[audits.icu_casemap_data]]
+who = "Henri Sivonen <hsivonen@hsivonen.fi>"
+criteria = "safe-to-deploy"
+delta = "2.0.0-beta2 -> 2.0.0"
+
+[[audits.icu_collator]]
+who = "Henri Sivonen <hsivonen@hsivonen.fi>"
+criteria = "safe-to-deploy"
+delta = "2.0.0-beta2 -> 2.0.0"
+notes = "I authored the substantive upstream changes in this version delta."
+
+[[audits.icu_collator_data]]
+who = "Henri Sivonen <hsivonen@hsivonen.fi>"
+criteria = "safe-to-deploy"
+version = "2.0.0"
+notes = "ZeroVec family datastructures are initialized from unchecked data, so soundness depends on databake having worked properly."
+
 [[audits.icu_collections]]
 who = "Makoto Kato <m_kato@ga2.so-net.ne.jp>"
 criteria = "safe-to-deploy"
@@ -4141,11 +4163,11 @@ delta = "25.0.0 -> 26.0.0"
 who = [
     "Andy Leiserson <aleiserson@mozilla.com>",
     "Teodor Tanasoaia <ttanasoaia@mozilla.com>",
-    "Erich Gubler <erichdongubler@gmail.com>",
     "Jim Blandy <jimb@red-bean.com>",
+    "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:1301f80688cca5add83d9d12af00c9d5510a9d24"
+delta = "26.0.0 -> 26.0.0@git:c488bbe60447d28736c26c82a32cd87794b3bf1d"
 importable = false
 
 [[audits.net2]]
@@ -5949,6 +5971,11 @@ who = "Mark Hammond <mhammond@skippinet.com.au>"
 criteria = "safe-to-deploy"
 delta = "0.3.17 -> 0.3.19"
 
+[[audits.tracing-subscriber]]
+who = "Mark Hammond <mhammond@skippinet.com.au>"
+criteria = "safe-to-deploy"
+delta = "0.3.19 -> 0.3.20"
+
 [[audits.tracy-rs]]
 who = "Glenn Watson <git@intuitionlibrary.com>"
 criteria = "safe-to-deploy"
@@ -6615,11 +6642,11 @@ delta = "25.0.0 -> 26.0.0"
 who = [
     "Andy Leiserson <aleiserson@mozilla.com>",
     "Teodor Tanasoaia <ttanasoaia@mozilla.com>",
-    "Erich Gubler <erichdongubler@gmail.com>",
     "Jim Blandy <jimb@red-bean.com>",
+    "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:1301f80688cca5add83d9d12af00c9d5510a9d24"
+delta = "26.0.0 -> 26.0.0@git:c488bbe60447d28736c26c82a32cd87794b3bf1d"
 importable = false
 
 [[audits.wgpu-core-deps-apple]]
@@ -6636,11 +6663,11 @@ delta = "25.0.0 -> 26.0.0"
 who = [
     "Andy Leiserson <aleiserson@mozilla.com>",
     "Teodor Tanasoaia <ttanasoaia@mozilla.com>",
-    "Erich Gubler <erichdongubler@gmail.com>",
     "Jim Blandy <jimb@red-bean.com>",
+    "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:1301f80688cca5add83d9d12af00c9d5510a9d24"
+delta = "26.0.0 -> 26.0.0@git:c488bbe60447d28736c26c82a32cd87794b3bf1d"
 importable = false
 
 [[audits.wgpu-core-deps-windows-linux-android]]
@@ -6657,11 +6684,11 @@ delta = "25.0.0 -> 26.0.0"
 who = [
     "Andy Leiserson <aleiserson@mozilla.com>",
     "Teodor Tanasoaia <ttanasoaia@mozilla.com>",
-    "Erich Gubler <erichdongubler@gmail.com>",
     "Jim Blandy <jimb@red-bean.com>",
+    "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:1301f80688cca5add83d9d12af00c9d5510a9d24"
+delta = "26.0.0 -> 26.0.0@git:c488bbe60447d28736c26c82a32cd87794b3bf1d"
 importable = false
 
 [[audits.wgpu-hal]]
@@ -6756,11 +6783,11 @@ delta = "25.0.0 -> 26.0.0"
 who = [
     "Andy Leiserson <aleiserson@mozilla.com>",
     "Teodor Tanasoaia <ttanasoaia@mozilla.com>",
-    "Erich Gubler <erichdongubler@gmail.com>",
     "Jim Blandy <jimb@red-bean.com>",
+    "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:1301f80688cca5add83d9d12af00c9d5510a9d24"
+delta = "26.0.0 -> 26.0.0@git:c488bbe60447d28736c26c82a32cd87794b3bf1d"
 importable = false
 
 [[audits.wgpu-types]]
@@ -6850,11 +6877,11 @@ delta = "25.0.0 -> 26.0.0"
 who = [
     "Andy Leiserson <aleiserson@mozilla.com>",
     "Teodor Tanasoaia <ttanasoaia@mozilla.com>",
-    "Erich Gubler <erichdongubler@gmail.com>",
     "Jim Blandy <jimb@red-bean.com>",
+    "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:1301f80688cca5add83d9d12af00c9d5510a9d24"
+delta = "26.0.0 -> 26.0.0@git:c488bbe60447d28736c26c82a32cd87794b3bf1d"
 importable = false
 
 [[audits.whatsys]]

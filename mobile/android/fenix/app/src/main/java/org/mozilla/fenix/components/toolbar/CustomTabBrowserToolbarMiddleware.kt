@@ -69,7 +69,10 @@ import org.mozilla.fenix.customtabs.ExternalAppBrowserFragmentDirections
 import org.mozilla.fenix.ext.nav
 import org.mozilla.fenix.settings.quicksettings.protections.cookiebanners.getCookieBannerUIMode
 import org.mozilla.fenix.utils.Settings
+import mozilla.components.browser.toolbar.R as toolbarR
+import mozilla.components.feature.customtabs.R as customtabsR
 import mozilla.components.lib.state.Action as MVIAction
+import mozilla.components.ui.icons.R as iconsR
 
 private const val CUSTOM_BUTTON_CLICK_RETURN_CODE = 0
 
@@ -344,12 +347,14 @@ class CustomTabBrowserToolbarMiddleware(
                 ActionButton(
                     drawable = when (customIconBitmap) {
                         null -> AppCompatResources.getDrawable(
-                            environment.context, R.drawable.mozac_ic_cross_24,
+                            environment.context, iconsR.drawable.mozac_ic_cross_24,
                         )
 
                         else -> customIconBitmap.toDrawable(environment.context.resources)
                     },
-                    contentDescription = environment.context.getString(R.string.mozac_feature_customtabs_exit_button),
+                    contentDescription = environment.context.getString(
+                        customtabsR.string.mozac_feature_customtabs_exit_button,
+                    ),
                     onClick = CloseClicked,
                 ),
             )
@@ -362,24 +367,24 @@ class CustomTabBrowserToolbarMiddleware(
         if (customTab?.content?.url?.isContentUrl() == true) {
             add(
                 ActionButtonRes(
-                    drawableResId = R.drawable.mozac_ic_page_portrait_24,
-                    contentDescription = R.string.mozac_browser_toolbar_content_description_site_info,
+                    drawableResId = iconsR.drawable.mozac_ic_page_portrait_24,
+                    contentDescription = toolbarR.string.mozac_browser_toolbar_content_description_site_info,
                     onClick = SiteInfoClicked,
                 ),
             )
         } else if (customTab?.content?.securityInfo?.secure == true) {
             add(
                 ActionButtonRes(
-                    drawableResId = R.drawable.mozac_ic_shield_checkmark_24,
-                    contentDescription = R.string.mozac_browser_toolbar_content_description_site_info,
+                    drawableResId = iconsR.drawable.mozac_ic_shield_checkmark_24,
+                    contentDescription = toolbarR.string.mozac_browser_toolbar_content_description_site_info,
                     onClick = SiteInfoClicked,
                 ),
             )
         } else {
             add(
                 ActionButtonRes(
-                    drawableResId = R.drawable.mozac_ic_shield_slash_24,
-                    contentDescription = R.string.mozac_browser_toolbar_content_description_site_info,
+                    drawableResId = iconsR.drawable.mozac_ic_shield_slash_24,
+                    contentDescription = toolbarR.string.mozac_browser_toolbar_content_description_site_info,
                     onClick = SiteInfoClicked,
                 ),
             )
@@ -408,8 +413,8 @@ class CustomTabBrowserToolbarMiddleware(
         if (customTab?.config?.showShareMenuItem == true) {
             add(
                 ActionButtonRes(
-                    drawableResId = R.drawable.mozac_ic_share_android_24,
-                    contentDescription = R.string.mozac_feature_customtabs_share_link,
+                    drawableResId = iconsR.drawable.mozac_ic_share_android_24,
+                    contentDescription = customtabsR.string.mozac_feature_customtabs_share_link,
                     onClick = ShareClicked,
                 ),
             )
@@ -417,7 +422,7 @@ class CustomTabBrowserToolbarMiddleware(
 
         add(
             ActionButtonRes(
-                drawableResId = R.drawable.mozac_ic_ellipsis_vertical_24,
+                drawableResId = iconsR.drawable.mozac_ic_ellipsis_vertical_24,
                 contentDescription = R.string.content_description_menu,
                 onClick = MenuClicked,
             ),

@@ -407,34 +407,22 @@ static bool IsScriptEventHandler(ScriptKind kind, nsIContent* aScriptElement) {
   }
 
   const nsAString& for_str =
-      nsContentUtils::TrimWhitespace<nsCRT::IsAsciiSpace>(forAttr);
+      nsContentUtils::TrimWhitespace<nsContentUtils::IsHTMLWhitespace>(forAttr);
   if (!for_str.LowerCaseEqualsLiteral("window")) {
     return true;
   }
 
   // We found for="window", now check for event="onload".
   const nsAString& event_str =
-      nsContentUtils::TrimWhitespace<nsCRT::IsAsciiSpace>(eventAttr, false);
-  if (!StringBeginsWith(event_str, u"onload"_ns,
-                        nsCaseInsensitiveStringComparator)) {
-    // It ain't "onload.*".
-
+      nsContentUtils::TrimWhitespace<nsContentUtils::IsHTMLWhitespace>(
+          eventAttr);
+  if (!event_str.LowerCaseEqualsLiteral("onload") &&
+      !event_str.LowerCaseEqualsLiteral("onload()")) {
     return true;
   }
 
-  nsAutoString::const_iterator start, end;
-  event_str.BeginReading(start);
-  event_str.EndReading(end);
-
-  start.advance(6);  // advance past "onload"
-
-  if (start != end && *start != '(' && *start != ' ') {
-    // We got onload followed by something other than space or
-    // '('. Not good enough.
-
-    return true;
-  }
-
+  // If the `for` attribute has the value "window" and the `event` attribute is
+  // either "onload" or "onload()", then it isn't an event handler.
   return false;
 }
 
@@ -1036,6 +1024,7 @@ bool ScriptLoader::PreloadURIComparator::Equals(const PreloadInfo& aPi,
 }
 
 static bool CSPAllowsInlineScript(nsIScriptElement* aElement,
+                                  const nsAString& aSourceText,
                                   const nsAString& aNonce,
                                   Document* aDocument) {
   nsCOMPtr<nsIContentSecurityPolicy> csp =
@@ -1053,7 +1042,7 @@ static bool CSPAllowsInlineScript(nsIScriptElement* aElement,
   nsresult rv = csp->GetAllowsInline(
       nsIContentSecurityPolicy::SCRIPT_SRC_ELEM_DIRECTIVE,
       false /* aHasUnsafeHash */, aNonce, parserCreated, element,
-      nullptr /* nsICSPEventListener */, VoidString(),
+      nullptr /* nsICSPEventListener */, aSourceText,
       aElement->GetScriptLineNumber(),
       aElement->GetScriptColumnNumber().oneOriginValue(), &allowInlineScript);
   return NS_SUCCEEDED(rv) && allowInlineScript;
@@ -1114,15 +1103,17 @@ void ScriptLoader::NotifyObserversForCachedScript(
 
 already_AddRefed<ScriptLoadRequest> ScriptLoader::CreateLoadRequest(
     ScriptKind aKind, nsIURI* aURI, nsIScriptElement* aElement,
-    nsIPrincipal* aTriggeringPrincipal, CORSMode aCORSMode,
-    const nsAString& aNonce, RequestPriority aRequestPriority,
-    const SRIMetadata& aIntegrity, ReferrerPolicy aReferrerPolicy,
-    ParserMetadata aParserMetadata, ScriptLoadRequestType aRequestType) {
+    const nsAString& aScriptContent, nsIPrincipal* aTriggeringPrincipal,
+    CORSMode aCORSMode, const nsAString& aNonce,
+    RequestPriority aRequestPriority, const SRIMetadata& aIntegrity,
+    ReferrerPolicy aReferrerPolicy, ParserMetadata aParserMetadata,
+    ScriptLoadRequestType aRequestType) {
   nsIURI* referrer = mDocument->GetDocumentURIAsReferrer();
   RefPtr<ScriptFetchOptions> fetchOptions =
       new ScriptFetchOptions(aCORSMode, aNonce, aRequestPriority,
                              aParserMetadata, aTriggeringPrincipal);
-  RefPtr<ScriptLoadContext> context = new ScriptLoadContext(aElement);
+  RefPtr<ScriptLoadContext> context =
+      new ScriptLoadContext(aElement, aScriptContent);
 
   if (aKind == ScriptKind::eModule) {
     RefPtr<ModuleLoadRequest> request = mModuleLoader->CreateTopLevel(
@@ -1211,7 +1202,8 @@ void ScriptLoader::EmulateNetworkEvents(ScriptLoadRequest* aRequest) {
   }
 }
 
-bool ScriptLoader::ProcessScriptElement(nsIScriptElement* aElement) {
+bool ScriptLoader::ProcessScriptElement(nsIScriptElement* aElement,
+                                        const nsAString& aSourceText) {
   // We need a document to evaluate scripts.
   NS_ENSURE_TRUE(mDocument, false);
 
@@ -1252,7 +1244,7 @@ bool ScriptLoader::ProcessScriptElement(nsIScriptElement* aElement) {
     return ProcessExternalScript(aElement, scriptKind, scriptContent);
   }
 
-  return ProcessInlineScript(aElement, scriptKind);
+  return ProcessInlineScript(aElement, scriptKind, aSourceText);
 }
 
 static ParserMetadata GetParserMetadata(nsIScriptElement* aElement) {
@@ -1359,8 +1351,8 @@ bool ScriptLoader::ProcessExternalScript(nsIScriptElement* aElement,
     ParserMetadata parserMetadata = GetParserMetadata(aElement);
 
     request = CreateLoadRequest(
-        aScriptKind, scriptURI, aElement, principal, ourCORSMode, nonce,
-        FetchPriorityToRequestPriority(fetchPriority), sriMetadata,
+        aScriptKind, scriptURI, aElement, VoidString(), principal, ourCORSMode,
+        nonce, FetchPriorityToRequestPriority(fetchPriority), sriMetadata,
         referrerPolicy, parserMetadata, ScriptLoadRequestType::External);
     request->GetScriptLoadContext()->mIsInline = false;
     request->GetScriptLoadContext()->SetScriptMode(
@@ -1540,7 +1532,8 @@ bool ScriptLoader::ProcessExternalScript(nsIScriptElement* aElement,
 }
 
 bool ScriptLoader::ProcessInlineScript(nsIScriptElement* aElement,
-                                       ScriptKind aScriptKind) {
+                                       ScriptKind aScriptKind,
+                                       const nsAString& aSourceText) {
   // Is this document sandboxed without 'allow-scripts'?
   if (mDocument->HasScriptsBlockedBySandbox()) {
     return false;
@@ -1550,7 +1543,7 @@ bool ScriptLoader::ProcessInlineScript(nsIScriptElement* aElement,
   nsString nonce = nsContentSecurityUtils::GetIsElementNonceableNonce(*element);
 
   // Does CSP allow this inline script to run?
-  if (!CSPAllowsInlineScript(aElement, nonce, mDocument)) {
+  if (!CSPAllowsInlineScript(aElement, aSourceText, nonce, mDocument)) {
     return false;
   }
 
@@ -1593,7 +1586,7 @@ bool ScriptLoader::ProcessInlineScript(nsIScriptElement* aElement,
   // NOTE: The `nonce` as specified here is significant, because it's inherited
   // by other scripts (e.g. modules created via dynamic imports).
   RefPtr<ScriptLoadRequest> request = CreateLoadRequest(
-      aScriptKind, mDocument->GetDocumentURI(), aElement,
+      aScriptKind, mDocument->GetDocumentURI(), aElement, aSourceText,
       mDocument->NodePrincipal(), corsMode, nonce,
       FetchPriorityToRequestPriority(fetchPriority),
       SRIMetadata(),  // SRI doesn't apply
@@ -1696,9 +1689,6 @@ bool ScriptLoader::ProcessInlineScript(nsIScriptElement* aElement,
     return true;
   }
   if (aElement->GetParserCreated() == NOT_FROM_PARSER) {
-    NS_ASSERTION(
-        !nsContentUtils::IsSafeToRunScript(),
-        "A script-inserted script is inserted without an update batch?");
     RunScriptWhenSafe(request);
     return false;
   }
@@ -2589,6 +2579,32 @@ already_AddRefed<nsIScriptGlobalObject> ScriptLoader::GetScriptGlobalObject() {
   return globalObject.forget();
 }
 
+static void ApplyEagerBaselineStrategy(JS::CompileOptions* aOptions) {
+  uint32_t strategyIndex = StaticPrefs::
+      javascript_options_baselinejit_offthread_compilation_strategy();
+
+  JS::EagerBaselineOption strategy;
+  switch (strategyIndex) {
+    // Values of 2 and 3 indicate to eagerly baseline compile, but only
+    // if JitHints are available.
+    case 2:
+    case 3:
+      strategy = JS::EagerBaselineOption::JitHints;
+      break;
+    case 4:
+      strategy = JS::EagerBaselineOption::Aggressive;
+      break;
+    default:
+      // Value of 0 indicates omt baseline compilation should be disabled.
+      // Value of 1 indicates omt baseline compilation should be on demand only,
+      // so set the eager baseline strategy to None.
+      strategy = JS::EagerBaselineOption::None;
+      break;
+  }
+
+  aOptions->setEagerBaselineStrategy(strategy);
+}
+
 nsresult ScriptLoader::FillCompileOptionsForRequest(
     JSContext* aCx, ScriptLoadRequest* aRequest, JS::CompileOptions* aOptions,
     JS::MutableHandle<JSScript*> aIntroductionScript) {
@@ -2646,6 +2662,8 @@ nsresult ScriptLoader::FillCompileOptionsForRequest(
   aOptions->setDeferDebugMetadata(true);
 
   aOptions->borrowBuffer = true;
+
+  ApplyEagerBaselineStrategy(aOptions);
 
   return NS_OK;
 }
@@ -4609,13 +4627,13 @@ void ScriptLoader::PreloadURI(
   // We treat speculative <script> loads as parser-inserted, because they
   // come from a parser. This will also match how they should be treated
   // as a normal load.
-  RefPtr<ScriptLoadRequest> request =
-      CreateLoadRequest(scriptKind, aURI, nullptr, mDocument->NodePrincipal(),
-                        Element::StringToCORSMode(aCrossOrigin), aNonce,
-                        requestPriority, sriMetadata, aReferrerPolicy,
-                        aLinkPreload ? ParserMetadata::NotParserInserted
-                                     : ParserMetadata::ParserInserted,
-                        ScriptLoadRequestType::Preload);
+  RefPtr<ScriptLoadRequest> request = CreateLoadRequest(
+      scriptKind, aURI, nullptr, VoidString(), mDocument->NodePrincipal(),
+      Element::StringToCORSMode(aCrossOrigin), aNonce, requestPriority,
+      sriMetadata, aReferrerPolicy,
+      aLinkPreload ? ParserMetadata::NotParserInserted
+                   : ParserMetadata::ParserInserted,
+      ScriptLoadRequestType::Preload);
   request->GetScriptLoadContext()->mIsInline = false;
   request->GetScriptLoadContext()->mScriptFromHead = aScriptFromHead;
   request->GetScriptLoadContext()->SetScriptMode(aDefer, aAsync, aLinkPreload);

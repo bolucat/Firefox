@@ -815,8 +815,17 @@ class Settings(private val appContext: Context) : PreferencesHolder {
      * This refers to whether or not we are blocking or allowing requests that originate from
      * remote origins targeting either localhost addresses or local network addresses.
      */
-    var isLnaBlockingEnabled by booleanPreference(
-        appContext.getPreferenceKey(R.string.pref_key_enable_lna_blocking_enabled),
+    var isLnaBlockingEnabled by lazyFeatureFlagPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_enable_lna_blocking_enabled),
+        featureFlag = true,
+        default = { FxNimbus.features.lnaBlocking.value().enabled },
+    )
+
+    /**
+     * Indicates whether isolated content processes are enabled or not.
+     */
+    var isIsolatedProcessEnabled by booleanPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_enable_isolated_process),
         default = false,
     )
 
@@ -2094,7 +2103,7 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     var shouldUseComposableToolbar by lazyFeatureFlagPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_enable_composable_toolbar),
         default = { FxNimbus.features.composableToolbar.value().enabled },
-        featureFlag = FeatureFlags.composableToolbar,
+        featureFlag = true,
     )
 
     /**
@@ -2536,7 +2545,7 @@ class Settings(private val appContext: Context) : PreferencesHolder {
      */
     var useNewCrashReporterDialog by booleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_use_new_crash_reporter),
-        default = false,
+        default = Config.channel.isNightlyOrDebug,
     )
 
     /**

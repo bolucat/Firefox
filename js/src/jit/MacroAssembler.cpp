@@ -5304,6 +5304,45 @@ void MacroAssembler::randomDouble(Register rng, FloatRegister dest,
   mulDoublePtr(ImmPtr(&ScaleInv), s0Reg.scratchReg(), dest);
 }
 
+void MacroAssembler::roundFloat32(FloatRegister src, FloatRegister dest) {
+  MOZ_ASSERT(HasRoundInstruction(RoundingMode::Up));
+  MOZ_ASSERT(src != dest);
+
+  nearbyIntFloat32(RoundingMode::Up, src, dest);
+
+  ScratchFloat32Scope scratch(*this);
+  loadConstantFloat32(-0.5f, scratch);
+  addFloat32(dest, scratch);
+
+  Label done;
+  branchFloat(Assembler::DoubleLessThanOrEqualOrUnordered, scratch, src, &done);
+  {
+    loadConstantFloat32(1.0f, scratch);
+    subFloat32(scratch, dest);
+  }
+  bind(&done);
+}
+
+void MacroAssembler::roundDouble(FloatRegister src, FloatRegister dest) {
+  MOZ_ASSERT(HasRoundInstruction(RoundingMode::Up));
+  MOZ_ASSERT(src != dest);
+
+  nearbyIntDouble(RoundingMode::Up, src, dest);
+
+  ScratchDoubleScope scratch(*this);
+  loadConstantDouble(-0.5, scratch);
+  addDouble(dest, scratch);
+
+  Label done;
+  branchDouble(Assembler::DoubleLessThanOrEqualOrUnordered, scratch, src,
+               &done);
+  {
+    loadConstantDouble(1.0, scratch);
+    subDouble(scratch, dest);
+  }
+  bind(&done);
+}
+
 void MacroAssembler::sameValueDouble(FloatRegister left, FloatRegister right,
                                      FloatRegister temp, Register dest) {
   Label nonEqual, isSameValue, isNotSameValue;
@@ -5383,9 +5422,11 @@ void MacroAssembler::minMaxArrayInt32(Register array, Register result,
   fallibleUnboxInt32(Address(elements, 0), temp3, fail);
 
   // Update result if necessary.
-  Assembler::Condition cond =
-      isMax ? Assembler::GreaterThan : Assembler::LessThan;
-  cmp32Move32(cond, temp3, result, temp3, result);
+  if (isMax) {
+    max32(result, temp3, result);
+  } else {
+    min32(result, temp3, result);
+  }
 
   jump(&loop);
   bind(&done);

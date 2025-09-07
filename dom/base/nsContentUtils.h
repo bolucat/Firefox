@@ -470,7 +470,7 @@ class nsContentUtils {
    * Retarget an object A against an object B
    * @see https://dom.spec.whatwg.org/#retarget
    */
-  static nsINode* Retarget(nsINode* aTargetA, nsINode* aTargetB);
+  static nsINode* Retarget(nsINode* aTargetA, const nsINode* aTargetB);
 
   /**
    * @see https://wicg.github.io/element-timing/#get-an-element
@@ -2056,9 +2056,13 @@ class nsContentUtils {
    * @param aValue   Value to set contents to.
    * @param aTryReuse When true, the function will try to reuse an existing
    *                  textnodes rather than always creating a new one.
+   * @param aMutationEffectOnScript Whether to preserve trustworthiness of
+   *        script elements.
    */
   MOZ_CAN_RUN_SCRIPT_BOUNDARY static nsresult SetNodeTextContent(
-      nsIContent* aContent, const nsAString& aValue, bool aTryReuse);
+      nsIContent* aContent, const nsAString& aValue, bool aTryReuse,
+      MutationEffectOnScript aMutationEffectOnScript =
+          MutationEffectOnScript::DropTrustWorthiness);
 
   /**
    * Get the textual contents of a node. This is a concatenation of all

@@ -221,7 +221,7 @@ bool nsIContent::HasIndependentSelection() const {
   return (frame && frame->HasAnyStateBits(NS_FRAME_INDEPENDENT_SELECTION));
 }
 
-dom::Element* nsIContent::GetEditingHost() {
+dom::Element* nsIContent::GetEditingHost() const {
   // If this isn't editable, return nullptr.
   if (!IsEditable()) {
     return nullptr;
@@ -245,8 +245,9 @@ dom::Element* nsIContent::GetEditingHost() {
        parent = editableParentElement->GetParentElement()) {
     editableParentElement = parent;
   }
-  return editableParentElement ? editableParentElement
-                               : dom::Element::FromNode(this);
+  return editableParentElement
+             ? editableParentElement
+             : dom::Element::FromNode(const_cast<nsIContent*>(this));
 }
 
 nsresult nsIContent::LookupNamespaceURIInternal(
@@ -1166,9 +1167,9 @@ void FragmentOrElement::GetTextContentInternal(nsAString& aTextContent,
   }
 }
 
-void FragmentOrElement::SetTextContentInternal(const nsAString& aTextContent,
-                                               nsIPrincipal* aSubjectPrincipal,
-                                               ErrorResult& aError) {
+void FragmentOrElement::SetTextContentInternal(
+    const nsAString& aTextContent, nsIPrincipal* aSubjectPrincipal,
+    ErrorResult& aError, MutationEffectOnScript aMutationEffectOnScript) {
   bool tryReuse = false;
   if (!aTextContent.IsEmpty()) {
     if (nsIContent* firstChild = GetFirstChild()) {
@@ -1185,7 +1186,8 @@ void FragmentOrElement::SetTextContentInternal(const nsAString& aTextContent,
     }
   }
 
-  aError = nsContentUtils::SetNodeTextContent(this, aTextContent, tryReuse);
+  aError = nsContentUtils::SetNodeTextContent(this, aTextContent, tryReuse,
+                                              aMutationEffectOnScript);
 }
 
 void FragmentOrElement::DestroyContent() {

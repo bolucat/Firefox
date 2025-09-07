@@ -24,6 +24,8 @@ import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import java.util.concurrent.TimeUnit
+import mozilla.components.browser.toolbar.R as toolbarR
+import mozilla.components.feature.tabs.R as tabsR
 
 private const val INITIAL_WAIT_SECONDS = 5L
 private const val WAIT_FOR_WEB_CONTENT_SECONDS = 15L
@@ -94,7 +96,7 @@ private fun waitForIdle() {
 }
 
 private fun navigateToTabsTray() {
-    onView(withContentDescription(mozilla.components.feature.tabs.R.string.mozac_feature_tabs_toolbar_tabs_button))
+    onView(withContentDescription(tabsR.string.mozac_feature_tabs_toolbar_tabs_button))
         .perform(click())
 }
 
@@ -104,15 +106,15 @@ private fun openNewTabInTabsTray() {
 }
 
 private fun enterUrl(url: String) {
-    onView(withId(mozilla.components.browser.toolbar.R.id.mozac_browser_toolbar_url_view))
+    onView(withId(toolbarR.id.mozac_browser_toolbar_url_view))
         .perform(click())
 
-    onView(withId(mozilla.components.browser.toolbar.R.id.mozac_browser_toolbar_edit_url_view))
+    onView(withId(toolbarR.id.mozac_browser_toolbar_edit_url_view))
         .perform(replaceText(url), pressImeActionButton())
 }
 
 private fun verifyUrlInToolbar(url: String) {
-    onView(withId(mozilla.components.browser.toolbar.R.id.mozac_browser_toolbar_url_view))
+    onView(withId(toolbarR.id.mozac_browser_toolbar_url_view))
         .check(matches(withText(url)))
 }
 

@@ -4657,10 +4657,7 @@ AMRemoteSettings = {
    *   the settings groups defined here.
    */
   RS_ENTRIES_MAP: {
-    installTriggerDeprecation: [
-      "extensions.InstallTriggerImpl.enabled",
-      "extensions.InstallTrigger.enabled",
-    ],
+    installTriggerDeprecation: ["extensions.InstallTrigger.enabled"],
     quarantinedDomains: ["extensions.quarantinedDomains.list"],
   },
 
@@ -5134,8 +5131,9 @@ AMTelemetry = {
     });
     Glean.addonsManager.installStats.record(
       this.formatExtraVars({
-        addon_id: extra.addon_id,
+        addon_id: addonId,
         addon_type: object,
+        hashed_addon_id: install.hashedAddonId,
         taar_based: extra.taar_based,
         utm_campaign: extra.utm_campaign,
         utm_content: extra.utm_content,

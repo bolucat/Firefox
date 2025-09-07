@@ -150,25 +150,36 @@ async function closePanel(win = window) {
  * Given it refuses the proxy connection, it will be removed from as proxy-info of the channel.
  *
  * @param {*} testFn
+ * @param {Function<Promise<void>>} handler - A custom path handler for "/" requests.
  */
-async function withProxyServer(testFn) {
+async function withProxyServer(testFn, handler) {
   const server = new HttpServer();
-
   let { promise, resolve } = Promise.withResolvers();
 
   server.registerPathHandler("/", (request, response) => {
+    console.log("Received request:", request.method, request.path);
+    if (handler) {
+      handler(request, response);
+      resolve();
+      return;
+    }
     if (request.host !== "example.com") {
       throw HTTP_403;
     }
-    console.log("Received request:", request.method, request.path);
+
     response.setStatusLine(request.httpVersion, 200, "OK");
     response.setHeader("Content-Type", "text/plain");
     response.write("hello world");
     resolve();
   });
 
-  server.registerPathHandler("CONNECT", (request, _response) => {
+  server.registerPathHandler("CONNECT", (request, response) => {
     console.log("Received request:", request.method, request.path);
+    if (handler) {
+      handler(request, response);
+      resolve();
+      return;
+    }
     let hostHeader = request.getHeader("host");
     Assert.equal(
       hostHeader,
@@ -293,21 +304,21 @@ function setupService(
   }
 
   if (typeof isEnrolled != "undefined") {
-    stubs.isLinkedToGuardian.returns(isEnrolled);
+    stubs.isLinkedToGuardian.resolves(isEnrolled);
   }
 
   if (typeof canEnroll != "undefined") {
-    stubs.enroll.returns({
+    stubs.enroll.resolves({
       ok: canEnroll,
     });
   }
 
   if (typeof entitlement != "undefined") {
-    stubs.fetchUserInfo.returns(entitlement);
+    stubs.fetchUserInfo.resolves(entitlement);
   }
 
   if (typeof proxyPass != "undefined") {
-    stubs.fetchProxyPass.returns(proxyPass);
+    stubs.fetchProxyPass.resolves(proxyPass);
   }
 }
 /* exported setupService */

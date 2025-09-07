@@ -60,6 +60,14 @@ class DefaultAppIconRepository(
                 AppIcon.AppGradientMidnight,
                 AppIcon.AppGradientNorthernLights,
             ),
+            IconGroupTitle(R.string.alternative_app_icon_group_other) to listOf(
+                AppIcon.AppRetro2004,
+                AppIcon.AppPixelated,
+                AppIcon.AppPride,
+                AppIcon.AppMinimal,
+                AppIcon.AppMomo,
+                AppIcon.AppCool,
+            ),
         )
 
     @VisibleForTesting

@@ -48,7 +48,7 @@
       return element;
     }
     if (isTabGroupLabel(element)) {
-      return element.closest(".tab-group-label-container");
+      return element.group.labelContainerElement;
     }
     throw new Error(`Element "${element.tagName}" is not expected to move`);
   };
@@ -1810,11 +1810,14 @@
       // remove arrowScrollbox periphery element.
       unpinnedChildren.pop();
 
-      // explode tab groups
+      // explode tab groups and split view wrappers
       // Iterate backwards over the array to preserve indices while we modify
       // things in place
       for (let i = unpinnedChildren.length - 1; i >= 0; i--) {
-        if (unpinnedChildren[i].tagName == "tab-group") {
+        if (
+          unpinnedChildren[i].tagName == "tab-group" ||
+          unpinnedChildren[i].tagName == "tab-split-view-wrapper"
+        ) {
           unpinnedChildren.splice(i, 1, ...unpinnedChildren[i].tabs);
         }
       }
@@ -2164,7 +2167,7 @@
      */
     #ensureTabIsVisible(tab, shouldScrollInstantly = false) {
       let arrowScrollbox = tab.closest("arrowscrollbox");
-      if (arrowScrollbox.overflowing) {
+      if (arrowScrollbox?.overflowing) {
         arrowScrollbox.ensureElementIsVisible(tab, shouldScrollInstantly);
       }
     }
@@ -2354,7 +2357,9 @@
         }
         // Prevent flex rules from resizing non dragged tabs while the dragged
         // tabs are positioned absolutely
-        t.style.maxWidth = tabRect.width + "px";
+        if (!this.expandOnHover) {
+          t.style.maxWidth = tabRect.width + "px";
+        }
         // Prevent non-moving tab strip items from performing any animations
         // at the very beginning of the drag operation; this prevents them
         // from appearing to move while the dragged tabs are positioned absolutely
@@ -2521,6 +2526,25 @@
             setGridElPosition(t);
           }
         }
+      }
+
+      if (this.expandOnHover) {
+        // Query the expanded width from sidebar launcher to ensure tabs aren't
+        // cut off (Bug 1974037).
+        const { SidebarController } = tab.ownerGlobal;
+        SidebarController.expandOnHoverComplete.then(async () => {
+          const width = await window.promiseDocumentFlushed(
+            () => SidebarController.sidebarMain.clientWidth
+          );
+          requestAnimationFrame(() => {
+            for (const t of movingTabs) {
+              t.style.width = width + "px";
+            }
+            // Allow scrollboxes to grow to expanded sidebar width.
+            this.arrowScrollbox.scrollbox.style.width = "";
+            this.pinnedTabsContainer.scrollbox.style.width = "";
+          });
+        });
       }
 
       // Handle the new tab button filling the space when the dragged tab

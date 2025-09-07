@@ -51,7 +51,7 @@ body {
   }
 
   &:not([chromehidden~="toolbar"]) {
-    min-width: 450px;
+    min-width: 500px;
     min-height: 120px;
 
     /* stylelint-disable-next-line media-query-no-invalid */
@@ -333,8 +333,7 @@ body {
 
   /* stylelint-disable-next-line media-query-no-invalid */
   @media -moz-pref("sidebar.verticalTabs") {
-    &[type="pre-tabs"],
-    &[type="post-tabs"] {
+    :root:not([taskbartab]) &:is([type="pre-tabs"], [type="post-tabs"]) {
       display: none;
     }
   }
@@ -452,6 +451,10 @@ body {
 
   /* stylelint-disable-next-line media-query-no-invalid */
   @media not -moz-pref("sidebar.verticalTabs") {
+    display: none;
+  }
+
+  :root[taskbartab] & {
     display: none;
   }
 }

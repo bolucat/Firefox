@@ -5,11 +5,18 @@
 package org.mozilla.fenix.onboarding.redesign.view
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.BoxWithConstraintsScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PageSize
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
@@ -27,13 +34,15 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import mozilla.components.compose.base.annotation.FlexibleWindowLightDarkPreview
 import mozilla.components.lib.state.ext.observeAsComposableState
 import mozilla.components.support.base.log.logger.Logger
 import org.mozilla.fenix.R
@@ -47,13 +56,10 @@ import org.mozilla.fenix.onboarding.WidgetPinnedReceiver.WidgetPinnedState
 import org.mozilla.fenix.onboarding.store.OnboardingAction.OnboardingToolbarAction
 import org.mozilla.fenix.onboarding.store.OnboardingStore
 import org.mozilla.fenix.onboarding.view.Caption
-import org.mozilla.fenix.onboarding.view.MarketingDataOnboardingPage
-import org.mozilla.fenix.onboarding.view.OnboardingPage
 import org.mozilla.fenix.onboarding.view.OnboardingPageState
 import org.mozilla.fenix.onboarding.view.OnboardingPageUiData
+import org.mozilla.fenix.onboarding.view.OnboardingTermsOfService
 import org.mozilla.fenix.onboarding.view.OnboardingTermsOfServiceEventHandler
-import org.mozilla.fenix.onboarding.view.TermsOfServiceOnboardingPage
-import org.mozilla.fenix.onboarding.view.ToolbarOnboardingPage
 import org.mozilla.fenix.onboarding.view.ToolbarOption
 import org.mozilla.fenix.onboarding.view.ToolbarOptionType
 import org.mozilla.fenix.onboarding.view.mapToOnboardingPageState
@@ -78,7 +84,6 @@ private val logger: Logger = Logger("OnboardingScreenRedesign")
  * @param onMarketingOptInToggle callback for when the user toggles the opt-in checkbox
  * @param onMarketingDataContinueClick callback for when the user clicks the continue button on the
  * marketing data opt out screen.
- * on the marketing data opt out screen.
  * @param onFinish Invoked when the onboarding is completed.
  * @param onImpression Invoked when a page in the pager is displayed.
  * @param currentIndex callback for when the current horizontal pager page changes
@@ -257,52 +262,74 @@ private fun OnboardingContent(
 ) {
     val nestedScrollConnection = remember { DisableForwardSwipeNestedScrollConnection(pagerState) }
 
-    Column(
-        modifier = Modifier
-            .background(FirefoxTheme.colors.layer1)
-            .statusBarsPadding(),
-    ) {
-        HorizontalPager(
-            state = pagerState,
-            key = { pagesToDisplay[it].type },
-            modifier = Modifier
-                .weight(1f)
-                .nestedScroll(nestedScrollConnection),
-        ) { pageIndex ->
-            // protect against a rare case where the user goes to the marketing screen at the same
-            // moment it gets removed by [MarketingPageRemovalSupport]
-            val pageUiState = pagesToDisplay.getOrElse(pageIndex) { pagesToDisplay[it.dec()] }
-            val onboardingPageState = mapToOnboardingPageState(
-                onboardingPageUiData = pageUiState,
-                onMakeFirefoxDefaultClick = onMakeFirefoxDefaultClick,
-                onMakeFirefoxDefaultSkipClick = onMakeFirefoxDefaultSkipClick,
-                onSignInButtonClick = onSignInButtonClick,
-                onSignInSkipClick = onSignInSkipClick,
-                onAddFirefoxWidgetClick = onAddFirefoxWidgetClick,
-                onAddFirefoxWidgetSkipClick = onSkipFirefoxWidgetClick,
-                onCustomizeToolbarButtonClick = onCustomizeToolbarButtonClick,
-                onTermsOfServiceButtonClick = onAgreeAndConfirmTermsOfService,
-            )
-            OnboardingPageForType(
-                type = pageUiState.type,
-                state = onboardingPageState,
-                onboardingStore = onboardingStore,
-                termsOfServiceEventHandler = termsOfServiceEventHandler,
-                onMarketingDataLearnMoreClick = onMarketingDataLearnMoreClick,
-                onMarketingOptInToggle = onMarketingOptInToggle,
-                onMarketingDataContinueClick = onMarketingDataContinueClick,
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val boxWithConstraintsScope = this
+
+        val pagerWidth = pageContentWidth(boxWithConstraintsScope)
+        val pagerHeight = pageContentHeight(boxWithConstraintsScope)
+
+        val pagePeekWidth = ((maxWidth - pagerWidth) / 2).coerceAtLeast(8.dp)
+
+        // Background 'gradient' image.
+        Image(
+            painter = painterResource(R.drawable.onboarding_redesign_background),
+            contentDescription = null, // Decorative image only.
+            contentScale = ContentScale.FillWidth,
+        )
+
+        Column {
+            Spacer(Modifier.weight(1f))
+
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(pagerHeight)
+                    .nestedScroll(nestedScrollConnection),
+                contentPadding = PaddingValues(horizontal = pagePeekWidth),
+                pageSize = PageSize.Fixed(pagerWidth),
+                beyondViewportPageCount = 2,
+                pageSpacing = 8.dp,
+                key = { pagesToDisplay[it].type },
+            ) { pageIndex ->
+                // protect against a rare case where the user goes to the marketing screen at the same
+                // moment it gets removed by [MarketingPageRemovalSupport]
+                val pageUiState = pagesToDisplay.getOrElse(pageIndex) { pagesToDisplay[it.dec()] }
+                val onboardingPageState = mapToOnboardingPageState(
+                    onboardingPageUiData = pageUiState,
+                    onMakeFirefoxDefaultClick = onMakeFirefoxDefaultClick,
+                    onMakeFirefoxDefaultSkipClick = onMakeFirefoxDefaultSkipClick,
+                    onSignInButtonClick = onSignInButtonClick,
+                    onSignInSkipClick = onSignInSkipClick,
+                    onAddFirefoxWidgetClick = onAddFirefoxWidgetClick,
+                    onAddFirefoxWidgetSkipClick = onSkipFirefoxWidgetClick,
+                    onCustomizeToolbarButtonClick = onCustomizeToolbarButtonClick,
+                    onTermsOfServiceButtonClick = onAgreeAndConfirmTermsOfService,
+                )
+
+                OnboardingPageForType(
+                    type = pageUiState.type,
+                    state = onboardingPageState,
+                    onboardingStore = onboardingStore,
+                    termsOfServiceEventHandler = termsOfServiceEventHandler,
+                    onMarketingDataLearnMoreClick = onMarketingDataLearnMoreClick,
+                    onMarketingOptInToggle = onMarketingOptInToggle,
+                    onMarketingDataContinueClick = onMarketingDataContinueClick,
+                )
+            }
+
+            Spacer(Modifier.weight(1f))
+
+            PagerIndicator(
+                pagerState = pagerState,
+                activeColor = FirefoxTheme.colors.actionPrimary,
+                inactiveColor = FirefoxTheme.colors.actionSecondary,
+                leaveTrail = true,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(bottom = 16.dp),
             )
         }
-
-        PagerIndicator(
-            pagerState = pagerState,
-            activeColor = FirefoxTheme.colors.actionPrimary,
-            inactiveColor = FirefoxTheme.colors.actionSecondary,
-            leaveTrail = true,
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .padding(bottom = 16.dp),
-        )
     }
 }
 
@@ -320,12 +347,12 @@ private fun OnboardingPageForType(
         OnboardingPageUiData.Type.DEFAULT_BROWSER,
         OnboardingPageUiData.Type.SYNC_SIGN_IN,
         OnboardingPageUiData.Type.ADD_SEARCH_WIDGET,
-        -> OnboardingPage(state)
+        -> OnboardingPageRedesign(state)
 
         OnboardingPageUiData.Type.TOOLBAR_PLACEMENT -> {
             val context = LocalContext.current
             onboardingStore?.let { store ->
-                ToolbarOnboardingPage(
+                ToolbarOnboardingPageRedesign(
                     onboardingStore = store,
                     pageState = state,
                     onToolbarSelectionClicked = {
@@ -341,14 +368,14 @@ private fun OnboardingPageForType(
             }
         }
 
-        OnboardingPageUiData.Type.MARKETING_DATA -> MarketingDataOnboardingPage(
+        OnboardingPageUiData.Type.MARKETING_DATA -> MarketingDataOnboardingPageRedesign(
             state = state,
             onMarketingDataLearnMoreClick = onMarketingDataLearnMoreClick,
             onMarketingOptInToggle = onMarketingOptInToggle,
             onMarketingDataContinueClick = onMarketingDataContinueClick,
         )
 
-        OnboardingPageUiData.Type.TERMS_OF_SERVICE -> TermsOfServiceOnboardingPage(
+        OnboardingPageUiData.Type.TERMS_OF_SERVICE -> TermsOfServiceOnboardingPageRedesign(
             state,
             termsOfServiceEventHandler,
         )
@@ -361,6 +388,21 @@ private fun OnboardingPageForType(
         }
     }
 }
+
+private object PageContentLayout {
+    val MIN_HEIGHT_DP = 600.dp
+    val MIN_WIDTH_DP = 360.dp
+    const val HEIGHT_RATIO = 0.7f
+    const val WIDTH_RATIO = 0.85f
+}
+
+private fun pageContentHeight(scope: BoxWithConstraintsScope) =
+    scope.maxHeight.times(PageContentLayout.HEIGHT_RATIO)
+        .coerceAtLeast(PageContentLayout.MIN_HEIGHT_DP)
+
+private fun pageContentWidth(scope: BoxWithConstraintsScope) =
+    scope.maxWidth.times(PageContentLayout.WIDTH_RATIO)
+        .coerceAtLeast(PageContentLayout.MIN_WIDTH_DP)
 
 private class DisableForwardSwipeNestedScrollConnection(
     private val pagerState: PagerState,
@@ -383,7 +425,9 @@ private class DisableForwardSwipeNestedScrollConnection(
         }
 }
 
-@PreviewLightDark
+// *** Code below used for previews only *** //
+
+@FlexibleWindowLightDarkPreview
 @Composable
 private fun OnboardingScreenPreview() {
     val pageCount = defaultPreviewPages().size
@@ -411,55 +455,89 @@ private fun OnboardingScreenPreview() {
 
 @Composable
 private fun defaultPreviewPages() = listOf(
-    OnboardingPageUiData(
-        type = OnboardingPageUiData.Type.DEFAULT_BROWSER,
-        imageRes = R.drawable.ic_onboarding_welcome,
-        title = stringResource(R.string.juno_onboarding_default_browser_title_nimbus_2),
-        description = stringResource(R.string.juno_onboarding_default_browser_description_nimbus_3),
-        primaryButtonLabel = stringResource(R.string.juno_onboarding_default_browser_positive_button),
-        secondaryButtonLabel = stringResource(R.string.juno_onboarding_default_browser_negative_button),
-        privacyCaption = Caption(
+    touPageUIData(),
+    defaultBrowserPageUiData(),
+    syncPageUiData(),
+    toolbarPlacementPageUiData(),
+)
+
+@Composable
+private fun touPageUIData() = OnboardingPageUiData(
+    type = OnboardingPageUiData.Type.TERMS_OF_SERVICE,
+    title = stringResource(id = R.string.onboarding_redesign_tou_title),
+    description = "",
+    termsOfService = OnboardingTermsOfService(
+        subheaderOneText = stringResource(id = R.string.onboarding_redesign_tou_subheader_one),
+        subheaderTwoText = stringResource(id = R.string.onboarding_redesign_tou_subheader_two),
+        subheaderThreeText = stringResource(id = R.string.onboarding_redesign_tou_subheader_three),
+        lineOneText = stringResource(id = R.string.onboarding_redesign_tou_body_one),
+        lineOneLinkText = stringResource(id = R.string.onboarding_redesign_tou_body_one_link_text),
+        lineOneLinkUrl = "URL",
+        lineTwoText = stringResource(id = R.string.onboarding_redesign_tou_body_two),
+        lineTwoLinkText = stringResource(id = R.string.onboarding_redesign_tou_body_two_link_text),
+        lineTwoLinkUrl = "URL",
+        lineThreeText = stringResource(id = R.string.onboarding_redesign_tou_body_three),
+        lineThreeLinkText = stringResource(id = R.string.onboarding_redesign_tou_body_three_link_text),
+    ),
+    imageRes = R.drawable.ic_firefox,
+    primaryButtonLabel = stringResource(
+        id = R.string.onboarding_redesign_tou_agree_and_continue_button_label,
+    ),
+)
+
+@Composable
+private fun defaultBrowserPageUiData() = OnboardingPageUiData(
+    type = OnboardingPageUiData.Type.DEFAULT_BROWSER,
+    imageRes = R.drawable.ic_onboarding_welcome,
+    title = stringResource(R.string.juno_onboarding_default_browser_title_nimbus_2),
+    description = stringResource(R.string.juno_onboarding_default_browser_description_nimbus_3),
+    primaryButtonLabel = stringResource(R.string.juno_onboarding_default_browser_positive_button),
+    secondaryButtonLabel = stringResource(R.string.juno_onboarding_default_browser_negative_button),
+    privacyCaption = Caption(
+        text = stringResource(R.string.juno_onboarding_privacy_notice_text),
+        linkTextState = LinkTextState(
             text = stringResource(R.string.juno_onboarding_privacy_notice_text),
-            linkTextState = LinkTextState(
-                text = stringResource(R.string.juno_onboarding_privacy_notice_text),
-                url = "",
-                onClick = {},
-            ),
+            url = "",
+            onClick = {},
         ),
     ),
-    OnboardingPageUiData(
-        type = OnboardingPageUiData.Type.SYNC_SIGN_IN,
-        imageRes = R.drawable.ic_onboarding_sync,
-        title = stringResource(R.string.juno_onboarding_sign_in_title_2),
-        description = stringResource(R.string.juno_onboarding_sign_in_description_3),
-        primaryButtonLabel = stringResource(R.string.juno_onboarding_sign_in_positive_button),
-        secondaryButtonLabel = stringResource(R.string.juno_onboarding_sign_in_negative_button),
-        privacyCaption = Caption(
+)
+
+@Composable
+private fun syncPageUiData() = OnboardingPageUiData(
+    type = OnboardingPageUiData.Type.SYNC_SIGN_IN,
+    imageRes = R.drawable.ic_onboarding_sync,
+    title = stringResource(R.string.juno_onboarding_sign_in_title_2),
+    description = stringResource(R.string.juno_onboarding_sign_in_description_3),
+    primaryButtonLabel = stringResource(R.string.juno_onboarding_sign_in_positive_button),
+    secondaryButtonLabel = stringResource(R.string.juno_onboarding_sign_in_negative_button),
+    privacyCaption = Caption(
+        text = stringResource(R.string.juno_onboarding_privacy_notice_text),
+        linkTextState = LinkTextState(
             text = stringResource(R.string.juno_onboarding_privacy_notice_text),
-            linkTextState = LinkTextState(
-                text = stringResource(R.string.juno_onboarding_privacy_notice_text),
-                url = "",
-                onClick = {},
-            ),
+            url = "",
+            onClick = {},
         ),
     ),
-    OnboardingPageUiData(
-        type = OnboardingPageUiData.Type.TOOLBAR_PLACEMENT,
-        imageRes = R.drawable.ic_onboarding_customize_toolbar,
-        title = stringResource(R.string.onboarding_customize_toolbar_title),
-        description = stringResource(R.string.onboarding_customize_toolbar_description),
-        primaryButtonLabel = stringResource(R.string.onboarding_save_and_start_button),
-        toolbarOptions = listOf(
-            ToolbarOption(
-                toolbarType = ToolbarOptionType.TOOLBAR_TOP,
-                imageRes = R.drawable.ic_onboarding_top_toolbar,
-                label = stringResource(R.string.onboarding_customize_toolbar_top_option),
-            ),
-            ToolbarOption(
-                toolbarType = ToolbarOptionType.TOOLBAR_BOTTOM,
-                imageRes = R.drawable.ic_onboarding_bottom_toolbar,
-                label = stringResource(R.string.onboarding_customize_toolbar_bottom_option),
-            ),
+)
+
+@Composable
+private fun toolbarPlacementPageUiData() = OnboardingPageUiData(
+    type = OnboardingPageUiData.Type.TOOLBAR_PLACEMENT,
+    imageRes = R.drawable.ic_onboarding_customize_toolbar,
+    title = stringResource(R.string.onboarding_customize_toolbar_title),
+    description = stringResource(R.string.onboarding_customize_toolbar_description),
+    primaryButtonLabel = stringResource(R.string.onboarding_save_and_start_button),
+    toolbarOptions = listOf(
+        ToolbarOption(
+            toolbarType = ToolbarOptionType.TOOLBAR_TOP,
+            imageRes = R.drawable.ic_onboarding_top_toolbar,
+            label = stringResource(R.string.onboarding_customize_toolbar_top_option),
+        ),
+        ToolbarOption(
+            toolbarType = ToolbarOptionType.TOOLBAR_BOTTOM,
+            imageRes = R.drawable.ic_onboarding_bottom_toolbar,
+            label = stringResource(R.string.onboarding_customize_toolbar_bottom_option),
         ),
     ),
 )

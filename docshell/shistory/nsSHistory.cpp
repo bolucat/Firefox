@@ -1471,15 +1471,17 @@ static bool MaybeCheckUnloadingIsCanceled(
   // This is a bit fishy since we don't have a direct way of performing
   // the step, but this does its best.
   RefPtr<nsDocShellLoadState> loadState =
-      needsBeforeUnload ? found->mLoadState : aLoadResults[0].mLoadState;
+      needsBeforeUnload ? found->mLoadState : nullptr;
   RefPtr<CanonicalBrowsingContext> browsingContext = aTraversable->Canonical();
   MOZ_DIAGNOSTIC_ASSERT(!needsBeforeUnload ||
                         found->mBrowsingContext == browsingContext);
 
-  nsCOMPtr<SessionHistoryEntry> targetEntry =
-      do_QueryInterface(loadState->SHEntry());
   nsCOMPtr<SessionHistoryEntry> currentEntry =
       browsingContext->GetActiveSessionHistoryEntry();
+  // If we didn't find a load state, it means that traversable stays at the
+  // current entry.
+  nsCOMPtr<SessionHistoryEntry> targetEntry =
+      loadState ? do_QueryInterface(loadState->SHEntry()) : currentEntry;
 
   // Step 4.3
   if (!currentEntry || currentEntry->GetID() == targetEntry->GetID()) {
@@ -1515,9 +1517,16 @@ static bool MaybeCheckUnloadingIsCanceled(
   // Step 4.3.4
   // PermitUnloadTraversable only includes the process of the top level browsing
   // context.
+
+  // If we don't have any unload handlers registered, we still need to run
+  // navigate event handlers, but we don't need to show the prompt.
+  nsIDocumentViewer::PermitUnloadAction action =
+      windowGlobalParent->NeedsBeforeUnload()
+          ? nsIDocumentViewer::PermitUnloadAction::ePrompt
+          : nsIDocumentViewer::PermitUnloadAction::eDontPromptAndUnload;
   windowGlobalParent->PermitUnloadTraversable(
-      targetEntry->Info(),
-      [loadResults = CopyableTArray(std::move(aLoadResults)),
+      targetEntry->Info(), action,
+      [action, loadResults = CopyableTArray(std::move(aLoadResults)),
        windowGlobalParent, aResolver](bool aAllow) mutable {
         if (!aAllow) {
           aResolver(loadResults, aAllow);
@@ -1527,6 +1536,7 @@ static bool MaybeCheckUnloadingIsCanceled(
         // PermitUnloadTraversable includes everything except the process of the
         // top level browsing context.
         windowGlobalParent->PermitUnloadChildNavigables(
+            action,
             [loadResults = std::move(loadResults), aResolver](
                 bool aAllow) mutable { aResolver(loadResults, aAllow); });
       });

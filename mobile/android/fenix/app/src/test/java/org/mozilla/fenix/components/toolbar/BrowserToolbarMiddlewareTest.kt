@@ -161,7 +161,9 @@ import org.mozilla.fenix.tabstray.Page
 import org.mozilla.fenix.utils.Settings
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import mozilla.components.browser.toolbar.R as toolbarR
 import mozilla.components.ui.icons.R as iconsR
+import mozilla.components.ui.tabcounter.R as tabcounterR
 
 @RunWith(AndroidJUnit4::class)
 class BrowserToolbarMiddlewareTest {
@@ -1975,8 +1977,8 @@ class BrowserToolbarMiddlewareTest {
         )
         every { tab.content.url } returns "content://test"
         val expectedSecurityIndicator = ActionButtonRes(
-            drawableResId = R.drawable.mozac_ic_page_portrait_24,
-            contentDescription = R.string.mozac_browser_toolbar_content_description_site_info,
+            drawableResId = iconsR.drawable.mozac_ic_page_portrait_24,
+            contentDescription = toolbarR.string.mozac_browser_toolbar_content_description_site_info,
             onClick = StartPageActions.SiteInfoClicked,
         )
 
@@ -2002,8 +2004,8 @@ class BrowserToolbarMiddlewareTest {
         )
         every { tab.content.securityInfo.secure } returns true
         val expectedSecurityIndicator = ActionButtonRes(
-            drawableResId = R.drawable.mozac_ic_shield_checkmark_24,
-            contentDescription = R.string.mozac_browser_toolbar_content_description_site_info,
+            drawableResId = iconsR.drawable.mozac_ic_shield_checkmark_24,
+            contentDescription = toolbarR.string.mozac_browser_toolbar_content_description_site_info,
             onClick = StartPageActions.SiteInfoClicked,
         )
 
@@ -2023,8 +2025,8 @@ class BrowserToolbarMiddlewareTest {
         )
         every { tab.content.securityInfo.secure } returns false
         val expectedSecurityIndicator = ActionButtonRes(
-            drawableResId = R.drawable.mozac_ic_shield_slash_24,
-            contentDescription = R.string.mozac_browser_toolbar_content_description_site_info,
+            drawableResId = iconsR.drawable.mozac_ic_shield_slash_24,
+            contentDescription = toolbarR.string.mozac_browser_toolbar_content_description_site_info,
             onClick = StartPageActions.SiteInfoClicked,
         )
 
@@ -2053,13 +2055,13 @@ class BrowserToolbarMiddlewareTest {
                 useCases = useCases,
             )
             val expectedSecureIndicator = ActionButtonRes(
-                drawableResId = R.drawable.mozac_ic_shield_checkmark_24,
-                contentDescription = R.string.mozac_browser_toolbar_content_description_site_info,
+                drawableResId = iconsR.drawable.mozac_ic_shield_checkmark_24,
+                contentDescription = toolbarR.string.mozac_browser_toolbar_content_description_site_info,
                 onClick = StartPageActions.SiteInfoClicked,
             )
             val expectedInsecureIndicator = ActionButtonRes(
-                drawableResId = R.drawable.mozac_ic_shield_slash_24,
-                contentDescription = R.string.mozac_browser_toolbar_content_description_site_info,
+                drawableResId = iconsR.drawable.mozac_ic_shield_slash_24,
+                contentDescription = toolbarR.string.mozac_browser_toolbar_content_description_site_info,
                 onClick = StartPageActions.SiteInfoClicked,
             )
             val toolbarStore = buildStore(middleware).also {
@@ -2111,8 +2113,8 @@ class BrowserToolbarMiddlewareTest {
             mainLooperRule.idle()
 
             val expectedSecurityIndicator = ActionButtonRes(
-                drawableResId = R.drawable.mozac_ic_shield_slash_24,
-                contentDescription = R.string.mozac_browser_toolbar_content_description_site_info,
+                drawableResId = iconsR.drawable.mozac_ic_shield_slash_24,
+                contentDescription = toolbarR.string.mozac_browser_toolbar_content_description_site_info,
                 onClick = StartPageActions.SiteInfoClicked,
             )
 
@@ -2142,7 +2144,7 @@ class BrowserToolbarMiddlewareTest {
             toolbarAction = ToolbarAction.NewTab,
         ) as ActionButtonRes
 
-        assertEquals(R.drawable.mozac_ic_plus_24, result.drawableResId)
+        assertEquals(iconsR.drawable.mozac_ic_plus_24, result.drawableResId)
         assertEquals(R.string.home_screen_shortcut_open_new_tab_2, result.contentDescription)
         assertEquals(ActionButton.State.DEFAULT, result.state)
         assertEquals(AddNewTab(Source.AddressBar), result.onClick)
@@ -2156,7 +2158,7 @@ class BrowserToolbarMiddlewareTest {
             toolbarAction = ToolbarAction.Back,
         ) as ActionButtonRes
 
-        assertEquals(R.drawable.mozac_ic_back_24, result.drawableResId)
+        assertEquals(iconsR.drawable.mozac_ic_back_24, result.drawableResId)
         assertEquals(R.string.browser_menu_back, result.contentDescription)
         assertEquals(ActionButton.State.DISABLED, result.state)
         assertEquals(NavigateBackClicked, result.onClick)
@@ -2197,7 +2199,7 @@ class BrowserToolbarMiddlewareTest {
             toolbarAction = ToolbarAction.Forward,
         ) as ActionButtonRes
 
-        assertEquals(R.drawable.mozac_ic_forward_24, result.drawableResId)
+        assertEquals(iconsR.drawable.mozac_ic_forward_24, result.drawableResId)
         assertEquals(R.string.browser_menu_forward, result.contentDescription)
         assertEquals(ActionButton.State.DISABLED, result.state)
         assertEquals(NavigateForwardClicked, result.onClick)
@@ -2251,7 +2253,7 @@ class BrowserToolbarMiddlewareTest {
             toolbarAction = ToolbarAction.RefreshOrStop,
         ) as ActionButtonRes
 
-        assertEquals(R.drawable.mozac_ic_arrow_clockwise_24, result.drawableResId)
+        assertEquals(iconsR.drawable.mozac_ic_arrow_clockwise_24, result.drawableResId)
         assertEquals(R.string.browser_menu_refresh, result.contentDescription)
         assertEquals(RefreshClicked(bypassCache = false), result.onClick)
         assertEquals(RefreshClicked(bypassCache = true), result.onLongClick)
@@ -2279,7 +2281,7 @@ class BrowserToolbarMiddlewareTest {
             toolbarAction = ToolbarAction.RefreshOrStop,
         ) as ActionButtonRes
 
-        assertEquals(R.drawable.mozac_ic_cross_24, result.drawableResId)
+        assertEquals(iconsR.drawable.mozac_ic_cross_24, result.drawableResId)
         assertEquals(R.string.browser_menu_stop, result.contentDescription)
         assertEquals(StopRefreshClicked, result.onClick)
         assertNull(result.onLongClick)
@@ -2292,7 +2294,7 @@ class BrowserToolbarMiddlewareTest {
             toolbarAction = ToolbarAction.Menu,
         ) as ActionButtonRes
 
-        assertEquals(R.drawable.mozac_ic_ellipsis_vertical_24, result.drawableResId)
+        assertEquals(iconsR.drawable.mozac_ic_ellipsis_vertical_24, result.drawableResId)
         assertEquals(R.string.content_description_menu, result.contentDescription)
         assertEquals(ActionButton.State.DEFAULT, result.state)
         assertEquals(MenuClicked(Source.AddressBar), result.onClick)
@@ -2353,7 +2355,7 @@ class BrowserToolbarMiddlewareTest {
             toolbarAction = ToolbarAction.Translate,
         ) as ActionButtonRes
 
-        assertEquals(R.drawable.mozac_ic_translate_24, result.drawableResId)
+        assertEquals(iconsR.drawable.mozac_ic_translate_24, result.drawableResId)
         assertEquals(R.string.browser_toolbar_translate, result.contentDescription)
         assertEquals(ActionButton.State.DEFAULT, result.state)
         assertEquals(TranslateClicked, result.onClick)
@@ -2398,7 +2400,7 @@ class BrowserToolbarMiddlewareTest {
 
         assertEquals(3, action.count)
         assertEquals(
-            testContext.getString(R.string.mozac_tab_counter_open_tab_tray, 3),
+            testContext.getString(tabcounterR.string.mozac_tab_counter_open_tab_tray, 3),
             action.contentDescription,
         )
         assertEquals(
@@ -2431,7 +2433,7 @@ class BrowserToolbarMiddlewareTest {
             toolbarAction = ToolbarAction.EditBookmark,
         ) as ActionButtonRes
 
-        assertEquals(R.drawable.mozac_ic_bookmark_fill_24, result.drawableResId)
+        assertEquals(iconsR.drawable.mozac_ic_bookmark_fill_24, result.drawableResId)
         assertEquals(R.string.browser_menu_edit_bookmark, result.contentDescription)
         assertEquals(EditBookmarkClicked(Source.AddressBar), result.onClick)
     }
@@ -2445,7 +2447,7 @@ class BrowserToolbarMiddlewareTest {
             toolbarAction = ToolbarAction.Bookmark,
         ) as ActionButtonRes
 
-        assertEquals(R.drawable.mozac_ic_bookmark_24, result.drawableResId)
+        assertEquals(iconsR.drawable.mozac_ic_bookmark_24, result.drawableResId)
         assertEquals(R.string.browser_menu_bookmark_this_page_2, result.contentDescription)
         assertEquals(AddBookmarkClicked(Source.AddressBar), result.onClick)
     }
@@ -2533,7 +2535,7 @@ class BrowserToolbarMiddlewareTest {
     }
 
     private val expectedRefreshButton = ActionButtonRes(
-        drawableResId = R.drawable.mozac_ic_arrow_clockwise_24,
+        drawableResId = iconsR.drawable.mozac_ic_arrow_clockwise_24,
         contentDescription = R.string.browser_menu_refresh,
         state = ActionButton.State.DEFAULT,
         onClick = RefreshClicked(bypassCache = false),
@@ -2541,7 +2543,7 @@ class BrowserToolbarMiddlewareTest {
     )
 
     private val expectedStopButton = ActionButtonRes(
-        drawableResId = R.drawable.mozac_ic_cross_24,
+        drawableResId = iconsR.drawable.mozac_ic_cross_24,
         contentDescription = R.string.browser_menu_stop,
         state = ActionButton.State.DEFAULT,
         onClick = StopRefreshClicked,
@@ -2561,7 +2563,7 @@ class BrowserToolbarMiddlewareTest {
     )
 
     private val expectedGoForwardButton = ActionButtonRes(
-        drawableResId = R.drawable.mozac_ic_forward_24,
+        drawableResId = iconsR.drawable.mozac_ic_forward_24,
         contentDescription = R.string.browser_menu_forward,
         state = ActionButton.State.ACTIVE,
         onClick = NavigateForwardClicked,
@@ -2569,7 +2571,7 @@ class BrowserToolbarMiddlewareTest {
     )
 
     private val expectedGoBackButton = ActionButtonRes(
-        drawableResId = R.drawable.mozac_ic_back_24,
+        drawableResId = iconsR.drawable.mozac_ic_back_24,
         contentDescription = R.string.browser_menu_back,
         state = ActionButton.State.ACTIVE,
         onClick = NavigateBackClicked,
@@ -2577,7 +2579,7 @@ class BrowserToolbarMiddlewareTest {
     )
 
     private val expectedTranslateButton = ActionButtonRes(
-        drawableResId = R.drawable.mozac_ic_translate_24,
+        drawableResId = iconsR.drawable.mozac_ic_translate_24,
         contentDescription = R.string.browser_toolbar_translate,
         onClick = TranslateClicked,
     )
@@ -2591,12 +2593,12 @@ class BrowserToolbarMiddlewareTest {
         count = tabCount,
         contentDescription = if (isPrivate) {
             testContext.getString(
-                R.string.mozac_tab_counter_private,
+                tabcounterR.string.mozac_tab_counter_private,
                 tabCount.toString(),
             )
         } else {
             testContext.getString(
-                R.string.mozac_tab_counter_open_tab_tray,
+                tabcounterR.string.mozac_tab_counter_open_tab_tray,
                 tabCount.toString(),
             )
         },
@@ -2606,15 +2608,15 @@ class BrowserToolbarMiddlewareTest {
             listOf(
                 BrowserToolbarMenuButton(
                     icon = DrawableResIcon(iconsR.drawable.mozac_ic_plus_24),
-                    text = StringResText(R.string.mozac_browser_menu_new_tab),
-                    contentDescription = StringResContentDescription(R.string.mozac_browser_menu_new_tab),
+                    text = StringResText(tabcounterR.string.mozac_browser_menu_new_tab),
+                    contentDescription = StringResContentDescription(tabcounterR.string.mozac_browser_menu_new_tab),
                     onClick = AddNewTab(source),
                 ),
 
                 BrowserToolbarMenuButton(
                     icon = DrawableResIcon(iconsR.drawable.mozac_ic_private_mode_24),
-                    text = StringResText(R.string.mozac_browser_menu_new_private_tab),
-                    contentDescription = StringResContentDescription(R.string.mozac_browser_menu_new_private_tab),
+                    text = StringResText(tabcounterR.string.mozac_browser_menu_new_private_tab),
+                    contentDescription = StringResContentDescription(tabcounterR.string.mozac_browser_menu_new_private_tab),
                     onClick = AddNewPrivateTab(source),
                 ),
 
@@ -2622,8 +2624,8 @@ class BrowserToolbarMiddlewareTest {
 
                 BrowserToolbarMenuButton(
                     icon = DrawableResIcon(iconsR.drawable.mozac_ic_cross_24),
-                    text = StringResText(R.string.mozac_close_tab),
-                    contentDescription = StringResContentDescription(R.string.mozac_close_tab),
+                    text = StringResText(tabcounterR.string.mozac_close_tab),
+                    contentDescription = StringResContentDescription(tabcounterR.string.mozac_close_tab),
                     onClick = CloseCurrentTab,
                 ),
             ).apply {
@@ -2635,25 +2637,25 @@ class BrowserToolbarMiddlewareTest {
     )
 
     private fun expectedNewTabButton(source: Source = Source.AddressBar) = ActionButtonRes(
-        drawableResId = R.drawable.mozac_ic_plus_24,
+        drawableResId = iconsR.drawable.mozac_ic_plus_24,
         contentDescription = R.string.home_screen_shortcut_open_new_tab_2,
         onClick = AddNewTab(source),
     )
 
     private fun expectedMenuButton(source: Source = Source.AddressBar) = ActionButtonRes(
-        drawableResId = R.drawable.mozac_ic_ellipsis_vertical_24,
+        drawableResId = iconsR.drawable.mozac_ic_ellipsis_vertical_24,
         contentDescription = R.string.content_description_menu,
         onClick = MenuClicked(source),
     )
 
     private fun expectedBookmarkButton(source: Source = Source.AddressBar) = ActionButtonRes(
-        drawableResId = R.drawable.mozac_ic_bookmark_24,
+        drawableResId = iconsR.drawable.mozac_ic_bookmark_24,
         contentDescription = R.string.browser_menu_bookmark_this_page_2,
         onClick = AddBookmarkClicked(source),
     )
 
     private fun expectedShareButton(source: Source = Source.AddressBar) = ActionButtonRes(
-        drawableResId = R.drawable.mozac_ic_share_android_24,
+        drawableResId = iconsR.drawable.mozac_ic_share_android_24,
         contentDescription = R.string.browser_menu_share,
         onClick = ShareClicked(source),
     )

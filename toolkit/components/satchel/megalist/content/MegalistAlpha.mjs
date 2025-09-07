@@ -685,7 +685,7 @@ export class MegalistAlpha extends MozLitElement {
           type="radio"
           id="allLogins"
           name="logins"
-          value=${DISPLAY_MODES.ALL}
+          .value=${DISPLAY_MODES.ALL}
         />
         <label
           for="allLogins"
@@ -699,7 +699,7 @@ export class MegalistAlpha extends MozLitElement {
           type="radio"
           id="alerts"
           name="logins"
-          value=${DISPLAY_MODES.ALERTS}
+          .value=${DISPLAY_MODES.ALERTS}
         />
         <label
           for="alerts"
@@ -878,15 +878,14 @@ export class MegalistAlpha extends MozLitElement {
   }
 
   renderAuthenticatedView() {
+    return html`${this.renderNotification()} ${this.renderContent()}`;
+  }
+
+  render() {
     const showToolbar =
       this.viewMode === VIEW_MODES.ALERTS ||
       (this.viewMode === VIEW_MODES.LIST && this.header?.value?.total > 0);
 
-    return html`${when(showToolbar, () => html`${this.renderToolbar()}`)}
-    ${this.renderNotification()} ${this.renderContent()}`;
-  }
-
-  render() {
     return html`
       <link
         rel="stylesheet"
@@ -904,7 +903,11 @@ export class MegalistAlpha extends MozLitElement {
           data-l10n-id="sidebar-menu-cpm-header"
           data-l10n-attrs="heading"
           view="viewCPMSidebar"
-        ></sidebar-panel-header>
+        >
+          ${when(!this.shouldShowPrimaryPasswordAuth && showToolbar, () =>
+            this.renderToolbar()
+          )}
+        </sidebar-panel-header>
         <div class="sidebar-panel-scrollable-content">
           ${!this.shouldShowPrimaryPasswordAuth
             ? this.renderAuthenticatedView()
