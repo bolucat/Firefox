@@ -37,7 +37,6 @@
 #include "mozilla/FlushType.h"
 #include "mozilla/IMEStateManager.h"
 #include "mozilla/IntegerRange.h"  // for IntegerRange
-#include "mozilla/InternalMutationEvent.h"
 #include "mozilla/mozInlineSpellChecker.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/PresShell.h"
@@ -269,15 +268,6 @@ HTMLEditor::~HTMLEditor() {
       .EnumGet(static_cast<
                glean::htmleditors::OverriddenByBeforeinputListenersLabel>(
           mHasBeforeInputBeenCanceled ? 1 : 0))
-      .Add();
-  glean::htmleditors::with_mutation_listeners_without_beforeinput_listeners
-      .EnumGet(static_cast<
-               glean::htmleditors::
-                   WithMutationListenersWithoutBeforeinputListenersLabel>(
-          !MayHaveBeforeInputEventListenersForTelemetry() &&
-                  MayHaveMutationEventListeners()
-              ? 1
-              : 0))
       .Add();
   glean::htmleditors::with_mutation_observers_without_beforeinput_listeners
       .EnumGet(static_cast<
@@ -2474,7 +2464,7 @@ nsresult HTMLEditor::GetCSSBackgroundColorState(
       if (NS_WARN_IF(Destroyed())) {
         return NS_ERROR_EDITOR_DESTROYED;
       }
-      if (MayHaveMutationEventListeners() &&
+      if (MaybeNodeRemovalsObservedByDevTools() &&
           NS_WARN_IF(nextBlockElement !=
                      HTMLEditUtils::GetAncestorElement(
                          *blockElement, HTMLEditUtils::ClosestBlockElement,

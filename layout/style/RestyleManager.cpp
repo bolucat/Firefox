@@ -3589,7 +3589,8 @@ static inline bool NeedToRecordAttrChange(
 
 void RestyleManager::AttributeWillChange(Element* aElement,
                                          int32_t aNameSpaceID,
-                                         nsAtom* aAttribute, int32_t aModType) {
+                                         nsAtom* aAttribute,
+                                         AttrModType aModType) {
   TakeSnapshotForAttributeChange(*aElement, aNameSpaceID, aAttribute);
 }
 
@@ -3651,7 +3652,7 @@ static inline bool AttributeChangeRequiresSubtreeRestyle(
 }
 
 void RestyleManager::AttributeChanged(Element* aElement, int32_t aNameSpaceID,
-                                      nsAtom* aAttribute, int32_t aModType,
+                                      nsAtom* aAttribute, AttrModType aModType,
                                       const nsAttrValue* aOldValue) {
   MOZ_ASSERT(!mInStyleRefresh);
 

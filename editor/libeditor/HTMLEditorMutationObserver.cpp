@@ -19,7 +19,6 @@
 #include "mozilla/RefPtr.h"
 #include "mozilla/dom/AncestorIterator.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/MutationEventBinding.h"
 #include "mozInlineSpellChecker.h"
 #include "nsContentUtils.h"
 #include "nsIContent.h"
@@ -101,7 +100,7 @@ LazyLogModule gHTMLEditorAttrMutationLog("HTMLEditorAttrMutation");
 
 LogLevel HTMLEditor::AttrMutationLogLevelOf(
     Element* aElement, int32_t aNameSpaceID, nsAtom* aAttribute,
-    int32_t aModType, const nsAttrValue* aOldValue) const {
+    AttrModType aModType, const nsAttrValue* aOldValue) const {
   // Should be called only when the "info" level is enabled at least since we
   // shouldn't add any new unnecessary calls in the hot paths when the logging
   // is disabled.
@@ -193,7 +192,8 @@ void HTMLEditor::MaybeLogCharacterDataChanged(
 
 void HTMLEditor::MaybeLogAttributeChanged(Element* aElement,
                                           int32_t aNameSpaceID,
-                                          nsAtom* aAttribute, int32_t aModType,
+                                          nsAtom* aAttribute,
+                                          AttrModType aModType,
                                           const nsAttrValue* aOldValue) const {
   const LogLevel logLevel = AttrMutationLogLevelOf(
       aElement, aNameSpaceID, aAttribute, aModType, aOldValue);
@@ -207,7 +207,7 @@ void HTMLEditor::MaybeLogAttributeChanged(Element* aElement,
       ("%p %s AttributeChanged: %s of %s %s", this,
        logLevel == LogLevel::Debug ? "HTMLEditor  " : "SomebodyElse",
        nsAutoAtomCString(aAttribute).get(), NodeToString(aElement).get(),
-       aModType == dom::MutationEvent_Binding::REMOVAL
+       aModType == AttrModType::Removal
            ? "Removed"
            : nsPrintfCString("to \"%s\"", NS_ConvertUTF16toUTF8(value).get())
                  .get()));
@@ -516,7 +516,7 @@ nsresult HTMLEditor::RunOrScheduleOnModifyDocument(
 // nsStubMutationObserver::AttributeChanged override
 MOZ_CAN_RUN_SCRIPT_BOUNDARY void HTMLEditor::AttributeChanged(
     Element* aElement, int32_t aNameSpaceID, nsAtom* aAttribute,
-    int32_t aModType, const nsAttrValue* aOldValue) {
+    AttrModType aModType, const nsAttrValue* aOldValue) {
   if (MOZ_LOG_TEST(gHTMLEditorAttrMutationLog, LogLevel::Info) &&
       IsInObservedSubtree(aElement)) {
     MaybeLogAttributeChanged(aElement, aNameSpaceID, aAttribute, aModType,

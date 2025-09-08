@@ -229,6 +229,7 @@ class Rule;
 namespace dom {
 class AnonymousContent;
 class Attr;
+class AutoSuppressNotifyingDevToolsOfNodeRemovals;
 class XULBroadcastManager;
 class XULPersist;
 class BrowserBridgeChild;
@@ -2530,19 +2531,6 @@ class Document : public nsINode,
   bool HaveFiredDOMTitleChange() const { return mHaveFiredTitleChange; }
 
   /**
-   * To batch DOMSubtreeModified, document needs to be informed when
-   * a mutation event might be dispatched, even if the event isn't actually
-   * created because there are no listeners for it.
-   *
-   * @param aTarget is the target for the mutation event.
-   */
-  void MayDispatchMutationEvent(nsINode* aTarget) {
-    if (mSubtreeModifiedDepth > 0) {
-      mSubtreeModifiedTargets.AppendObject(aTarget);
-    }
-  }
-
-  /**
    * Marks as not-going-to-be-collected for the given generation of
    * cycle collection.
    */
@@ -3779,9 +3767,14 @@ class Document : public nsINode,
   // If this is true, we're ignoring scrolling to a fragment.
   bool ForceLoadAtTop() const { return mForceLoadAtTop; }
 
-  // https://html.spec.whatwg.org/#concept-document-fire-mutation-events-flag
-  bool FireMutationEvents() const { return mFireMutationEvents; }
-  void SetFireMutationEvents(bool aFire) { mFireMutationEvents = aFire; }
+  /**
+   * Return false if it's allowed to notify DevTools of node removals in this
+   * document.
+   */
+  [[nodiscard]] bool SuppressedNotifyingDevToolsOfNodeRemovals() const {
+    return mSuppressNotifyingDevToolsOfNodeRemovals;
+  }
+  friend class AutoSuppressNotifyingDevToolsOfNodeRemovals;
 
   // https://w3c.github.io/trusted-types/dist/spec/#require-trusted-types-for-csp-directive
   bool HasPolicyWithRequireTrustedTypesForDirective() const {
@@ -3795,10 +3788,6 @@ class Document : public nsINode,
   bool IsClipboardCopyTriggered() const { return mClipboardCopyTriggered; }
   void ClearClipboardCopyTriggered() { mClipboardCopyTriggered = false; }
   void SetClipboardCopyTriggered() { mClipboardCopyTriggered = true; }
-
-  // Even if mutation events are disabled by default,
-  // dom.mutation_events.forceEnable can be used to enable them per site.
-  bool MutationEventsEnabled();
 
   // This should be called when this document receives events which are likely
   // to be user interaction with the document, rather than the byproduct of
@@ -4642,16 +4631,6 @@ class Document : public nsINode,
   // Never ever call this. Only call AllowXULXBL!
   bool InternalAllowXULXBL();
 
-  /**
-   * These methods should be called before and after dispatching
-   * a mutation event.
-   * To make this easy and painless, use the mozAutoSubtreeModified helper
-   * class.
-   */
-  void WillDispatchMutationEvent(nsINode* aTarget);
-  void MutationEventDispatched(nsINode* aTarget);
-  friend class mozAutoSubtreeModified;
-
   virtual Element* GetNameSpaceElement() override { return GetRootElement(); }
 
   nsCString GetContentTypeInternal() const { return mContentType; }
@@ -5106,7 +5085,7 @@ class Document : public nsINode,
 
   bool mForceLoadAtTop : 1;
 
-  bool mFireMutationEvents : 1;
+  bool mSuppressNotifyingDevToolsOfNodeRemovals : 1;
 
   // Whether the document's CSP contains a require-trusted-types-for directive.
   bool mHasPolicyWithRequireTrustedTypesForDirective : 1;
@@ -5114,8 +5093,6 @@ class Document : public nsINode,
   // Whether a copy event happened. Used to detect when this happens
   // while a paste event is being handled in JS.
   bool mClipboardCopyTriggered : 1;
-
-  Maybe<bool> mMutationEventsEnabled;
 
   // The fingerprinting protections overrides for this document. The value will
   // override the default enabled fingerprinting protections for this document.
@@ -5227,9 +5204,6 @@ class Document : public nsINode,
   uint32_t mMarkedCCGeneration;
 
   PresShell* mPresShell;
-
-  nsCOMArray<nsINode> mSubtreeModifiedTargets;
-  uint32_t mSubtreeModifiedDepth;
 
   // All images in process of being preloaded.  This is a hashtable so
   // we can remove them as the real image loads start; that way we
@@ -5676,42 +5650,6 @@ class Document : public nsINode,
                                               ErrorResult& aError);
 };
 
-/**
- * mozAutoSubtreeModified batches DOM mutations so that a DOMSubtreeModified
- * event is dispatched, if necessary, when the outermost mozAutoSubtreeModified
- * object is deleted.
- */
-class MOZ_STACK_CLASS mozAutoSubtreeModified {
- public:
-  /**
-   * @param aSubTreeOwner The document in which a subtree will be modified.
-   * @param aTarget       The target of the possible DOMSubtreeModified event.
-   *                      Can be nullptr, in which case mozAutoSubtreeModified
-   *                      is just used to batch DOM mutations.
-   */
-  mozAutoSubtreeModified(Document* aSubtreeOwner, nsINode* aTarget) {
-    UpdateTarget(aSubtreeOwner, aTarget);
-  }
-
-  ~mozAutoSubtreeModified() { UpdateTarget(nullptr, nullptr); }
-
-  void UpdateTarget(Document* aSubtreeOwner, nsINode* aTarget) {
-    if (mSubtreeOwner) {
-      mSubtreeOwner->MutationEventDispatched(mTarget);
-    }
-
-    mTarget = aTarget;
-    mSubtreeOwner = aSubtreeOwner;
-    if (mSubtreeOwner) {
-      mSubtreeOwner->WillDispatchMutationEvent(mTarget);
-    }
-  }
-
- private:
-  nsCOMPtr<nsINode> mTarget;
-  RefPtr<Document> mSubtreeOwner;
-};
-
 enum class SyncOperationBehavior { eSuspendInput, eAllowInput };
 
 class AutoWalkBrowsingContextGroup {
@@ -5774,6 +5712,31 @@ class MOZ_RAII IgnoreOpensDuringUnload final {
 
  private:
   Document* mDoc;
+};
+
+/**
+ * Suppress notifying DevTools of node removals in the given document even if
+ * DevTools wants to know that.  This guarantees the lifetime of the given
+ * document while the instance is alive.
+ */
+class MOZ_RAII AutoSuppressNotifyingDevToolsOfNodeRemovals final {
+ public:
+  explicit AutoSuppressNotifyingDevToolsOfNodeRemovals(Document& aDoc)
+      : mDoc(aDoc),
+        mDidSuppress(
+            static_cast<bool>(aDoc.mSuppressNotifyingDevToolsOfNodeRemovals)) {
+    mDoc->mSuppressNotifyingDevToolsOfNodeRemovals = true;
+  }
+  ~AutoSuppressNotifyingDevToolsOfNodeRemovals() {
+    MOZ_ASSERT(mDoc->mSuppressNotifyingDevToolsOfNodeRemovals);
+    mDoc->mSuppressNotifyingDevToolsOfNodeRemovals = mDidSuppress;
+  }
+
+  Document& Doc() const { return mDoc; }
+
+ private:
+  const OwningNonNull<Document> mDoc;
+  bool mDidSuppress;
 };
 
 bool IsInFocusedTab(Document* aDoc);
