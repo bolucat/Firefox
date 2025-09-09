@@ -294,6 +294,11 @@ internal class BookmarksMiddleware(
                         preReductionState.bookmarksSnackbarState.guidsToDelete.forEach {
                             bookmarksStorage.deleteNode(it)
                         }
+                        lastSavedFolderCache.getGuid()?.let {
+                            if (bookmarksStorage.getBookmark(it) == null) {
+                                lastSavedFolderCache.setGuid(null)
+                            }
+                        }
                     }
                 }
                 else -> {}
@@ -302,6 +307,11 @@ internal class BookmarksMiddleware(
                 scope.launch {
                     preReductionState.bookmarksDeletionDialogState.guidsToDelete.forEach {
                         bookmarksStorage.deleteNode(it)
+                    }
+                    lastSavedFolderCache.getGuid()?.let {
+                        if (bookmarksStorage.getBookmark(it) == null) {
+                            lastSavedFolderCache.setGuid(null)
+                        }
                     }
                 }
 
@@ -331,6 +341,11 @@ internal class BookmarksMiddleware(
                         scope.launch {
                             snackState.guidsToDelete.forEach {
                                 bookmarksStorage.deleteNode(it)
+                            }
+                            lastSavedFolderCache.getGuid()?.let {
+                                if (bookmarksStorage.getBookmark(it) == null) {
+                                    lastSavedFolderCache.setGuid(null)
+                                }
                             }
                         }
                     }
@@ -441,7 +456,7 @@ internal class BookmarksMiddleware(
         }
     }
 
-    private fun BookmarkNode.childItems(): List<BookmarkItem> = this.children
+    private suspend fun BookmarkNode.childItems(): List<BookmarkItem> = this.children
         ?.mapNotNull { node ->
             Result.runCatching {
                 when (node.type) {
@@ -459,6 +474,7 @@ internal class BookmarksMiddleware(
                         dateAdded = node.dateAdded,
                         guid = node.guid,
                         position = node.position,
+                        nestedItemCount = bookmarksStorage.countBookmarksInTrees(listOf(node.guid)).toInt(),
                     )
 
                     BookmarkNodeType.SEPARATOR -> null
@@ -505,7 +521,7 @@ internal class BookmarksMiddleware(
         return urls
     }
 
-    private fun collectFolders(
+    private suspend fun collectFolders(
         node: BookmarkNode,
         comparator: Comparator<BookmarkItem>,
         indentation: Int = 0,

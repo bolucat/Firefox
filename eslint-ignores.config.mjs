@@ -101,13 +101,13 @@ export default [
 
   // Ignore devtools files testing sourcemaps / code style
   "devtools/client/framework/test/code_*",
-  "devtools/client/inspector/markup/test/events_bundle.js",
+  "devtools/client/inspector/markup/test/events/events_bundle.js",
   "devtools/client/netmonitor/test/xhr_bundle.js",
   "devtools/client/webconsole/test/browser/code_bundle_nosource.js",
   "devtools/client/webconsole/test/browser/code_bundle_invalidmap.js",
   "devtools/client/webconsole/test/browser/test-autocomplete-mapped.js",
   "devtools/client/webconsole/test/browser/test-autocomplete-mapped.src.js",
-  "devtools/client/inspector/markup/test/shadowdom_open_debugger.min.js",
+  "devtools/client/inspector/markup/test/shadowdom/shadowdom_open_debugger.min.js",
   "devtools/client/webconsole/test/browser/test-click-function-to-source*.js",
   "devtools/client/webconsole/test/browser/test-external-script-errors.js",
   "devtools/client/webconsole/test/browser/test-mangled-function.*",

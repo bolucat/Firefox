@@ -1429,7 +1429,7 @@ abstract class BaseBrowserFragment :
         components = activity.components,
         browsingModeManager = activity.browsingModeManager,
         browserAnimator = browserAnimator,
-        thumbnailsFeature = thumbnailsFeature.get(),
+        thumbnailsFeature = { thumbnailsFeature.get() },
         readerModeController = readerModeController,
         settings = activity.settings(),
         customTabSession = customTabSessionId?.let { activity.components.core.store.state.findCustomTab(it) },
@@ -2495,26 +2495,28 @@ abstract class BaseBrowserFragment :
     }
 
     private fun launchFindInPageFeature(view: View, store: BrowserStore) {
-        val findInPageBar = view.findViewById(R.id.findInPageView)
-            ?: (binding.findInPageViewStub.inflate() as FindInPageBar)
-        findInPageIntegration.set(
-            feature = FindInPageIntegration(
-                store = store,
-                appStore = requireComponents.appStore,
-                sessionId = customTabSessionId,
-                view = findInPageBar,
-                engineView = binding.engineView,
-                toolbarsHideCallback = {
-                    expandBrowserView()
-                },
-                toolbarsResetCallback = {
-                    onUpdateToolbarForConfigurationChange(browserToolbarView)
-                    collapseBrowserView()
-                },
-            ),
-            owner = this,
-            view = view,
-        )
+        if (findInPageIntegration.get() == null) {
+            val findInPageBar = view.findViewById(R.id.findInPageView)
+                ?: (binding.findInPageViewStub.inflate() as FindInPageBar)
+            findInPageIntegration.set(
+                feature = FindInPageIntegration(
+                    store = store,
+                    appStore = requireComponents.appStore,
+                    sessionId = customTabSessionId,
+                    view = findInPageBar,
+                    engineView = binding.engineView,
+                    toolbarsHideCallback = {
+                        expandBrowserView()
+                    },
+                    toolbarsResetCallback = {
+                        onUpdateToolbarForConfigurationChange(browserToolbarView)
+                        collapseBrowserView()
+                    },
+                ),
+                owner = this,
+                view = view,
+            )
+        }
         findInPageIntegration.withFeature { it.launch() }
     }
 

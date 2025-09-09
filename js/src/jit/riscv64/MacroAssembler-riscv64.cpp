@@ -3565,9 +3565,9 @@ void MacroAssembler::patchCall(uint32_t callerOffset, uint32_t calleeOffset) {
     Instruction* auipc_ = (Instruction*)editSrc(call);
     Instruction* jalr_ = (Instruction*)editSrc(
         BufferOffset(callerOffset - 1 * sizeof(uint32_t)));
-    DEBUG_PRINTF("\t%p %lu\n\t", auipc_, callerOffset - 2 * sizeof(uint32_t));
+    DEBUG_PRINTF("\t%p %zu\n\t", auipc_, callerOffset - 2 * sizeof(uint32_t));
     disassembleInstr(auipc_->InstructionBits());
-    DEBUG_PRINTF("\t%p %lu\n\t", jalr_, callerOffset - 1 * sizeof(uint32_t));
+    DEBUG_PRINTF("\t%p %zu\n\t", jalr_, callerOffset - 1 * sizeof(uint32_t));
     disassembleInstr(jalr_->InstructionBits());
     DEBUG_PRINTF("\t\n");
     MOZ_ASSERT(IsJalr(jalr_->InstructionBits()) &&
@@ -4820,14 +4820,14 @@ bool MacroAssemblerRiscv64::BranchShortCheck(int32_t offset, Label* L,
 
 void MacroAssemblerRiscv64::BranchShort(Label* L) { BranchShortHelper(0, L); }
 
-void MacroAssemblerRiscv64::BranchShort(int32_t offset, Condition cond,
+bool MacroAssemblerRiscv64::BranchShort(int32_t offset, Condition cond,
                                         Register rs, const Operand& rt) {
-  BranchShortCheck(offset, nullptr, cond, rs, rt);
+  return BranchShortCheck(offset, nullptr, cond, rs, rt);
 }
 
-void MacroAssemblerRiscv64::BranchShort(Label* L, Condition cond, Register rs,
+bool MacroAssemblerRiscv64::BranchShort(Label* L, Condition cond, Register rs,
                                         const Operand& rt) {
-  BranchShortCheck(0, L, cond, rs, rt);
+  return BranchShortCheck(0, L, cond, rs, rt);
 }
 
 void MacroAssemblerRiscv64::BranchLong(Label* L) {
@@ -4857,7 +4857,7 @@ void MacroAssemblerRiscv64::ma_branch(Label* L, Condition cond, Register rs,
     if (cond != Always) {
       Label skip;
       Condition neg_cond = InvertCondition(cond);
-      BranchShort(&skip, neg_cond, rs, rt);
+      (void)BranchShort(&skip, neg_cond, rs, rt);  // Guaranteed to be short.
       BranchLong(L);
       bind(&skip);
     } else {
@@ -4869,7 +4869,7 @@ void MacroAssemblerRiscv64::ma_branch(Label* L, Condition cond, Register rs,
       if (cond != Always) {
         Label skip;
         Condition neg_cond = InvertCondition(cond);
-        BranchShort(&skip, neg_cond, rs, rt);
+        (void)BranchShort(&skip, neg_cond, rs, rt);  // Guaranteed to be short.
         BranchLong(L);
         bind(&skip);
       } else {
@@ -4877,7 +4877,9 @@ void MacroAssemblerRiscv64::ma_branch(Label* L, Condition cond, Register rs,
         EmitConstPoolWithJumpIfNeeded();
       }
     } else {
-      BranchShort(L, cond, rs, rt);
+      if (!BranchShort(L, cond, rs, rt)) {
+        ma_branch(L, cond, rs, rt, LongJump);
+      }
     }
   }
 }
@@ -4995,20 +4997,28 @@ void MacroAssemblerRiscv64::InsertBits(Register dest, Register source, int pos,
   MOZ_ASSERT(size < 32);
 #endif
   UseScratchRegisterScope temps(this);
-  Register mask = temps.Acquire();
   BlockTrampolinePoolScope block_trampoline_pool(this, 9);
   Register source_ = temps.Acquire();
-  // Create a mask of the length=size.
-  ma_li(mask, Imm32(1));
-  slli(mask, mask, size);
-  addi(mask, mask, -1);
-  and_(source_, mask, source);
-  slli(source_, source_, pos);
-  // Make a mask containing 0's. 0's start at "pos" with length=size.
-  slli(mask, mask, pos);
-  not_(mask, mask);
-  // cut area for insertion of source.
-  and_(dest, mask, dest);
+  if (pos != 0) {
+    Register mask = temps.Acquire();
+    // Create a mask of the length=size.
+    ma_li(mask, Imm32(1));
+    slli(mask, mask, size);
+    addi(mask, mask, -1);
+    and_(source_, mask, source);
+    slli(source_, source_, pos);
+    // Make a mask containing 0's. 0's start at "pos" with length=size.
+    slli(mask, mask, pos);
+    not_(mask, mask);
+    // cut area for insertion of source.
+    and_(dest, mask, dest);
+  } else {
+    // clear top bits from source and bottom bits from dest.
+    slli(source_, source, 64 - size);
+    srli(source_, source_, 64 - size);
+    srli(dest, dest, size);
+    slli(dest, dest, size);
+  }
   // insert source
   or_(dest, dest, source_);
 }
