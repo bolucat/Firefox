@@ -11418,6 +11418,8 @@ function InterestPicker({
       checked: checked,
       "aria-checked": checked,
       onChange: e => handleChange(e, index),
+      key: `${interest.sectionId}-${checked}` // Force remount to sync DOM state with React state
+      ,
       tabIndex: index === focusedIndex ? 0 : -1,
       onFocus: () => {
         onItemFocus(index);
@@ -12299,7 +12301,7 @@ function CardSections({
     messageData
   } = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Messages);
   const weatherPlacement = (0,external_ReactRedux_namespaceObject.useSelector)(selectWeatherPlacement);
-  const dailyBriefSectionId = prefs.trainhopConfig?.dailyBriefing.sectionId || prefs[CardSections_PREF_DAILY_BRIEF_SECTIONID];
+  const dailyBriefSectionId = prefs.trainhopConfig?.dailyBriefing?.sectionId || prefs[CardSections_PREF_DAILY_BRIEF_SECTIONID];
   const weatherEnabled = prefs.showWeather;
   const personalizationEnabled = prefs[PREF_SECTIONS_PERSONALIZATION_ENABLED];
   const interestPickerEnabled = prefs[PREF_INTEREST_PICKER_ENABLED];
@@ -12431,6 +12433,8 @@ const USER_ACTION_TYPES = {
 };
 const PREF_WIDGETS_LISTS_MAX_LISTS = "widgets.lists.maxLists";
 const PREF_WIDGETS_LISTS_MAX_LISTITEMS = "widgets.lists.maxListItems";
+const PREF_WIDGETS_LISTS_BADGE_ENABLED = "widgets.lists.badge.enabled";
+const PREF_WIDGETS_LISTS_BADGE_LABEL = "widgets.lists.badge.label";
 function Lists({
   dispatch,
   handleUserInteraction
@@ -12732,6 +12736,15 @@ function Lists({
     setPendingNewList(id);
     handleListInteraction();
   }
+  function handleCancelNewList() {
+    // If current list is new and has no label/tasks, remove it
+    if (!selectedList?.label && selectedList?.tasks?.length === 0) {
+      const updatedLists = {
+        ...lists
+      };
+      delete updatedLists[selected];
+    }
+  }
   function handleDeleteList() {
     let updatedLists = {
       ...lists
@@ -12861,6 +12874,12 @@ function Lists({
   const listKeys = Object.keys(lists);
   const selectedIndex = Math.max(0, listKeys.indexOf(selected));
   const listNamePlaceholder = currentListsCount > 1 && selectedIndex !== 0 ? "newtab-widget-lists-name-placeholder-new" : "newtab-widget-lists-name-placeholder-default";
+  const nimbusBadgeEnabled = prefs.widgetsConfig?.listsBadgeEnabled;
+  const nimbusBadgeLabel = prefs.widgetsConfig?.listsBadgeLabel;
+  const nimbusBadgeTrainhopEnabled = prefs.trainhopConfig?.widgets?.listsBadgeEnabled;
+  const nimbusBadgeTrainhopLabel = prefs.trainhopConfig?.widgets?.listsBadgeLabel;
+  const badgeEnabled = (nimbusBadgeEnabled || nimbusBadgeTrainhopEnabled) ?? prefs[PREF_WIDGETS_LISTS_BADGE_ENABLED] ?? false;
+  const badgeLabel = (nimbusBadgeLabel || nimbusBadgeTrainhopLabel) ?? prefs[PREF_WIDGETS_LISTS_BADGE_LABEL] ?? "";
   return /*#__PURE__*/external_React_default().createElement("article", {
     className: "lists",
     ref: el => {
@@ -12873,6 +12892,7 @@ function Lists({
     onSave: handleListNameSave,
     isEditing: isEditing,
     setIsEditing: setIsEditing,
+    onCancel: handleCancelNewList,
     type: "list",
     maxLength: 30,
     dataL10nId: listNamePlaceholder
@@ -12887,8 +12907,16 @@ function Lists({
     label: list.label
   } : {
     "data-l10n-id": "newtab-widget-lists-name-label-default"
-  }))))), !isEditing && /*#__PURE__*/external_React_default().createElement("moz-badge", {
-    "data-l10n-id": "newtab-widget-lists-label-new"
+  }))))), !isEditing && badgeEnabled && badgeLabel && /*#__PURE__*/external_React_default().createElement("moz-badge", {
+    "data-l10n-id": (() => {
+      if (badgeLabel === "New") {
+        return "newtab-widget-lists-label-new";
+      }
+      if (badgeLabel === "Beta") {
+        return "newtab-widget-lists-label-beta";
+      }
+      return "";
+    })()
   }), /*#__PURE__*/external_React_default().createElement("moz-button", {
     className: "lists-panel-button",
     iconSrc: "chrome://global/skin/icons/more.svg",
@@ -12939,7 +12967,7 @@ function Lists({
     ref: reorderListRef,
     itemSelector: "fieldset .task-type-tasks",
     dragSelector: ".checkbox-wrapper"
-  }, /*#__PURE__*/external_React_default().createElement("fieldset", null, selectedList?.tasks.length >= 1 ? selectedList.tasks.map((task, index) => /*#__PURE__*/external_React_default().createElement(ListItem, {
+  }, /*#__PURE__*/external_React_default().createElement("fieldset", null, selectedList?.tasks.length >= 1 && selectedList.tasks.map((task, index) => /*#__PURE__*/external_React_default().createElement(ListItem, {
     type: TASK_TYPE.IN_PROGRESS,
     task: task,
     key: task.id,
@@ -12949,11 +12977,9 @@ function Lists({
     isValidUrl: isValidUrl,
     isFirst: index === 0,
     isLast: index === selectedList.tasks.length - 1
-  })) : /*#__PURE__*/external_React_default().createElement("p", {
-    className: "empty-list-text",
-    "data-l10n-id": "newtab-widget-lists-empty-cta"
-  }), selectedList?.completed.length >= 1 && /*#__PURE__*/external_React_default().createElement("details", {
-    className: "completed-task-wrapper"
+  })), selectedList?.completed.length >= 1 && /*#__PURE__*/external_React_default().createElement("details", {
+    className: "completed-task-wrapper",
+    open: selectedList?.tasks.length < 1
   }, /*#__PURE__*/external_React_default().createElement("summary", null, /*#__PURE__*/external_React_default().createElement("span", {
     "data-l10n-id": "newtab-widget-lists-completed-list",
     "data-l10n-args": JSON.stringify({
@@ -12966,7 +12992,22 @@ function Lists({
     task: completedTask,
     deleteTask: deleteTask,
     updateTask: updateTask
-  })))))), /*#__PURE__*/external_React_default().createElement("canvas", {
+  }))))), selectedList?.tasks.length < 1 && selectedList?.completed.length < 1 && /*#__PURE__*/external_React_default().createElement("div", {
+    className: "empty-list"
+  }, /*#__PURE__*/external_React_default().createElement("picture", null, /*#__PURE__*/external_React_default().createElement("source", {
+    srcSet: "chrome://newtab/content/data/content/assets/lists-empty-state-dark.svg",
+    media: "(prefers-color-scheme: dark)"
+  }), /*#__PURE__*/external_React_default().createElement("source", {
+    srcSet: "chrome://newtab/content/data/content/assets/lists-empty-state-light.svg",
+    media: "(prefers-color-scheme: light)"
+  }), /*#__PURE__*/external_React_default().createElement("img", {
+    width: "100",
+    height: "100",
+    alt: ""
+  })), /*#__PURE__*/external_React_default().createElement("p", {
+    className: "empty-list-text",
+    "data-l10n-id": "newtab-widget-lists-empty-cta"
+  }))), /*#__PURE__*/external_React_default().createElement("canvas", {
     className: "confetti-canvas",
     ref: canvasRef
   }));
@@ -13031,9 +13072,10 @@ function ListItem({
     target: "_blank",
     className: "task-label",
     title: task.value
-  }, task.value) : /*#__PURE__*/external_React_default().createElement("span", {
+  }, task.value) : /*#__PURE__*/external_React_default().createElement("label", {
     className: "task-label",
     title: task.value,
+    htmlFor: `task-${task.id}`,
     onClick: () => setIsEditing(true)
   }, task.value);
   return /*#__PURE__*/external_React_default().createElement("div", {
@@ -13046,7 +13088,8 @@ function ListItem({
   }, /*#__PURE__*/external_React_default().createElement("input", {
     type: "checkbox",
     onChange: handleCheckboxChange,
-    checked: task.completed || exiting
+    checked: task.completed || exiting,
+    id: `task-${task.id}`
   }), isCompleted ? taskLabel : /*#__PURE__*/external_React_default().createElement(EditableText, {
     isEditing: isEditing,
     setIsEditing: setIsEditing,
@@ -13087,6 +13130,7 @@ function EditableText({
   isEditing,
   setIsEditing,
   onSave,
+  onCancel,
   children,
   type,
   dataL10nId = null,
@@ -13111,6 +13155,7 @@ function EditableText({
     } else if (e.key === "Escape") {
       setIsEditing(false);
       setTempValue(value);
+      onCancel?.();
     }
   }
   function handleOnBlur() {
@@ -13133,6 +13178,7 @@ function EditableText({
 }
 
 ;// CONCATENATED MODULE: ./content-src/components/Widgets/FocusTimer/FocusTimer.jsx
+function FocusTimer_extends() { return FocusTimer_extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, FocusTimer_extends.apply(null, arguments); }
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
@@ -13219,11 +13265,8 @@ const FocusTimer = ({
   const [timeLeft, setTimeLeft] = (0,external_React_namespaceObject.useState)(0);
   // calculated value for the progress circle; 1 = 100%
   const [progress, setProgress] = (0,external_React_namespaceObject.useState)(0);
-  const [progressVisible, setProgressVisible] = (0,external_React_namespaceObject.useState)(false);
   const activeMinutesRef = (0,external_React_namespaceObject.useRef)(null);
   const activeSecondsRef = (0,external_React_namespaceObject.useRef)(null);
-  const idleMinutesRef = (0,external_React_namespaceObject.useRef)(null);
-  const idleSecondsRef = (0,external_React_namespaceObject.useRef)(null);
   const arcRef = (0,external_React_namespaceObject.useRef)(null);
   const timerType = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.TimerWidget.timerType);
   const timerData = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.TimerWidget);
@@ -13251,14 +13294,6 @@ const FocusTimer = ({
   }, [arcRef, handleTimerInteraction]);
   const prefs = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Prefs.values);
   const showSystemNotifications = prefs["widgets.focusTimer.showSystemNotifications"];
-
-  // If the timer is running, set the progress visibility to true
-  // This helps persist progressbar visibility on refresh/opening a new tab
-  (0,external_React_namespaceObject.useEffect)(() => {
-    if (isRunning) {
-      setProgressVisible(true);
-    }
-  }, [isRunning]);
   (0,external_React_namespaceObject.useEffect)(() => {
     // resets default values after timer ends
     let interval;
@@ -13294,9 +13329,6 @@ const FocusTimer = ({
 
             // There's more to see!
             setTimeout(() => {
-              // progress circle rolls up to show timer in the default state
-              setProgressVisible(false);
-
               // switch over to the other timer type
               // eslint-disable-next-line max-nested-callbacks
               (0,external_ReactRedux_namespaceObject.batch)(() => {
@@ -13338,8 +13370,8 @@ const FocusTimer = ({
 
   // set timer function
   const setTimerDuration = () => {
-    const minutesEl = progressVisible ? activeMinutesRef.current : idleMinutesRef.current;
-    const secondsEl = progressVisible ? activeSecondsRef.current : idleSecondsRef.current;
+    const minutesEl = activeMinutesRef.current;
+    const secondsEl = activeSecondsRef.current;
     const minutesValue = minutesEl.innerText.trim() || "0";
     const secondsValue = secondsEl.innerText.trim() || "0";
     let minutes = parseInt(minutesValue || "0", 10);
@@ -13373,7 +13405,6 @@ const FocusTimer = ({
   // Pause timer function
   const toggleTimer = () => {
     if (!isRunning && duration > 0) {
-      setProgressVisible(true);
       (0,external_ReactRedux_namespaceObject.batch)(() => {
         dispatch(actionCreators.AlsoToMain({
           type: actionTypes.WIDGETS_TIMER_PLAY,
@@ -13431,11 +13462,6 @@ const FocusTimer = ({
 
     // Reset progress value and gradient arc on the progress circle
     resetProgressCircle();
-
-    // Transition the timer back to the default state if it was expanded
-    if (progressVisible) {
-      setProgressVisible(false);
-    }
     handleTimerInteraction();
   };
 
@@ -13573,18 +13599,10 @@ const FocusTimer = ({
       timerRef.current = [el];
     }
   }, /*#__PURE__*/external_React_default().createElement("div", {
-    className: "focus-timer-tabs"
-  }, /*#__PURE__*/external_React_default().createElement("div", {
-    className: "focus-timer-tabs-buttons"
-  }, /*#__PURE__*/external_React_default().createElement("moz-button", {
-    type: timerType === "focus" ? "primary" : "ghost",
-    "data-l10n-id": "newtab-widget-timer-mode-focus",
-    onClick: () => toggleType("focus")
-  }), /*#__PURE__*/external_React_default().createElement("moz-button", {
-    type: timerType === "break" ? "primary" : "ghost",
-    "data-l10n-id": "newtab-widget-timer-mode-break",
-    onClick: () => toggleType("break")
-  })), /*#__PURE__*/external_React_default().createElement("div", {
+    className: "newtab-widget-timer-notification-title-wrapper"
+  }, /*#__PURE__*/external_React_default().createElement("h3", {
+    "data-l10n-id": "newtab-widget-timer-notification-title"
+  }), /*#__PURE__*/external_React_default().createElement("div", {
     className: "focus-timer-context-menu-wrapper"
   }, /*#__PURE__*/external_React_default().createElement("moz-button", {
     className: "focus-timer-context-menu-button",
@@ -13607,19 +13625,31 @@ const FocusTimer = ({
     "data-l10n-id": "newtab-widget-timer-menu-learn-more",
     onClick: handleLearnMore
   })))), /*#__PURE__*/external_React_default().createElement("div", {
-    role: "progress",
-    className: `progress-circle-wrapper${progressVisible ? " visible" : ""}`
+    className: "focus-timer-tabs"
   }, /*#__PURE__*/external_React_default().createElement("div", {
-    className: "progress-circle-background"
+    className: "focus-timer-tabs-buttons"
+  }, /*#__PURE__*/external_React_default().createElement("moz-button", {
+    type: timerType === "focus" ? "default" : "ghost",
+    "data-l10n-id": "newtab-widget-timer-mode-focus",
+    onClick: () => toggleType("focus")
+  }), /*#__PURE__*/external_React_default().createElement("moz-button", {
+    type: timerType === "break" ? "default" : "ghost",
+    "data-l10n-id": "newtab-widget-timer-mode-break",
+    onClick: () => toggleType("break")
+  }))), /*#__PURE__*/external_React_default().createElement("div", {
+    role: "progress",
+    className: `progress-circle-wrapper ${!showSystemNotifications && !timerData[timerType].isRunning ? "is-small" : ""}`
+  }, /*#__PURE__*/external_React_default().createElement("div", {
+    className: `progress-circle-background${timerType === "break" ? "-break" : ""}`
   }), /*#__PURE__*/external_React_default().createElement("div", {
     className: `progress-circle ${timerType === "focus" ? "focus-visible" : "focus-hidden"}`,
     ref: timerType === "focus" ? arcRef : null
   }), /*#__PURE__*/external_React_default().createElement("div", {
-    className: `progress-circle ${timerType === "break" ? "progress-circle-break break-visible" : "break-hidden"}`,
+    className: `progress-circle ${timerType === "break" ? "break-visible" : "break-hidden"}`,
     ref: timerType === "break" ? arcRef : null
   }), /*#__PURE__*/external_React_default().createElement("div", {
     className: `progress-circle-complete${progress === 1 ? " visible" : ""}`
-  }), progressVisible && /*#__PURE__*/external_React_default().createElement("div", {
+  }), /*#__PURE__*/external_React_default().createElement("div", {
     role: "timer",
     className: "progress-circle-label"
   }, /*#__PURE__*/external_React_default().createElement(EditableTimerFields, {
@@ -13633,31 +13663,19 @@ const FocusTimer = ({
   }))), /*#__PURE__*/external_React_default().createElement("div", {
     className: "set-timer-controls-wrapper"
   }, /*#__PURE__*/external_React_default().createElement("div", {
-    role: "timer",
-    className: `set-timer-countdown progress-circle-label${progressVisible ? " hidden" : ""}`,
-    "aria-hidden": progressVisible
-  }, /*#__PURE__*/external_React_default().createElement(EditableTimerFields, {
-    minutesRef: idleMinutesRef,
-    secondsRef: idleSecondsRef,
-    onKeyDown: handleKeyDown,
-    onBeforeInput: handleBeforeInput,
-    onFocus: handleFocus,
-    timeLeft: timeLeft,
-    tabIndex: progressVisible ? -1 : 0,
-    onBlur: () => setTimerDuration()
-  })), /*#__PURE__*/external_React_default().createElement("div", {
-    className: `focus-timer-controls ${progressVisible ? "timer-running" : " "}`
-  }, /*#__PURE__*/external_React_default().createElement("moz-button", {
-    type: "primary",
+    className: `focus-timer-controls timer-running`
+  }, /*#__PURE__*/external_React_default().createElement("moz-button", FocusTimer_extends({}, !isRunning ? {
+    type: "primary"
+  } : {}, {
     iconsrc: `chrome://global/skin/media/${isRunning ? "pause" : "play"}-fill.svg`,
-    "data-l10n-id": isRunning ? "newtab-widget-timer-pause" : "newtab-widget-timer-play",
+    "data-l10n-id": isRunning ? "newtab-widget-timer-label-pause" : "newtab-widget-timer-label-play",
     onClick: toggleTimer
-  }), /*#__PURE__*/external_React_default().createElement("moz-button", {
+  })), /*#__PURE__*/external_React_default().createElement("moz-button", {
     type: "icon ghost",
     iconsrc: "chrome://newtab/content/data/content/assets/arrow-clockwise-16.svg",
     "data-l10n-id": "newtab-widget-timer-reset",
     onClick: resetTimer
-  }))), !showSystemNotifications && !timerData[timerType].isRunning && !progressVisible && /*#__PURE__*/external_React_default().createElement("p", {
+  }))), !showSystemNotifications && !timerData[timerType].isRunning && /*#__PURE__*/external_React_default().createElement("p", {
     className: "timer-notification-status",
     "data-l10n-id": "newtab-widget-timer-notification-warning"
   })) : null;

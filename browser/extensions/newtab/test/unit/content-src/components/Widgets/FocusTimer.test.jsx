@@ -108,11 +108,11 @@ describe("<FocusTimer>", () => {
 
   it("should start timer and show progress bar when pressing play", () => {
     wrapper
-      .find("moz-button[data-l10n-id='newtab-widget-timer-play']")
+      .find("moz-button[data-l10n-id='newtab-widget-timer-label-play']")
       .props()
       .onClick();
     wrapper.update();
-    assert.ok(wrapper.find(".progress-circle-wrapper.visible").exists());
+    assert.ok(wrapper.find(".progress-circle-wrapper").exists());
     assert.equal(dispatch.getCall(0).args[0].type, at.WIDGETS_TIMER_PLAY);
   });
 
@@ -140,7 +140,7 @@ describe("<FocusTimer>", () => {
     );
 
     const pauseBtn = wrapper.find(
-      "moz-button[data-l10n-id='newtab-widget-timer-pause']"
+      "moz-button[data-l10n-id='newtab-widget-timer-label-pause']"
     );
     assert.ok(pauseBtn.exists(), "Pause button should be rendered");
     pauseBtn.props().onClick();

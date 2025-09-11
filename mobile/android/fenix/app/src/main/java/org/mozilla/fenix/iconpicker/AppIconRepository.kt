@@ -63,7 +63,9 @@ class DefaultAppIconRepository(
             IconGroupTitle(R.string.alternative_app_icon_group_other) to listOf(
                 AppIcon.AppRetro2004,
                 AppIcon.AppPixelated,
+                AppIcon.AppCuddling,
                 AppIcon.AppPride,
+                AppIcon.AppFlaming,
                 AppIcon.AppMinimal,
                 AppIcon.AppMomo,
                 AppIcon.AppCool,

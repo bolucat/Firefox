@@ -7,6 +7,7 @@ package org.mozilla.fenix.snackbar
 import android.content.Context
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.navigation.NavController
+import com.google.android.material.snackbar.BaseTransientBottomBar.LENGTH_INDEFINITE
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -180,7 +181,7 @@ class SnackbarBinding(
                     is SnackbarState.SharedTabsSuccessfully -> {
                         snackbarDelegate.show(
                             text = when (state.tabs.size) {
-                                1 -> R.string.sync_sent_tab_snackbar
+                                1 -> R.string.sync_sent_tab_snackbar_2
                                 else -> R.string.sync_sent_tabs_snackbar
                             },
                             duration = Snackbar.LENGTH_SHORT,
@@ -241,9 +242,8 @@ class SnackbarBinding(
 
                     SnackbarState.WebCompatReportSent -> {
                         snackbarDelegate.show(
-                            text = context.getString(R.string.webcompat_reporter_success_snackbar_text),
-                            duration = context.getSnackbarTimeout(hasAction = true).value.toInt(),
-                            action = context.getString(R.string.webcompat_reporter_dismiss_success_snackbar_text),
+                            text = context.getString(R.string.webcompat_reporter_success_snackbar_text_2),
+                            duration = context.getSnackbarTimeout().value.toInt(),
                             listener = { snackbarDelegate.dismiss() },
                         )
 
@@ -280,8 +280,9 @@ class SnackbarBinding(
                             text = context.getString(R.string.download_item_status_failed),
                             subText = state.fileName,
                             subTextOverflow = TextOverflow.MiddleEllipsis,
-                            duration = context.getSnackbarTimeout(hasAction = true).value.toInt(),
+                            duration = LENGTH_INDEFINITE,
                             action = context.getString(R.string.download_failed_snackbar_action_details),
+                            withDismissAction = true,
                         ) {
                             navController.navigate(
                                 BrowserFragmentDirections.actionGlobalDownloadsFragment(),

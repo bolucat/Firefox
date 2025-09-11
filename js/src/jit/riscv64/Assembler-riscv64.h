@@ -393,7 +393,7 @@ class Assembler : public AssemblerShared,
   virtual BufferOffset emit(Instr x) {
     MOZ_ASSERT(hasCreator());
     BufferOffset offset = m_buffer.putInt(x);
-#ifdef DEBUG
+#if defined(DEBUG) || defined(JS_JITSPEW)
     if (!oom()) {
       DEBUG_PRINTF(
           "0x%" PRIx64 "(%" PRIxPTR "):",
@@ -591,7 +591,7 @@ class UseScratchRegisterScope {
   Register Acquire();
   bool hasAvailable() const;
   void Include(const GeneralRegisterSet& list) {
-    *available_ = GeneralRegisterSet::Intersect(*available_, list);
+    *available_ = GeneralRegisterSet::Union(*available_, list);
   }
   void Exclude(const GeneralRegisterSet& list) {
     *available_ = GeneralRegisterSet::Subtract(*available_, list);

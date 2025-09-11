@@ -768,7 +768,7 @@ void WaylandSurface::SetOpaqueRegionLocked(
 
   // Region should be in surface-logical coordinates, so we need to divide by
   // the buffer scale. We use round-in in order to be safe with subpixels.
-  UnknownScaleFactor scale(GetScaleSafe());
+  UnknownScaleFactor scale(GetScale());
 
   MozClearPointer(mPendingOpaqueRegion, wl_region_destroy);
   mPendingOpaqueRegion =
@@ -877,11 +877,7 @@ void WaylandSurface::ClearScaleLocked(const WaylandSurfaceLock& aProofOfLock) {
 void WaylandSurface::SetCeiledScaleLocked(
     const WaylandSurfaceLock& aProofOfLock, int aScreenCeiledScale) {
   MOZ_DIAGNOSTIC_ASSERT(&aProofOfLock == mSurfaceLock);
-
-  // Allow to set scale for unmapped surfaces unconditionally.
-  // It sets initial scale factor so we have something to work with.
-  if (!mIsMapped || IsCeiledScaleLocked(aProofOfLock)) {
-    // mScreenScale = (double)aScreenCeiledScale;
+  if (IsCeiledScaleLocked(aProofOfLock)) {
     mScreenScale = aScreenCeiledScale;
     LOGWAYLAND("WaylandSurface::SetCeiledScaleLocked() scale %f",
                (double)mScreenScale);
@@ -1063,7 +1059,7 @@ wl_egl_window* WaylandSurface::GetEGLWindow(nsIntSize aUnscaledSize) {
     return nullptr;
   }
 
-  auto scale = GetScaleSafe();
+  auto scale = GetScale();
   // TODO: Correct size rounding
   nsIntSize scaledSize((int)floor(aUnscaledSize.width * scale),
                        (int)floor(aUnscaledSize.height * scale));
@@ -1099,7 +1095,7 @@ bool WaylandSurface::SetEGLWindowSize(nsIntSize aScaledSize) {
     return true;
   }
 
-  auto scale = GetScaleSafe();
+  auto scale = GetScale();
   // TODO: Avoid precision lost here? Load coordinates from window?
   nsIntSize unscaledSize((int)round(aScaledSize.width / scale),
                          (int)round(aScaledSize.height / scale));
@@ -1201,7 +1197,7 @@ bool WaylandSurface::AttachLocked(const WaylandSurfaceLock& aSurfaceLock,
   MOZ_DIAGNOSTIC_ASSERT(&aSurfaceLock == mSurfaceLock);
   MOZ_DIAGNOSTIC_ASSERT(mSurface);
 
-  auto scale = GetScaleSafe();
+  auto scale = GetScale();
   LayoutDeviceIntSize bufferSize = aBuffer->GetSize();
   // TODO: rounding?
   SetSizeLocked(aSurfaceLock, gfx::IntSize(bufferSize.width, bufferSize.height),
@@ -1313,18 +1309,7 @@ double WaylandSurface::GetScale() {
     return scale;
   }
 
-  LOGVERBOSE("WaylandSurface::GetScale() no scale available");
-  return sNoScale;
-}
-
-double WaylandSurface::GetScaleSafe() {
-  double scale = GetScale();
-  if (scale != sNoScale) {
-    return scale;
-  }
-
-  // Return default scale for now - we'll repaint after show anyway.
-  return 1;
+  return ScreenHelperGTK::GetGTKMonitorFractionalScaleFactor();
 }
 
 void WaylandSurface::SetParentLocked(const WaylandSurfaceLock& aProofOfLock,

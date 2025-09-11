@@ -505,6 +505,33 @@ void MacroAssemblerX64::boxValue(JSValueType type, Register src,
   orq(src, dest);
 }
 
+void MacroAssemblerX64::boxValue(Register type, Register src, Register dest) {
+  MOZ_ASSERT(src != dest);
+
+#ifdef DEBUG
+  Label check, done;
+  asMasm().branch32(Assembler::Equal, type, Imm32(JSVAL_TYPE_INT32), &check);
+  asMasm().branch32(Assembler::Equal, type, Imm32(JSVAL_TYPE_BOOLEAN), &check);
+  asMasm().branch32(Assembler::Equal, type, Imm32(JSVAL_TYPE_NULL), &check);
+  asMasm().branch32(Assembler::NotEqual, type, Imm32(JSVAL_TYPE_UNDEFINED),
+                    &done);
+  {
+    bind(&check);
+    asMasm().branchPtr(Assembler::BelowOrEqual, src, ImmWord(UINT32_MAX),
+                       &done);
+    breakpoint();
+  }
+  bind(&done);
+#endif
+
+  if (type != dest) {
+    movq(type, dest);
+  }
+  orq(Imm32(JSVAL_TAG_MAX_DOUBLE), dest);
+  shlq(Imm32(JSVAL_TAG_SHIFT), dest);
+  orq(src, dest);
+}
+
 void MacroAssemblerX64::handleFailureWithHandlerTail(
     Label* profilerExitTail, Label* bailoutTail,
     uint32_t* returnValueCheckOffset) {
@@ -914,6 +941,11 @@ void MacroAssembler::moveValue(const ValueOperand& src,
 }
 
 void MacroAssembler::moveValue(const Value& src, const ValueOperand& dest) {
+  if (!src.isGCThing()) {
+    movePtr(ImmWord(src.asRawBits()), dest.valueReg());
+    return;
+  }
+
   movWithPatch(ImmWord(src.asRawBits()), dest.valueReg());
   writeDataRelocation(src);
 }
@@ -992,10 +1024,15 @@ void MacroAssembler::branchTestValue(Condition cond, const ValueOperand& lhs,
                                      const Value& rhs, Label* label) {
   MOZ_ASSERT(cond == Equal || cond == NotEqual);
   MOZ_ASSERT(!rhs.isNaN());
-  ScratchRegisterScope scratch(*this);
-  MOZ_ASSERT(lhs.valueReg() != scratch);
-  moveValue(rhs, ValueOperand(scratch));
-  cmpPtr(lhs.valueReg(), scratch);
+
+  if (!rhs.isGCThing()) {
+    cmpPtr(lhs.valueReg(), ImmWord(rhs.asRawBits()));
+  } else {
+    ScratchRegisterScope scratch(*this);
+    MOZ_ASSERT(lhs.valueReg() != scratch);
+    moveValue(rhs, ValueOperand(scratch));
+    cmpPtr(lhs.valueReg(), scratch);
+  }
   j(cond, label);
 }
 

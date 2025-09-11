@@ -2252,9 +2252,18 @@ bool IRGenerator::canOptimizeConstantDataProperty(NativeObject* holder,
 
   // Atomize strings to ensure the slot's value won't be mutated by the
   // LLoadFixedSlotAndAtomize or LLoadDynamicSlotAndAtomize instructions in Ion.
-  // This matters because we'll emit CacheIR instructions to assert the slot's
-  // Value matches the current Value in emitConstantDataPropertyResult.
+  // This matters because, for GC reasons, the Value that will be stored in the
+  // IC stub in a WeakValueField must match the Value stored in the object slot.
+  // In emitConstantDataPropertyResult we emit CacheIR instructions to assert
+  // this.
+  //
+  // We don't optimize the constant property if the string is very long because
+  // atomizing such strings can be slow.
   if (result.isString() && !result.toString()->isAtom()) {
+    static constexpr size_t MaxLengthForAtomize = 1000;
+    if (result.toString()->length() > MaxLengthForAtomize) {
+      return false;
+    }
     JSAtom* atom = AtomizeString(cx_, result.toString());
     if (!atom) {
       cx_->recoverFromOutOfMemory();
@@ -12555,8 +12564,6 @@ AttachDecision CallIRGenerator::tryAttachFunApply(HandleFunction calleeFunc) {
     }
     format = CallFlags::FunApplyArgsObj;
   } else if (args_[1].isObject() && args_[1].toObject().is<ArrayObject>() &&
-             args_[1].toObject().as<ArrayObject>().length() <=
-                 JIT_ARGS_LENGTH_MAX &&
              IsPackedArray(&args_[1].toObject())) {
     format = CallFlags::FunApplyArray;
   } else {
@@ -12582,6 +12589,12 @@ AttachDecision CallIRGenerator::tryAttachFunApply(HandleFunction calleeFunc) {
     InlinableNativeIRGenerator nativeGen(*this, target, newTarget, thisValue,
                                          args, targetFlags);
     TRY_ATTACH(nativeGen.tryAttachStub());
+  }
+  if (format == CallFlags::FunApplyArray &&
+      args_[1].toObject().as<ArrayObject>().length() > JIT_ARGS_LENGTH_MAX) {
+    // We check this after trying to attach inlinable natives, because some
+    // inlinable natives can safely ignore the limit.
+    return AttachDecision::NoAction;
   }
 
   if (mode_ == ICState::Mode::Specialized && !isScripted &&
@@ -12874,6 +12887,11 @@ AttachDecision InlinableNativeIRGenerator::tryAttachStub() {
     // Can't inline spread calls when bound arguments are present.
     MOZ_ASSERT(!hasBoundArguments());
 
+    // Note: we haven't compared args.length() to JIT_ARGS_LENGTH_MAX
+    // yet, to support natives that can handle more arguments without
+    // having to push them on the stack. Spread-call inlined natives
+    // are responsible for enforcing the limit on themselves if
+    // necessary.
     switch (native) {
       case InlinableNative::MathMin:
         return tryAttachSpreadMathMinMax(/*isMax = */ false);
@@ -13554,14 +13572,16 @@ AttachDecision CallIRGenerator::tryAttachCallNative(HandleFunction calleeFunc) {
     return AttachDecision::NoAction;
   }
 
-  // Verify that spread calls have a reasonable number of arguments.
-  if (isSpread && args_.length() > JIT_ARGS_LENGTH_MAX) {
-    return AttachDecision::NoAction;
-  }
-
   // Check for specific native-function optimizations.
   if (isSpecialized) {
     TRY_ATTACH(tryAttachInlinableNative(calleeFunc, flags));
+  }
+
+  // Verify that spread calls have a reasonable number of arguments.
+  // We check this after trying to attach inlinable natives, because some
+  // inlinable natives can safely ignore the limit.
+  if (isSpread && args_.length() > JIT_ARGS_LENGTH_MAX) {
+    return AttachDecision::NoAction;
   }
 
   // Load argc.

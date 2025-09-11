@@ -35,6 +35,60 @@ class nsDisplayText;
 namespace dom {
 class CharacterDataBuffer;
 }
+
+/**
+ * Helper for CSS text-autospace, used by nsTextFrame::PropertyProvider.
+ */
+class MOZ_STACK_CLASS TextAutospace final {
+ public:
+  enum class CharClass : uint8_t {
+    Other,
+    CombiningMark,
+    Ideograph,
+    NonIdeographicLetter,
+    NonIdeographicNumeral,
+  };
+
+  enum class Boundary : uint8_t {
+    IdeographAlpha,
+    IdeographNumeric,
+  };
+  using BoundarySet = EnumSet<Boundary>;
+
+  // Returns true if inter-script spacing may be added at boundaries.
+  static bool Enabled(const StyleTextAutospace& aStyleTextAutospace,
+                      const nsIFrame* aFrame,
+                      const dom::CharacterDataBuffer& aBuffer);
+
+  TextAutospace(const StyleTextAutospace& aStyleTextAutospace,
+                nscoord aSpacing);
+
+  nscoord InterScriptSpacing() const { return mInterScriptSpacing; }
+
+  // Return true if inter-script spacing should be applied between aPrevClass
+  // and aCurrClass.
+  bool ShouldApplySpacing(CharClass aPrevClass, CharClass aCurrClass) const;
+
+  // Return true if aChar is an ideograph.
+  // https://drafts.csswg.org/css-text-4/#ideographs
+  bool IsIdeograph(char32_t aChar) const;
+
+  // Get character class for aChar.
+  // https://drafts.csswg.org/css-text-4/#text-spacing-classes
+  CharClass GetCharClass(char32_t aChar) const;
+
+ private:
+  BoundarySet InitBoundarySet(
+      const StyleTextAutospace& aStyleTextAutospace) const;
+
+  // Enabled boundaries. When non-empty, insert spacing at these class
+  // boundaries (e.g. ideograph-alpha, ideograph-numeric).
+  BoundarySet mBoundarySet;
+
+  // Inter-script spacing amount to add at boundaries.
+  nscoord mInterScriptSpacing{};
+};
+
 }  // namespace mozilla
 
 class nsTextFrame : public nsIFrame {
@@ -71,7 +125,7 @@ class nsTextFrame : public nsIFrame {
      * cannot be called, nor can GetOriginalLength().
      */
     PropertyProvider(gfxTextRun* aTextRun, const nsStyleText* aTextStyle,
-                     const mozilla::dom::CharacterDataBuffer* aFrag,
+                     const mozilla::dom::CharacterDataBuffer& aBuffer,
                      nsTextFrame* aFrame, const gfxSkipCharsIterator& aStart,
                      int32_t aLength, nsIFrame* aLineContainer,
                      nscoord aOffsetFromBlockOriginForTabs,
@@ -136,7 +190,7 @@ class nsTextFrame : public nsIFrame {
       NS_ASSERTION(mLength != INT32_MAX, "Length not known");
       return mLength;
     }
-    const mozilla::dom::CharacterDataBuffer* GetCharacterDataBuffer() const {
+    const mozilla::dom::CharacterDataBuffer& GetCharacterDataBuffer() const {
       return mCharacterDataBuffer;
     }
 
@@ -171,11 +225,14 @@ class nsTextFrame : public nsIFrame {
 
     void InitFontGroupAndFontMetrics() const;
 
+    // Initialize TextAutospace, if inter-script spacing applies.
+    void InitTextAutospace();
+
     const RefPtr<gfxTextRun> mTextRun;
     mutable gfxFontGroup* mFontGroup;
     mutable RefPtr<nsFontMetrics> mFontMetrics;
     const nsStyleText* mTextStyle;
-    const mozilla::dom::CharacterDataBuffer* mCharacterDataBuffer;
+    const mozilla::dom::CharacterDataBuffer& mCharacterDataBuffer;
     const nsIFrame* mLineContainer;
     nsTextFrame* mFrame;
 
@@ -200,6 +257,9 @@ class nsTextFrame : public nsIFrame {
 
     // space for each letter
     const gfxFloat mLetterSpacing;
+
+    // If TextAutospace exists, inter-script spacing applies.
+    Maybe<mozilla::TextAutospace> mTextAutospace;
 
     // min advance for <tab> char
     mutable gfxFloat mMinTabAdvance;
@@ -314,8 +374,8 @@ class nsTextFrame : public nsIFrame {
   // Returns this text frame's content's text fragment.
   //
   // Assertions in Init() ensure we only ever get a Text node as content.
-  const mozilla::dom::CharacterDataBuffer* CharacterDataBuffer() const {
-    return &mContent->AsText()->DataBuffer();
+  const mozilla::dom::CharacterDataBuffer& CharacterDataBuffer() const {
+    return mContent->AsText()->DataBuffer();
   }
 
   /**
@@ -745,7 +805,7 @@ class nsTextFrame : public nsIFrame {
     NoTrimBefore = 1 << 2
   };
   TrimmedOffsets GetTrimmedOffsets(
-      const mozilla::dom::CharacterDataBuffer* aFrag,
+      const mozilla::dom::CharacterDataBuffer& aBuffer,
       TrimmedOffsetFlags aFlags = TrimmedOffsetFlags::Default) const;
 
   // Similar to Reflow(), but for use from nsLineLayout
@@ -794,6 +854,10 @@ class nsTextFrame : public nsIFrame {
   void SetTrimmableWS(gfxTextRun::TrimmableWS aTrimmableWS);
   gfxTextRun::TrimmableWS GetTrimmableWS() const;
   void ClearTrimmableWS();
+
+  // Return ShapedTextFlags::TEXT_ENABLE_SPACING if spacing is needed due to
+  // letter-spacing, word-spacing, etc.
+  mozilla::gfx::ShapedTextFlags GetSpacingFlags() const;
 
  protected:
   virtual ~nsTextFrame();
@@ -1112,8 +1176,7 @@ class nsTextFrame : public nsIFrame {
     const uint32_t mEndOffset;
     const TextOffsetType mOffsetType;
     const TrailingWhitespace mTrimTrailingWhitespace;
-    const mozilla::dom::CharacterDataBuffer* const mCharacterDataBuffer =
-        nullptr;
+    const mozilla::dom::CharacterDataBuffer& mCharacterDataBuffer;
     // Mutable state, updated as we loop over the continuations.
     nsBlockFrame* mLineContainer = nullptr;
     uint32_t mOffsetInRenderedString = 0;

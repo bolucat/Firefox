@@ -491,7 +491,7 @@ bool NativeLayerRootWayland::CommitToScreen() {
     RequestUpdateOnMainThreadLocked(lock);
   }
 
-  const double scale = mRootSurface->GetScaleSafe();
+  const double scale = mRootSurface->GetScale();
   mRootAllLayersRendered = true;
   for (RefPtr<NativeLayerWayland>& layer : mSublayers) {
     layer->RenderLayer(scale);
@@ -754,7 +754,10 @@ void NativeLayerWayland::SetScalelocked(
 
 void NativeLayerWayland::UpdateLayerPlacementLocked(
     const widget::WaylandSurfaceLock& aProofOfLock) {
-  MOZ_DIAGNOSTIC_ASSERT(IsMapped());
+  // It's possible that NativeLayerWayland is unmapped/waiting to unmap.
+  if (!IsMapped()) {
+    return;
+  }
 
   if (!mState.mMutatedPlacement) {
     return;

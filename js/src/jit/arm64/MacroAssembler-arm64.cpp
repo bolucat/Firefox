@@ -46,6 +46,8 @@ static inline ARMRegister R(Register r, Width w) {
 
 void MacroAssemblerCompat::boxValue(JSValueType type, Register src,
                                     Register dest) {
+  MOZ_ASSERT(src != dest);
+
 #ifdef DEBUG
   if (type == JSVAL_TYPE_INT32 || type == JSVAL_TYPE_BOOLEAN) {
     Label upper32BitsZeroed;
@@ -57,6 +59,32 @@ void MacroAssemblerCompat::boxValue(JSValueType type, Register src,
 #endif
   Orr(ARMRegister(dest, 64), ARMRegister(src, 64),
       Operand(ImmShiftedTag(type).value));
+}
+
+void MacroAssemblerCompat::boxValue(Register type, Register src,
+                                    Register dest) {
+  MOZ_ASSERT(src != dest);
+
+#ifdef DEBUG
+  Label check, done;
+  asMasm().branch32(Assembler::Equal, type, Imm32(JSVAL_TYPE_INT32), &check);
+  asMasm().branch32(Assembler::Equal, type, Imm32(JSVAL_TYPE_BOOLEAN), &check);
+  asMasm().branch32(Assembler::Equal, type, Imm32(JSVAL_TYPE_NULL), &check);
+  asMasm().branch32(Assembler::NotEqual, type, Imm32(JSVAL_TYPE_UNDEFINED),
+                    &done);
+  {
+    bind(&check);
+    asMasm().branchPtr(Assembler::BelowOrEqual, src, ImmWord(UINT32_MAX),
+                       &done);
+    breakpoint();
+  }
+  bind(&done);
+#endif
+
+  Orr(ARMRegister(dest, 64), ARMRegister(type, 64),
+      Operand(JSVAL_TAG_MAX_DOUBLE));
+  Orr(ARMRegister(dest, 64), ARMRegister(src, 64),
+      Operand(ARMRegister(dest, 64), vixl::LSL, JSVAL_TAG_SHIFT));
 }
 
 #ifdef ENABLE_WASM_SIMD
@@ -1910,11 +1938,16 @@ void MacroAssembler::branchTestValue(Condition cond, const ValueOperand& lhs,
                                      const Value& rhs, Label* label) {
   MOZ_ASSERT(cond == Equal || cond == NotEqual);
   MOZ_ASSERT(!rhs.isNaN());
-  vixl::UseScratchRegisterScope temps(this);
-  const ARMRegister scratch64 = temps.AcquireX();
-  MOZ_ASSERT(scratch64.asUnsized() != lhs.valueReg());
-  moveValue(rhs, ValueOperand(scratch64.asUnsized()));
-  Cmp(ARMRegister(lhs.valueReg(), 64), scratch64);
+
+  if (!rhs.isGCThing()) {
+    Cmp(ARMRegister(lhs.valueReg(), 64), Operand(rhs.asRawBits()));
+  } else {
+    vixl::UseScratchRegisterScope temps(this);
+    const ARMRegister scratch64 = temps.AcquireX();
+    MOZ_ASSERT(scratch64.asUnsized() != lhs.valueReg());
+    moveValue(rhs, ValueOperand(scratch64.asUnsized()));
+    Cmp(ARMRegister(lhs.valueReg(), 64), scratch64);
+  }
   B(label, cond);
 }
 

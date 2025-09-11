@@ -698,7 +698,7 @@ class TabsTrayFragment : AppCompatDialogFragment() {
         isNewCollection: Boolean = false,
     ) {
         val messageResId = when {
-            isNewCollection -> R.string.create_collection_tabs_saved_new_collection
+            isNewCollection -> R.string.create_collection_tabs_saved_new_collection_2
             tabSize == 1 -> R.string.create_collection_tab_saved
             else -> return // Don't show snackbar for multiple tabs
         }
@@ -721,7 +721,7 @@ class TabsTrayFragment : AppCompatDialogFragment() {
         val displayFolderTitle = parentFolderTitle ?: getString(R.string.library_bookmarks)
         val displayResId = when {
             tabSize > 1 -> {
-                R.string.snackbar_message_bookmarks_saved_in
+                R.string.snackbar_message_bookmarks_saved_in_2
             }
             else -> {
                 R.string.bookmark_saved_in_folder_snackbar

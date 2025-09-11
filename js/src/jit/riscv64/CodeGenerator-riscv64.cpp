@@ -537,7 +537,7 @@ void CodeGenerator::visitExtendInt32ToInt64(LExtendInt32ToInt64* lir) {
   if (lir->mir()->isUnsigned()) {
     masm.move32To64ZeroExtend(ToRegister(input), Register64(output));
   } else {
-    masm.slliw(output, ToRegister(input), 0);
+    masm.SignExtendWord(output, ToRegister(input));
   }
 }
 
@@ -1273,7 +1273,7 @@ void CodeGenerator::visitBitNotI(LBitNotI* ins) {
   const LDefinition* dest = ins->output();
   MOZ_ASSERT(!input->isConstant());
 
-  masm.nor(ToRegister(dest), ToRegister(input), zero);
+  masm.not_(ToRegister(dest), ToRegister(input));
 }
 
 void CodeGenerator::visitBitNotI64(LBitNotI64* ins) {
@@ -1281,7 +1281,7 @@ void CodeGenerator::visitBitNotI64(LBitNotI64* ins) {
   MOZ_ASSERT(!IsConstant(input));
   Register64 inputReg = ToRegister64(input);
   MOZ_ASSERT(inputReg == ToOutRegister64(ins));
-  masm.nor(inputReg.reg, inputReg.reg, zero);
+  masm.not_(inputReg.reg, inputReg.reg);
 }
 
 void CodeGenerator::visitBitOpI(LBitOpI* ins) {
@@ -1295,7 +1295,7 @@ void CodeGenerator::visitBitOpI(LBitOpI* ins) {
         masm.ma_or(ToRegister(dest), ToRegister(lhs), Imm32(ToInt32(rhs)));
       } else {
         masm.or_(ToRegister(dest), ToRegister(lhs), ToRegister(rhs));
-        masm.slliw(ToRegister(dest), ToRegister(dest), 0);
+        masm.SignExtendWord(ToRegister(dest), ToRegister(dest));
       }
       break;
     case JSOp::BitXor:
@@ -1304,7 +1304,7 @@ void CodeGenerator::visitBitOpI(LBitOpI* ins) {
       } else {
         masm.ma_xor(ToRegister(dest), ToRegister(lhs),
                     Operand(ToRegister(rhs)));
-        masm.slliw(ToRegister(dest), ToRegister(dest), 0);
+        masm.SignExtendWord(ToRegister(dest), ToRegister(dest));
       }
       break;
     case JSOp::BitAnd:
@@ -1312,7 +1312,7 @@ void CodeGenerator::visitBitOpI(LBitOpI* ins) {
         masm.ma_and(ToRegister(dest), ToRegister(lhs), Imm32(ToInt32(rhs)));
       } else {
         masm.and_(ToRegister(dest), ToRegister(lhs), ToRegister(rhs));
-        masm.slliw(ToRegister(dest), ToRegister(dest), 0);
+        masm.SignExtendWord(ToRegister(dest), ToRegister(dest));
       }
       break;
     default:

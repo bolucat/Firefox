@@ -38,7 +38,6 @@ export default class IPProtectionContentElement extends MozLitElement {
     upgradeEl: "#upgrade-vpn-content",
     activeSubscriptionEl: "#active-subscription-vpn-content",
     supportLinkEl: "#vpn-support-link",
-    downloadButtonEl: "#download-vpn-button",
   };
 
   static properties = {
@@ -104,7 +103,7 @@ export default class IPProtectionContentElement extends MozLitElement {
       this.state &&
       this.state.isProtectionEnabled &&
       this.state.protectionEnabledSince &&
-      this.state.isSignedIn
+      !this.state.isSignedOut
     );
   }
 
@@ -190,17 +189,8 @@ export default class IPProtectionContentElement extends MozLitElement {
     Glean.ipprotection.clickUpgradeButton.record();
   }
 
-  handleDownload(event) {
-    const win = event.target.ownerGlobal;
-    win.openWebLinkIn(LINKS.DOWNLOAD_URL, "tab");
-    // Close the panel
-    this.dispatchEvent(
-      new CustomEvent("IPProtection:Close", { bubbles: true })
-    );
-  }
-
   focus() {
-    if (!this.state.isSignedIn) {
+    if (this.state.isSignedOut) {
       this.signedOutEl?.focus();
     } else {
       this.connectionToggleEl?.focus();
@@ -381,40 +371,14 @@ export default class IPProtectionContentElement extends MozLitElement {
     `;
   }
 
-  afterUpgradeTemplate() {
-    return html`<div
-      id="active-subscription-vpn-content"
-      class="vpn-bottom-content"
-    >
-      <h2
-        id="active-subscription-vpn-title"
-        class="vpn-subtitle"
-        data-l10n-id="active-subscription-vpn-title"
-      ></h2>
-      <p
-        id="active-subscription-vpn-message"
-        data-l10n-id="active-subscription-vpn-message"
-      ></p>
-      <moz-button
-        id="download-vpn-button"
-        class="vpn-button"
-        @click=${this.handleDownload}
-        data-l10n-id="get-vpn-button"
-        type="primary"
-      ></moz-button>
-    </div>`;
-  }
-
   mainContentTemplate() {
     // TODO: Update support-page with new SUMO link for Mozilla VPN - Bug 1975474
-    if (!this.state.isSignedIn) {
+    if (this.state.isSignedOut) {
       return html` <ipprotection-signedout></ipprotection-signedout> `;
     }
     return html`
       ${this.statusCardTemplate()}
-      ${this.state.hasUpgraded
-        ? this.afterUpgradeTemplate()
-        : this.beforeUpgradeTemplate()}
+      ${!this.state.hasUpgraded ? this.beforeUpgradeTemplate() : null}
     `;
   }
 

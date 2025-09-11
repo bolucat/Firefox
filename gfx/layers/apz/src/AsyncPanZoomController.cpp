@@ -2216,7 +2216,7 @@ nsEventStatus AsyncPanZoomController::OnKeyboard(const KeyboardInput& aEvent) {
              ToString(destination).c_str());
     SmoothScrollTo(std::move(*snapDestination), ScrollTriggeredByScript::No,
                    ScrollAnimationKind::SmoothMsd, ViewportType::Visual,
-                   ScrollOrigin::NotSpecified);
+                   ScrollOrigin::NotSpecified, GetFrameTime().Time());
     return nsEventStatus_eConsumeDoDefault;
   }
 
@@ -2405,6 +2405,11 @@ bool AsyncPanZoomController::CanScroll(const InputData& aEvent) const {
   return CanScroll(delta);
 }
 
+bool AsyncPanZoomController::BlocksPullToRefreshForOverflowHidden() const {
+  return IsRootContent() &&
+         GetScrollMetadata().GetOverflow().mOverflowY == StyleOverflow::Hidden;
+}
+
 ScrollDirections AsyncPanZoomController::GetAllowedHandoffDirections(
     HandoffConsumer aConsumer) const {
   ScrollDirections result;
@@ -2423,8 +2428,8 @@ ScrollDirections AsyncPanZoomController::GetAllowedHandoffDirections(
     // Bug 1902313: Block pull-to-refresh on pages with overflow-y:hidden
     // to match Chrome behaviour.
     bool blockPullToRefreshForOverflowHidden =
-        isRoot && aConsumer == HandoffConsumer::PullToRefresh &&
-        GetScrollMetadata().GetOverflow().mOverflowY == StyleOverflow::Hidden;
+        aConsumer == HandoffConsumer::PullToRefresh &&
+        BlocksPullToRefreshForOverflowHidden();
     if (!blockPullToRefreshForOverflowHidden) {
       result += ScrollDirection::eVertical;
     }
@@ -2479,9 +2484,13 @@ bool AsyncPanZoomController::CanVerticalScrollWithDynamicToolbar() const {
   return mY.CanVerticalScrollWithDynamicToolbar();
 }
 
-bool AsyncPanZoomController::CanOverscrollUpwards() const {
+bool AsyncPanZoomController::CanOverscrollUpwards(
+    HandoffConsumer aConsumer) const {
   RecursiveMutexAutoLock lock(mRecursiveMutex);
-  return !mY.CanScrollTo(eSideTop) && mY.OverscrollBehaviorAllowsHandoff();
+
+  return !(aConsumer == HandoffConsumer::PullToRefresh &&
+           BlocksPullToRefreshForOverflowHidden()) &&
+         !mY.CanScrollTo(eSideTop) && mY.OverscrollBehaviorAllowsHandoff();
 }
 
 bool AsyncPanZoomController::CanScrollDownwards() const {
@@ -2711,7 +2720,7 @@ nsEventStatus AsyncPanZoomController::OnScrollWheel(
                  ToString(startPosition).c_str());
         SmoothScrollTo(std::move(*snapDestination), ScrollTriggeredByScript::No,
                        ScrollAnimationKind::SmoothMsd, ViewportType::Visual,
-                       ScrollOrigin::NotSpecified);
+                       ScrollOrigin::NotSpecified, GetFrameTime().Time());
         break;
       }
 
@@ -4181,7 +4190,7 @@ void AsyncPanZoomController::SmoothScrollTo(
     CSSSnapDestination&& aDestination,
     ScrollTriggeredByScript aTriggeredByScript,
     ScrollAnimationKind aAnimationKind, ViewportType aViewportToScroll,
-    ScrollOrigin aOrigin) {
+    ScrollOrigin aOrigin, TimeStamp aStartTime) {
   MOZ_ASSERT(aAnimationKind == ScrollAnimationKind::Smooth ||
              aAnimationKind == ScrollAnimationKind::SmoothMsd);
   MOZ_ASSERT_IF(aAnimationKind == ScrollAnimationKind::Smooth,
@@ -4203,8 +4212,8 @@ void AsyncPanZoomController::SmoothScrollTo(
     if (animation->CanExtend(aViewportToScroll, aOrigin)) {
       APZC_LOG("%p updating destination on existing animation\n", this);
       animation->UpdateDestinationAndSnapTargets(
-          GetFrameTime().Time(), destination, velocity,
-          std::move(aDestination.mTargetIds), aTriggeredByScript);
+          aStartTime, destination, velocity, std::move(aDestination.mTargetIds),
+          aTriggeredByScript);
       return;
     }
   }
@@ -4219,9 +4228,9 @@ void AsyncPanZoomController::SmoothScrollTo(
 
   RefPtr<SmoothScrollAnimation> animation = SmoothScrollAnimation::Create(
       *this, aAnimationKind, aViewportToScroll, aOrigin);
-  animation->UpdateDestinationAndSnapTargets(
-      GetFrameTime().Time(), destination, velocity,
-      std::move(aDestination.mTargetIds), aTriggeredByScript);
+  animation->UpdateDestinationAndSnapTargets(aStartTime, destination, velocity,
+                                             std::move(aDestination.mTargetIds),
+                                             aTriggeredByScript);
   StartAnimation(animation.forget());
 }
 
@@ -5658,6 +5667,10 @@ void AsyncPanZoomController::NotifyLayersUpdated(
                this);
       needContentRepaint = true;
     }
+
+    APZC_LOG("%p first-paint at scroll position %s\n", this,
+             ToString(Metrics().GetVisualScrollOffset()).c_str());
+
   } else {
     // If we're not taking the aLayerMetrics wholesale we still need to pull
     // in some things into our local Metrics() because these things are
@@ -5787,6 +5800,9 @@ void AsyncPanZoomController::NotifyLayersUpdated(
   bool smoothScrollRequested = false;
   bool didCancelAnimation = false;
   Maybe<CSSPoint> cumulativeRelativeDelta;
+  // Sample the current times once, to ensure different scroll updates don't see
+  // different times.
+  TimeStamp transactionTime = GetFrameTime().Time();
   for (const auto& scrollUpdate : aScrollMetadata.GetScrollUpdates()) {
     APZC_LOG("%p processing scroll update %s\n", this,
              ToString(scrollUpdate).c_str());
@@ -5850,7 +5866,8 @@ void AsyncPanZoomController::NotifyLayersUpdated(
       SmoothScrollTo(
           CSSSnapDestination{destination, scrollUpdate.GetSnapTargetIds()},
           scrollUpdate.GetScrollTriggeredByScript(), animationKind,
-          scrollUpdate.GetViewportType(), scrollUpdate.GetOrigin());
+          scrollUpdate.GetViewportType(), scrollUpdate.GetOrigin(),
+          transactionTime);
       continue;
     }
 
@@ -6915,7 +6932,7 @@ void AsyncPanZoomController::ScrollSnapNear(const CSSPoint& aDestination,
                ToString(snapDestination->mPosition).c_str());
       SmoothScrollTo(std::move(*snapDestination), ScrollTriggeredByScript::No,
                      ScrollAnimationKind::SmoothMsd, ViewportType::Visual,
-                     ScrollOrigin::NotSpecified);
+                     ScrollOrigin::NotSpecified, GetFrameTime().Time());
     }
   }
 }
@@ -6975,7 +6992,7 @@ void AsyncPanZoomController::ScrollSnapToDestination() {
 
     SmoothScrollTo(std::move(*snapDestination), ScrollTriggeredByScript::No,
                    ScrollAnimationKind::SmoothMsd, ViewportType::Visual,
-                   ScrollOrigin::NotSpecified);
+                   ScrollOrigin::NotSpecified, GetFrameTime().Time());
   }
 }
 

@@ -178,6 +178,8 @@ android {
         }
         benchmark releaseTemplate >> {
             initWith buildTypes.nightly
+            shrinkResources = false
+            minifyEnabled = false
             applicationIdSuffix ".fenix"
             signingConfig = signingConfigs.debug
             debuggable false
@@ -253,7 +255,7 @@ android {
             if (project.hasProperty("benchmarkTest")) {
                 include "arm64-v8a"
             } else {
-                include "x86", "armeabi-v7a", "arm64-v8a", "x86_64"
+                include "armeabi-v7a", "arm64-v8a", "x86_64"
                 if (gradle.mozconfig.substs.MOZILLA_OFFICIAL) {
                     universalApk true
                 }
@@ -715,6 +717,12 @@ dependencies {
     testImplementation libs.robolectric
 
     androidTestImplementation libs.androidx.benchmark.junit4
+    // We need a version constraint due to AGP silently trying to downgrade the version otherwise.
+    // https://issuetracker.google.com/issues/349628366
+    constraints {
+        implementation(libs.androidx.concurrent)
+    }
+    androidTestImplementation libs.androidx.concurrent
     androidTestImplementation platform(libs.androidx.compose.bom)
     androidTestImplementation libs.androidx.compose.ui.test
     androidTestImplementation libs.androidx.test.core
